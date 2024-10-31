@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+    @font-face {
+        font-family: 'FontSpring-hvy';
+        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-heavy.otf);
+    }
+
+    @font-face {
+        font-family: 'Satoshi';
+        src: url(/public/assets/fonts/satoshi/Satoshi-Regular.otf);
+    }
+    
+    @font-face {
+        font-family: 'FontSpring-demi';
+        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demibold.otf);
+    }
+}
