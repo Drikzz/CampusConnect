@@ -1,21 +1,124 @@
+@import "flowbite/dist/flowbite.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-
     @font-face {
-        font-family: 'FontSpring-hvy';
+        font-family: "FontSpring-hvy";
         src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-heavy.otf);
     }
 
     @font-face {
-        font-family: 'Satoshi';
-        src: url(/public/assets/fonts/satoshi/Satoshi-Regular.otf);
-    }
-    
-    @font-face {
-        font-family: 'FontSpring-demi';
+        font-family: "FontSpring-demi";
         src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demibold.otf);
     }
+
+    @font-face {
+        font-family: "FontSpring-bold";
+        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-bold.otf);
+    }
+
+    @font-face {
+        font-family: "FontSpring-extra-bold";
+        src: url(../../public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demiboldoblique.otf);
+    }
+
+    @font-face {
+        font-family: "Satoshi";
+        src: url(/public/assets/fonts/satoshi/Satoshi-Regular.otf);
+    }
+
+    @font-face {
+        font-family: "Satoshi-bold";
+        src: url(/public/assets/fonts/satoshi/Satoshi-Bold.otf);
+    }
+
+    @font-face {
+        font-family: 'FontSpring-bold-oblique';
+        src:url(../../public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-boldoblique.otf);
+    }
+
+
+    select {
+        -moz-appearance: none;
+        -webkit-appearance: none;
+    }
+
+    /* .error {
+        @apply text-xs text-red-500 mt-1;
+    } */
+
+    .background {
+        background-image: url(/public/imgs/wmsu_pic.jpg);
+        background-position: center;
+        background-size: cover;
+        /* backdrop-filter: blur(100px); */
+        background-repeat: no-repeat;
+        object-fit: cover;
+        height: 100%;
+    }
+
+    /* for background blur */
+    .background::after {
+        content: "";
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backdrop-filter: blur(5px); /*apply the blur effect*/
+        pointer-events: none; /* make the */
+    }
+
+    /* .register{
+        z-index: 2;
+        display: flex;
+        margin-top: 50px;
+        margin-bottom: 100px;
+    }
+
+    .img{
+    z-index: 2;
+    width: 600px;
+    height: 600px;
+    margin-left: 10%;
+   }
+
+   .welcome{
+    z-index: 2;
+    position: absolute;
+    top: 15%;
+    left: 70%;
+   }
+
+   .input{
+        @apply block w-80 rounded-md border-0 p-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-500 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm bg-white;
+   }
+
+   .reg-form{
+    z-index: 2;
+    transform: translateY(90px);
+    margin-left: 15%;
+    width: 34%;
+    height: 420px;
+    padding: 20px;
+    border-radius: 10px;
+   }
+
+   .register2{
+    z-index: 2;
+    display: flex;
+    margin-top: 50px;
+    margin-bottom: 100px;
+    }
+
+    .reg-form2{
+        z-index: 2;
+        transform: translateY(90px);
+        margin-left: 5%;
+        width: 42.5%;
+        height: 430px;
+        padding: 20px;
+        border-radius: 10px;
+       } */
 }

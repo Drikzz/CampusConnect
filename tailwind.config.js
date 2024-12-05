@@ -8,20 +8,30 @@ export default {
         './resources/**/*.blade.php',
         './resources/**/*.js',
         './resources/**/*.vue',
+        "./node_modules/flowbite/**/*.js"
     ],
     theme: {
         extend: {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
                 'Header': ['FontSpring-hvy', 'sans-serif'],
+                'Footer': ['FontSpring-demi', 'sans-serif'],
+                'FontSpring-bold' : ['FontSpring-bold', 'sans-serif'],
+                'FontSpring-extra-bold' : ['FontSpring-extra-bold', 'sans-serif'],
                 'Satoshi': ['Satoshi', 'sans-serif'],
-                'Footer': ['FontSpring-demi', 'sans-serif']
+                'Satoshi-bold': ['Satoshi-bold', 'sans-serif'],
+                'FontSpring-bold': ['FontSpring-bold', 'sans-serif'],
+                'FontSpring-bold-oblique': ['FontSpring-bold-oblique', 'sans-serif'],
             },
 
             colors: {
                 'primary-color': '#8D0A0A',
+                'footer': '#F0F0F0',
+                'red': '#FF0000',
             }
         },
     },
-    plugins: [],
+    plugins: [
+        require('flowbite/plugin')
+    ],
 };

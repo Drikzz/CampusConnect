@@ -79,21 +79,33 @@ php artisan key:generate
 
 - __9th__, after all, that make sure to run your XAMPP application.
 
-- __10th__, run the `php artisan migrate` command to run the migrations in the clone project.
+- __10th__, open the terminal in the vscode, run the `php artisan migrate` command to run the migrations in the clone project.
 ```
 php artisan migrate
 ```
 
-- __11th__, run `php artisan serve` command and go to the link provided:
+- __11th__, open another terminal in vscode, run `php artisan serve` command and go to the link provided:
 
 ```
 php artisan serve
 ```
 
-- __12th__, run `npm run dev` command:
+- __12th__, open another terminal in vscode, run `npm run dev` command:
 
 ```
 npm run dev
 ```
 
-- __13th__, congratulations! You're done setting up your project!
+- __13th__, open another terminal in vscode, run `php artisan storage:link` command:
+
+```
+php artisan storage:link
+```
+
+- __14th__, lastly, open another terminal in vscode, then run `php artisan db:seed` command:
+
+```
+php artisan db:seed
+```
+
+- __15th__, congratulations! You're done setting up your project!
