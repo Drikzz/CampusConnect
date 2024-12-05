@@ -22,11 +22,10 @@ class UserFactory extends Factory
             'wmsu_dept_id' => rand(1, 5), // Adjust based on your departments
             'grade_level_id' => rand(1, 4), // Adjust based on your grade levels
             'profile_picture' => null,
-            'email_verified_at' => null,
-            'is_seller' => $isSeller = fake()->boolean(),
-            'seller_code' => $isSeller ? strtoupper(Str::random(12)) : null, // Generate unique seller code only if is_seller is true
+            'email_verified_at' => now(),
+            'is_seller' => fake()->boolean(),
             'is_verified' => fake()->boolean(),
-            'verified_at' => null,
+            'verified_at' => now(),
             'wmsu_id_front' => null,
             'wmsu_id_back' => null,
             'remember_token' => Str::random(10),

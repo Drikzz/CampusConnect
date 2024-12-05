@@ -7,7 +7,6 @@ use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -52,7 +51,22 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
-        //
+        $fields = $request->validate([
+            'name' => ['required'],
+            'body' => ['required', 'max:255'],
+            'price' => ['required', 'numeric'],
+            'discounted_price' => ['nullable', 'numeric'],
+            'image' => ['nullable', 'image', 'file', 'extensions:jpg,png', 'max:2048'],
+            'stock' => ['required', 'numeric', 'min:0'], // Add stock validation
+        ]);
+
+        // create a post
+        Auth::user()->products()->create($fields);
+
+        // redirect to dashboard
+        return back()->with('success', 'Your product was added succesfully!');
+
+        // return response()->json($product);
     }
 
     /**

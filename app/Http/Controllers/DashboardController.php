@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
 use App\Models\UserType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +11,7 @@ class DashboardController extends Controller
     public function index()
     {
         if (auth()->user()->is_seller == 1) {
-            return redirect()->route('seller.dashboard');
+            return redirect()->route('dashboard.seller');
         }
 
         return view('buyer.dashboard', [
@@ -25,14 +24,10 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $user_type = UserType::where('id', $user->user_type_id)->first()->name;
-        $pendingOrders = Order::where('user_id', $user->id)
-            ->where('status', 'pending')
-            ->get();  // Add ->get() to execute the query
 
         return view('buyer.dashboard', [
             'user' => $user,
-            'user_type' => $user_type,
-            'pendingOrders' => $pendingOrders
+            'user_type' => $user_type
         ]);
     }
 
@@ -51,14 +46,10 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $user_type = UserType::where('id', $user->user_type_id)->first()->name;
-        $pendingOrders = Order::where('user_id', $user->id)
-            ->where('status', 'pending')
-            ->get();
 
         return view('buyer.dashboard', [
             'user' => $user,
-            'user_type' => $user_type,
-            'pendingOrders' => $pendingOrders
+            'user_type' => $user_type
         ]);
     }
 

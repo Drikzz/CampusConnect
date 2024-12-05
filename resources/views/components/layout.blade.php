@@ -6,8 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>{{ env('APP_NAME') }}</title>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/jquery-3.7.1.min.js', 'public/js/app.js', '/public/js/flowbite.min.js', 'resources/css/seller.css'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/jquery-3.7.1.min.js', 'public/js/app.js', '../public/js/flowbite.min.js', 'resources/css/seller.css'])
 </head>
 
 <body>
@@ -174,7 +173,7 @@
 
         <div class="w-full h-64 mt-4 grid grid-cols-4 gap-16">
 
-            <div class="blackbox flex flex-col justify-center items-start h-full gap-4">
+            <div class="flex flex-col justify-center items-start h-full gap-4">
                 {{-- <img src="{{ asset('imgs/campusconnect_btn.png') }}" alt="logo" class="w-32 h-auto fill-black"> --}}
                 <svg class="w-32 h-auto fill-black" xmlns="http://www.w3.org/2000/svg" width="421" height="179"
                     viewBox="0 0 421 179">
@@ -355,7 +354,7 @@
     <div class="px-4 py-3 text-sm text-gray-900 dark:text-white">
         <div class="font-medium truncate">
             @auth
-                {{ Str::ucfirst(Auth::user()->first_name) }}
+                {{ Auth::user()->first_name }}
             @endauth
 
             @guest

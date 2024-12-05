@@ -1,206 +1,107 @@
 <x-sellerLayout>
-    <!-- Header -->
-    <div class="bg-gray-50 border-b py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 class="text-3xl font-semibold text-gray-900">Add New Product</h1>
-            <div class="flex items-center gap-2 mt-2 text-sm text-gray-600">
-                <a href="{{ route('seller.dashboard') }}" class="hover:text-blue-600">Dashboard</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-                <span>Add Product</span>
-            </div>
-        </div>
-    </div>
 
-    <main class="flex-1 p-8 bg-gray-50">
-        <div class="max-w-4xl mx-auto">
-            <div class="bg-white shadow-md rounded-lg">
-                <!-- Remove the max-height from this div and add proper scroll container below -->
-                <div class="overflow-hidden">
-                    <form action="{{ route('seller.addproduct') }}" method="POST" enctype="multipart/form-data"
-                        class="relative">
-                        @csrf
-                        <!-- This div will be scrollable -->
-                        <div class="p-6 space-y-8 max-h-[calc(100vh-200px)] overflow-y-auto">
-                            <!-- Product Images -->
-                            <div class="space-y-4">
-                                <h2 class="text-xl font-semibold text-gray-900">Product Images</h2>
-                                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <!-- Main Image -->
-                                    <div class="col-span-1 md:col-span-2">
-                                        <div class="text-sm font-medium text-gray-900 mb-4">Main Image (Required)</div>
-                                        <div
-                                            class="relative group aspect-square bg-gray-50 border-2 border-dashed border-primary-color rounded-lg overflow-hidden">
-                                            <input type="file" id="mainImage" name="main_image" class="hidden"
-                                                accept="image/*">
-                                            <label for="mainImage"
-                                                class="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100">
-                                                <div id="mainImagePlaceholder" class="text-center p-4">
-                                                    <svg class="mx-auto w-12 h-12 text-gray-400" fill="none"
-                                                        stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            stroke-width="2" d="M12 4v16m8-8H4" />
-                                                    </svg>
-                                                    <p class="mt-2 text-sm text-gray-600">Click to upload main image</p>
-                                                </div>
-                                                <div id="mainPreview" class="hidden w-full h-full">
-                                                    <img src="" alt="Preview"
-                                                        class="w-full h-full object-cover">
-                                                </div>
-                                            </label>
-                                        </div>
-                                        @error('main_image')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
+    <!-- CONTENT -->
+    <section id="content">
+        <!-- NAVBAR -->
+        <nav>
+            <i class='bx bx-menu'></i>
+            <a href="#" class="nav-link"></a>
+            <form action="#">
+                <div class="form-input">
+                    <input type="search" placeholder="Search...">
+                    <button type="submit" class="search-btn"><i class='bx bx-search'></i></button>
+                </div>
+            </form>
 
-                                    <!-- Additional Images -->
-                                    <div class="col-span-1 md:col-span-2">
-                                        <div class="text-sm font-medium text-gray-900 mb-4">Additional Images</div>
-                                        <div class="grid grid-cols-2 gap-4">
-                                            @for ($i = 1; $i <= 4; $i++)
-                                                <div
-                                                    class="relative aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden">
-                                                    <input type="file" id="image{{ $i }}"
-                                                        name="additional_images[]" class="hidden" accept="image/*">
-                                                    <label for="image{{ $i }}"
-                                                        class="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100">
-                                                        <svg class="w-6 h-6 text-gray-400" fill="none"
-                                                            stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                stroke-width="2" d="M12 4v16m8-8H4" />
-                                                        </svg>
-                                                    </label>
-                                                    <div class="preview hidden absolute inset-0">
-                                                        <img src="" alt="Preview"
-                                                            class="w-full h-full object-cover">
-                                                    </div>
-                                                </div>
-                                            @endfor
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+            <a href="#" class="notification">
+                <i class='bx bxs-bell'></i>
+                <span class="num">8</span>
+            </a>
+            <a href="#" class="profile">
+                <img src="jose marie.png" alt="Profile Image">
+            </a>
+        </nav>
+        <!-- NAVBAR -->
 
-                            <!-- Basic Information -->
-                            <div class="space-y-4">
-                                <h2 class="text-xl font-semibold text-gray-900">Basic Information</h2>
-                                <div class="grid gap-6">
-                                    <div>
-                                        <label for="product-name"
-                                            class="block text-sm font-medium text-gray-700">Product
-                                            Name</label>
-                                        <input type="text" id="product-name" name="name"
-                                            class="mt-1 w-full rounded-lg @error('name') border-red-500 @else border-gray-300 @enderror focus:border-primary-color focus:ring-primary-color transition-all"
-                                            placeholder="Enter product name" value="{{ old('name') }}">
-                                        @error('name')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-
-                                    <div>
-                                        <label for="description"
-                                            class="block text-sm font-medium text-gray-700">Description</label>
-                                        <textarea id="description" name="description" rows="4"
-                                            class="mt-1 w-full rounded-lg @error('description') border-red-500 @else border-gray-300 @enderror focus:border-primary-color focus:ring-primary-color transition-all"
-                                            placeholder="Describe your product">{{ old('description') }}</textarea>
-                                        @error('description')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Product Details -->
-                            <div class="space-y-4">
-                                <h2 class="text-xl font-semibold text-gray-900">Product Details</h2>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label for="category"
-                                            class="block mb-2 text-sm font-medium text-gray-900">Category</label>
-                                        <select id="category" name="category"
-                                            class="w-full p-3 bg-gray-50 @error('category') border-red-500 @else border-gray-300 @enderror text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                                            <option value="" disabled {{ old('category') ? '' : 'selected' }}>
-                                                Select a category</option>
-                                            @foreach ($categories as $category)
-                                                <option value="{{ $category->id }}"
-                                                    {{ old('category') == $category->id ? 'selected' : '' }}>
-                                                    {{ $category->name }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        @error('category')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-
-                                    <div>
-                                        <label for="trade-method"
-                                            class="block mb-2 text-sm font-medium text-gray-900">Trade Method</label>
-                                        <select id="trade-method" name="trade_method"
-                                            class="w-full p-3 bg-gray-50 @error('trade_method') border-red-500 @else border-gray-300 @enderror text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                                            <option value="" disabled
-                                                {{ old('trade_method') ? '' : 'selected' }}>
-                                                Select trade method</option>
-                                            <option value="sell"
-                                                {{ old('trade_method') == 'sell' ? 'selected' : '' }}>
-                                                Sell Only</option>
-                                            <option value="trade"
-                                                {{ old('trade_method') == 'trade' ? 'selected' : '' }}>
-                                                Trade Only</option>
-                                            <option value="both"
-                                                {{ old('trade_method') == 'both' ? 'selected' : '' }}>
-                                                Both Sell & Trade</option>
-                                        </select>
-                                        @error('trade_method')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-
-                                    <div>
-                                        <label for="price"
-                                            class="block mb-2 text-sm font-medium text-gray-900">Price
-                                            (₱)</label>
-                                        <input type="number" id="price" name="price" min="0"
-                                            step="0.01"
-                                            class="w-full p-3 bg-gray-50 @error('price') border-red-500 @else border-gray-300 @enderror text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="0.00" value="{{ old('price') }}">
-                                        @error('price')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-
-                                    <div>
-                                        <label for="quantity"
-                                            class="block mb-2 text-sm font-medium text-gray-900">Quantity</label>
-                                        <input type="number" id="quantity" name="quantity" min="1"
-                                            class="w-full p-3 bg-gray-50 @error('quantity') border-red-500 @else border-gray-300 @enderror text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="1" value="{{ old('quantity') }}">
-                                        @error('quantity')
-                                            <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Footer is now outside the scrollable area -->
-                        <div class="sticky bottom-0 bg-white py-4 px-6 border-t border-gray-200">
-                            <div class="flex justify-end gap-4">
-                                <button type="reset"
-                                    class="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all">
-                                    Reset Form
-                                </button>
-                                <button type="submit"
-                                    class="px-6 py-2 text-sm font-medium text-white bg-primary-color rounded-lg hover:bg-primary-color/90 transition-all">
-                                    Add Product
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+        <!-- MAIN CONTENT -->
+        <main>
+            <div class="head-title">
+                <div class="left">
+                    <h1>Add New Product</h1>
+                    <ul class="breadcrumb">
+                        <li><a href="#">Dashboard</a></li>
+                        <li><i class='bx bx-chevron-right'></i></li>
+                        <li><a class="active" href="#">Add Product</a></li>
+                    </ul>
                 </div>
             </div>
-        </div>
-    </main>
+
+            <!-- Add Product Form -->
+            <div class="form-container">
+                <form action="{{ route('seller.products.store') }}" method="POST" class="add-product-form"
+                    enctype="multipart/form-data">
+                    @csrf
+                    <!-- Product Name -->
+                    <div class="form-group">
+                        <label for="product-name">Product Name</label>
+                        <input type="text" id="product-name" name="name" placeholder="Enter product name"
+                            required>
+                    </div>
+
+                    <!-- Product Description -->
+                    <div class="form-group">
+                        <label for="product-description">Product Description</label>
+                        <textarea id="product-description" name="description" placeholder="Enter product description" required></textarea>
+                    </div>
+
+                    <!-- Product Category -->
+                    <div class="form-group">
+                        <label for="product-category">Product Category</label>
+                        <input type="text" id="product-category" name="category" placeholder="Enter product category"
+                            required>
+                    </div>
+
+                    <!-- Product Type (Sell, Trade, All) -->
+                    <div class="form-group">
+                        <label for="product-type">Trade Method</label>
+                        <select id="product-type" name="trade_method" required>
+                            <option value="" disabled selected>Select product type</option>
+                            <option value="sell">Sell</option>
+                            <option value="trade">Trade</option>
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+
+                    <!-- Product Price -->
+                    <div class="form-group">
+                        <label for="product-price">Product Price</label>
+                        <input type="number" id="product-price" name="price" placeholder="Enter product price"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="product-quantity">Product Quantity</label>
+                        <input type="number" id="product-quantity" name="quantity" placeholder="Enter product quantity"
+                            required>
+                    </div>
+
+                    <!-- Multiple Image Upload -->
+                    <div class="form-group">
+                        <label for="product-images">Product Images</label>
+                        <input type="file" id="product-images" name="images[]" accept="image/*" multiple
+                            onchange="previewImages(event)">
+                        <div id="image-preview" class="image-preview">
+                            <!-- Image preview will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn-submit">Add Product</button>
+                </form>
+            </div>
+        </main>
+        <!-- MAIN CONTENT -->
+    </section>
+    <!-- CONTENT -->
+
 </x-sellerLayout>

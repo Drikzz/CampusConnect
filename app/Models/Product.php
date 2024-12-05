@@ -17,20 +17,17 @@ class Product extends Model
         'price',
         'discount',
         'discounted_price',
-        'images',
+        'image',
         'stock',
-        'seller_code',
-        'category_id',
-        'trade_method_id'
-    ];
-
-    protected $casts = [
-        'images' => 'array'
+        'quantity',
+        'user_id',
+        'is_buyable',
+        'is_tradable'
     ];
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'seller_code', 'seller_code');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function orderItems(): HasMany
@@ -42,20 +39,5 @@ class Product extends Model
     public function isAvailable(): bool
     {
         return $this->stock > 0;
-    }
-
-    public function category()
-    {
-        return $this->belongsTo(Category::class);
-    }
-
-    public function tradeMethod()
-    {
-        return $this->belongsTo(tradeMethod::class);
-    }
-
-    public function getMainImageAttribute()
-    {
-        return $this->images[0];
     }
 }

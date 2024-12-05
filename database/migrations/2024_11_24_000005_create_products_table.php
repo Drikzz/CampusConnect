@@ -18,13 +18,14 @@ return new class extends Migration
             $table->integer('price');
             $table->integer('discount')->nullable();
             $table->integer('discounted_price')->nullable();
-            $table->json('images')->nullable();
+            $table->string('image')->nullable();
             $table->integer('stock');
-            $table->string('seller_code')->constrained('users')->onDelete('cascade');
-            $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
-            $table->foreignId('trade_method_id')->constrained('trade_methods')->onDelete('cascade');
+            $table->integer('quantity')->default(0);
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+
             $table->boolean('is_buyable')->default(false);
             $table->boolean('is_tradable')->default(false);
+
             $table->timestamps();
         });
     }

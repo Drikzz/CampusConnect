@@ -7,7 +7,7 @@
             <a href="{{ route('dashboard.profile') }}" class="font-Satoshi-bold text-base">Dashboard</a>
         </div>
 
-        <div class="flex justify-center items-center w-full pb-2 md:pb-8">
+        <div class="flex justify-center items-center w-full py-4 md:py-8">
             <p class="font-Footer italic text-2xl md:text-4xl">MY DASHBOARD</p>
         </div>
 
@@ -96,7 +96,7 @@
                         </li>
                         @if (Auth::user()->is_seller == 1)
                             <li>
-                                <a href="{{ route('seller.dashboard') }}"
+                                <a href="{{ route('dashboard') }}"
                                     class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
                                     <svg class="w-5 h-5 text-gray-500 transition duration-75 group-hover:text-gray-900"
                                         xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
@@ -164,7 +164,7 @@
                     <x-myOrders status="pending" :orders="$pendingOrders" />
                 </div> --}}
                 <div id="pending" class="tab-content hidden">
-                    <x-myOrders :user="$user" :user_type="$user_type" :pendingOrders="$pendingOrders" />
+                    <x-myOrders />
                 </div>
                 {{-- <div id="to-pay" class="tab-content hidden">
                     <x-myOrders status="to-pay" :orders="$toPayOrders" />

@@ -12,7 +12,7 @@ class OrderController extends Controller
         $orders = Order::where('seller_id', auth()->id())
             ->latest()
             ->paginate(10);
-        return view('seller.orders.index', compact('orders'));
+        return view('components.sellerLayout', compact('orders'));
     }
 
     public function pending()

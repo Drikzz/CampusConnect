@@ -111,7 +111,7 @@ $(document).ready(function () {
 
     // picture upload in registration
     // Image upload preview functionality
-    function setupRegImagePreview(inputId, previewId, uploadContainerId, previewContainerId, changePhotoBtnId) {
+    function setupImagePreview(inputId, previewId, uploadContainerId, previewContainerId, changePhotoBtnId) {
         const $input = $(`#${inputId}`);
         const $preview = $(`#${previewId}`);
         const $uploadContainer = $(`#${uploadContainerId}`);
@@ -146,7 +146,7 @@ $(document).ready(function () {
     }
 
     // Initialize preview for each image upload
-    setupRegImagePreview(
+    setupImagePreview(
         'profile_picture', 
         'preview',
         'uploadContainer', 
@@ -154,7 +154,7 @@ $(document).ready(function () {
         'changePhotoBtn'
     );
 
-    setupRegImagePreview(
+    setupImagePreview(
         'wmsu_id_front',
         'previewFront',
         'uploadContainerFront',
@@ -162,7 +162,7 @@ $(document).ready(function () {
         'changePhotoBtnFront'
     );
 
-    setupRegImagePreview(
+    setupImagePreview(
         'wmsu_id_back',
         'previewBack', 
         'uploadContainerBack',
@@ -316,44 +316,11 @@ $(document).ready(function () {
         // Initialize with starting value
         updateQuantityAndPrices(1);
     }
-  
-    function setupProductImagePreview(inputId) {
-        const $input = $(`#${inputId}`);
-        const $container = $input.closest('.relative');
-        const $preview = $container.find('.preview, #mainPreview');
-        const $img = $preview.find('img');
-        const $placeholder = $container.find('#mainImagePlaceholder');
 
-        $input.on('change', function(e) {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    $img.attr('src', e.target.result);
-                    $preview.removeClass('hidden');
-                    if ($placeholder.length) {
-                        $placeholder.addClass('hidden');
-                    }
-                }
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-
-    // Setup main image preview
-    setupProductImagePreview('mainImage');
-
-    // Setup additional image previews
-    for (let i = 1; i <= 4; i++) {
-        setupProductImagePreview(`image${i}`);
-    }
-    
-    //admin burger
     $('#menuToggle').on('click', function() {
         $('#sidebar').toggleClass('sidebar-collapsed');
         $(this).toggleClass('rotate-90');
     });
-
 
     // TRIGGERS
     // Trigger change event on page load to set initial state
