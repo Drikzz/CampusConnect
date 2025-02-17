@@ -1,9 +1,7 @@
 import 'flowbite';
 import '../js/bootstrap';
-// import '../css/seller.css';
 
 $(document).ready(function () {
-    
     // Select all elements with the class 'bookmarked' or 'unbookmark'
     $(".bookmarked, .unbookmark").on("click", function (e) {
         e.preventDefault();
@@ -111,7 +109,7 @@ $(document).ready(function () {
 
     // picture upload in registration
     // Image upload preview functionality
-    function setupImagePreview(inputId, previewId, uploadContainerId, previewContainerId, changePhotoBtnId) {
+    function setupRegImagePreview(inputId, previewId, uploadContainerId, previewContainerId, changePhotoBtnId) {
         const $input = $(`#${inputId}`);
         const $preview = $(`#${previewId}`);
         const $uploadContainer = $(`#${uploadContainerId}`);
@@ -146,7 +144,7 @@ $(document).ready(function () {
     }
 
     // Initialize preview for each image upload
-    setupImagePreview(
+    setupRegImagePreview(
         'profile_picture', 
         'preview',
         'uploadContainer', 
@@ -154,7 +152,7 @@ $(document).ready(function () {
         'changePhotoBtn'
     );
 
-    setupImagePreview(
+    setupRegImagePreview(
         'wmsu_id_front',
         'previewFront',
         'uploadContainerFront',
@@ -162,7 +160,7 @@ $(document).ready(function () {
         'changePhotoBtnFront'
     );
 
-    setupImagePreview(
+    setupRegImagePreview(
         'wmsu_id_back',
         'previewBack', 
         'uploadContainerBack',
@@ -266,8 +264,8 @@ $(document).ready(function () {
         $('#current-wmsu-id-back').removeClass('hidden'); // Show current picture
     });
 
-    //checkout page - replace the existing checkout code with this:
-    if (document.getElementById('quantity')) { // Only run on pages with quantity element
+    //checkout page quantity calculator
+    if (document.getElementById('quantity')) {
         const quantity = document.getElementById('quantity');
         const formQuantity = document.getElementById('form-quantity');
         const subtotalElement = document.getElementById('subtotal');
@@ -278,11 +276,11 @@ $(document).ready(function () {
 
         // Get values from data attributes
         const maxStock = parseInt(quantity.dataset.maxStock);
-        const originalPrice = parseFloat(quantity.dataset.originalPrice);
-        const discountedPrice = parseFloat(quantity.dataset.discountedPrice);
+        const originalPrice = parseFloat(quantity.dataset.originalPrice.replace(/[^0-9.]/g, ''));
+        const discountedPrice = parseFloat(quantity.dataset.discountedPrice.replace(/[^0-9.]/g, ''));
 
         // Format price helper
-        const formatPrice = (num) => '₱' + num.toFixed(2);
+        const formatPrice = (num) => '₱' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         // Update all prices and quantities
         function updateQuantityAndPrices(newValue) {
@@ -298,11 +296,11 @@ $(document).ready(function () {
                 originalPriceElement.textContent = formatPrice(originalTotal);
                 discountAmountElement.textContent = '-' + formatPrice(discountAmount);
                 totalElement.textContent = formatPrice(subtotal);
-                formTotal.value = subtotal.toFixed(2);
+                formTotal.value = subtotal;
             }
         }
 
-        // Event listeners
+        // Event listeners remain the same
         $('#decrement-button').on('click', function(e) {
             e.preventDefault();
             updateQuantityAndPrices(parseInt(quantity.value) - 1);
@@ -316,13 +314,15 @@ $(document).ready(function () {
         // Initialize with starting value
         updateQuantityAndPrices(1);
     }
-
+    
+    //admin burger
     $('#menuToggle').on('click', function() {
         $('#sidebar').toggleClass('sidebar-collapsed');
         $(this).toggleClass('rotate-90');
     });
 
     // TRIGGERS
-    // Trigger change event on page load to set initial state
     $('input[type="radio"][name="option"]:checked').trigger('change');
+
+
 });

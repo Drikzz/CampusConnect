@@ -3,12 +3,16 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements HasName
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -20,17 +24,25 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'username',
+        'password',
         'first_name',
+        'middle_name',
         'last_name',
-        'user_type_id',
         'wmsu_email',
+        'phone',     // Added phone
+        'gender',    // Added gender
+        'date_of_birth',  // Added date of birth
+        'user_type_id',
         'wmsu_dept_id',
         'grade_level_id',
-        'password',
         'profile_picture',
         'wmsu_id_front',
         'wmsu_id_back',
         'is_seller',
+        'seller_code',
+        'is_verified',
+        'verified_at',
+        'is_admin',
     ];
 
     /**
@@ -54,6 +66,27 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the user's display name for Filament.
+     */
+    // public function getFilamentName(): string
+    // {
+    //     return $this->first_name ?? 'Admin'; // Use `first_name` as the display name
+    // }
+
+    public function getFilamentName(): string
+    {
+        return $this->getAttributeValue('first_name');
+    }
+
+    /**
+     * Check if the user can access Filament.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->is_admin; // Only allow admin users to access Filament
     }
 
     public function products(): HasMany
@@ -88,6 +121,12 @@ class User extends Authenticatable
 
     public function soldOrders(): HasMany
     {
-        return $this->hasMany(Order::class, 'user_id'); // as seller
+        return $this->hasMany(Order::class, 'seller_code', 'seller_code'); // as seller
     }
+
+    public function isAdmin(): bool
+    {
+        return (bool) $this->is_admin;
+    }
+
 }

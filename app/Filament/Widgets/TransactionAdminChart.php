@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Filament\Widgets;
+
+use Filament\Widgets\ChartWidget;
+use App\Models\Order;
+use Illuminate\Support\Facades\DB;
+
+class TransactionAdminChart extends ChartWidget
+{
+    protected static ?int $sort = 2;
+    protected static ?string $heading = 'Transactions overview';
+    public ?string $filter = 'today';
+
+    protected function getFilters(): ?array
+    {
+        return [
+            'today' => 'Today',
+            'week' => 'Last week',
+            'month' => 'Last month',
+        ];
+    }
+
+    protected function getData(): array
+    {
+        $query = DB::table('orders')
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as aggregate'));
+
+        switch ($this->filter) {
+            case 'week':
+                $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                break;
+            case 'month':
+                $query->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]);
+                break;
+            case 'today':
+            default:
+                $query->whereDate('created_at', now());
+                break;
+        }
+
+        $data = $query->groupBy('date')
+            ->get()
+            ->map(function ($item) {
+                return (object) ['date' => $item->date, 'aggregate' => $item->aggregate];
+            });
+
+        return [
+            'datasets' => [
+                [
+                    'label' => 'Transactions Completed',
+                    'data' => $data->map(fn ($value) => $value->aggregate),
+                ],
+            ],
+            'labels' => $data->map(fn ($value) => $value->date),
+        ];
+    }
+
+    protected function getType(): string
+    {
+        return 'line';
+    }
+}

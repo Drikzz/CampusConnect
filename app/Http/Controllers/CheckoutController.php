@@ -13,7 +13,13 @@ class CheckoutController extends Controller
     //
     public function summary($id)
     {
-        $product = Product::find($id);
+        $product = Product::with(['seller', 'images'])
+            ->findOrFail($id);
+
+        if (!$product->is_buyable) {
+            return redirect()->back()->with('error', 'This product is not available for purchase.');
+        }
+
         return view('products.order_sum', compact('product'));
     }
 
@@ -34,40 +40,45 @@ class CheckoutController extends Controller
 
         $product = Product::find($request->product_id);
 
+        // Check if product is buyable
+        if (!$product->is_buyable) {
+            return back()->with('error', 'This product is not available for purchase.');
+        }
+
         // Check if there's enough stock
         if ($product->stock < $request->quantity) {
             return back()->with('error', 'Not enough stock available.');
         }
 
-        try {
-            // Create the order
-            $order = Order::create([
-                'user_id' => Auth::user()->id,
-                'seller_id' => $product->user_id,
-                'address' => "{$request->address}, {$request->city}, {$request->postal_code}",
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'sub_total' => $request->sub_total,
-                'status' => 'Pending',
-                'payment_method' => $request->payment_method,
-                'delivery_estimate' => $request->delivery_estimate,
-            ]);
+        // Create the order
+        $order = Order::create([
+            'buyer_id' => Auth::user()->id,
+            'seller_code' => $product->seller_code, // Use product's seller_code directly
+            'address' => "{$request->address}, {$request->city}, {$request->postal_code}",
+            'delivery_estimate' => $request->delivery_estimate,
+            'phone' => $request->phone,
+            'email' => $request->email,
+            'sub_total' => $request->sub_total,
+            'status' => 'Pending',
+            'payment_method' => $request->payment_method,
+        ]);
 
-            // Create order item
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'quantity' => $request->quantity,
-                'price' => $product->discounted_price,
-                'subtotal' => $request->sub_total
-            ]);
+        // Create order item
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => $request->quantity,
+            'price' => $product->discounted_price,
+            'subtotal' => $request->sub_total,
+            'seller_code' => $product->seller_code,
+        ]);
 
-            // Update stock
-            $product->decrement('stock', $request->quantity);
+        // Update stock
+        $product->decrement('stock', $request->quantity);
 
-            return redirect()->route('dashboard.orders')->with('success', 'Order placed successfully');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Failed to place order. Please try again.');
-        }
+        return redirect()->route('dashboard.orders')->with('success', 'Order placed successfully');
+        // } catch (\Exception $e) {
+        //     return back()->with('error', 'Failed to place order. Please try again.');
+        // }
     }
 }

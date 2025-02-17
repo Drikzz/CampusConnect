@@ -13,32 +13,35 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('username')->unique();
-            $table->string('password');
+            // Step 1 fields - These can be required
+            $table->string('username')->nullable()->unique(); // Changed to nullable and unique
+            $table->string('password')->nullable();
             $table->string('first_name');
+            $table->string('middle_name')->nullable();  // Add middle name
             $table->string('last_name');
             $table->string('wmsu_email')->nullable()->unique();
+            $table->string('phone');  // Added phone
+            $table->date('date_of_birth');  // Add date of birth
+            $table->enum('gender', ['male', 'female', 'non-binary', 'prefer-not-to-say']);  // Added gender
 
-            // based on user type on registration
+            // Step 2 fields - These should be nullable
             $table->foreignId('user_type_id')->nullable()->constrained('user_types')->onDelete('restrict');
             $table->foreignId('wmsu_dept_id')->nullable()->constrained('departments')->onDelete('restrict');
             $table->foreignId('grade_level_id')->nullable()->constrained('grade_levels')->onDelete('restrict');
 
-            $table->string('profile_picture')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-
-            // user verification
-            $table->boolean('is_seller')->default(false);
-            $table->string('is_verified')->default(false);
-            $table->timestamp('verified_at')->nullable();
-            // If this user is an admin
-            $table->timestamp('is_admin')->default(false);
-
-
+            // Optional and verification fields
+            $table->string('profile_picture');
             $table->string('wmsu_id_front')->nullable();
             $table->string('wmsu_id_back')->nullable();
+            $table->timestamp('email_verified_at')->nullable();
 
-            // no rating yets
+            // Additional fields
+            $table->boolean('is_seller')->default(false);
+            $table->string('seller_code')->nullable()->unique();
+            $table->boolean('is_verified')->default(false); // Changed to false by default
+            $table->timestamp('verified_at')->nullable();
+            $table->boolean('is_admin')->default(false);
+
             $table->rememberToken();
             $table->timestamps();
         });

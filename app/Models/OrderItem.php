@@ -12,7 +12,8 @@ class OrderItem extends Model
         'product_id',
         'quantity',
         'price',
-        'subtotal'
+        'subtotal',
+        'seller_code'  // Add this
     ];
 
     public function order(): BelongsTo
@@ -23,5 +24,10 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function seller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'seller_code', 'seller_code');
     }
 }

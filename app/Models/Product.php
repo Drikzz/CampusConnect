@@ -17,17 +17,27 @@ class Product extends Model
         'price',
         'discount',
         'discounted_price',
-        'image',
+        'images',
         'stock',
-        'quantity',
-        'user_id',
+        'seller_code',
+        'category_id',
         'is_buyable',
-        'is_tradable'
+        'is_tradable',
+        'condition',
+        'trade_preferences',
+        'status',
+    ];
+
+    protected $casts = [
+        'images' => 'array',
+        'is_buyable' => 'boolean',
+        'is_tradable' => 'boolean',
+        'trade_preferences' => 'array',
     ];
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'seller_code', 'seller_code');
     }
 
     public function orderItems(): HasMany
@@ -40,4 +50,40 @@ class Product extends Model
     {
         return $this->stock > 0;
     }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    // Remove this method since we're not using trade_method anymore
+    // public function tradeMethod()
+    // {
+    //     return $this->belongsTo(tradeMethod::class);
+    // }
+
+    public function getMainImageAttribute()
+    {
+        return $this->images[0];
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(Product::class, 'images');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function getImageAttribute($value)
+    {
+        return asset('storage/' . $value);
+    }
+
+    // public function variants(): HasMany
+    // {
+    //     return $this->hasMany(ProductVariant::class);
+    // }
 }

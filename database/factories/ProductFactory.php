@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Product>
@@ -21,42 +22,31 @@ class ProductFactory extends Factory
      */
     public function definition(): array
     {
-        static $imageIndex = 1;
-
-        $price = $this->faker->numberBetween(100, 10000); // Price in cents
-        $discount = $this->faker->numberBetween(0, 100); // Discount percentage
-
-        // Calculate discounted price
+        $price = $this->faker->numberBetween(100, 10000);
+        $discount = $this->faker->boolean(30) ? $this->faker->numberBetween(5, 50) : 0;
         $discountedPrice = $price - ($price * ($discount / 100));
 
-        // Generate the full URL for the image
-        $imagePath = 'imgs/img' . $imageIndex++ . '.jpg';
-        $imageUrl = asset($imagePath);
-
-        // Generate random values ensuring at least one is true 80% of the time
-        $rand = $this->faker->numberBetween(1, 100);
-        if ($rand <= 80) {
-            // 80% chance of having at least one true
-            $is_buyable = $this->faker->boolean();
-            $is_tradable = $is_buyable ? $this->faker->boolean() : true;
-        } else {
-            // 20% chance of both being true
-            $is_buyable = true;
-            $is_tradable = true;
+        // Generate 1-3 random image URLs
+        $imageCount = $this->faker->numberBetween(1, 3);
+        $imageUrls = [];
+        for ($i = 0; $i < $imageCount; $i++) {
+            $selectedIndex = $this->faker->numberBetween(1, 8);
+            $imageUrls[] = "products/sample_imgs/img{$selectedIndex}.jpg";
         }
 
         return [
-            'name' => $this->faker->word(),
-            'description' => $this->faker->paragraph(),
+            'name' => $this->faker->words(3, true),
+            'description' => $this->faker->paragraphs(2, true),
             'price' => $price,
             'discount' => $discount,
             'discounted_price' => $discountedPrice,
-            'image' => $imageUrl,
-            'stock' => $this->faker->numberBetween(1, 100),
-            'quantity' => $this->faker->numberBetween(0, 100),
-            'user_id' => 1,
-            'is_buyable' => $is_buyable,
-            'is_tradable' => $is_tradable,
+            'images' => $imageUrls,
+            'stock' => $this->faker->numberBetween(1, 20),
+            'seller_code' => null, // Will be set in DatabaseSeeder
+            'category_id' => $this->faker->numberBetween(1, 4),
+            'is_buyable' => $this->faker->boolean(80),
+            'is_tradable' => $this->faker->boolean(20),
+            'status' => $this->faker->randomElement(['Active', 'Inactive']),
         ];
     }
 }

@@ -6,148 +6,160 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>{{ env('APP_NAME') }}</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/jquery-3.7.1.min.js', 'public/js/app.js', '../public/js/flowbite.min.js', 'resources/css/seller.css'])
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/jquery-3.7.1.min.js', 'public/js/app.js', '/public/js/flowbite.min.js', 'resources/css/seller.css'])
 </head>
 
 <body>
-
-    <header class="header-container">
-
-        {{-- nav container --}}
-        <nav class="flex justify-between items-center w-auto h-auto bg-primary-color px-16 py-6 sticky">
-
-            {{-- logo button --}}
-            <a href="{{ route('index') }}" class="flex flex-col items-center">
-                <img src="{{ asset('imgs/campusconnect_btn.png') }}" alt="logo" class="w-[150px] h-auto">
-            </a>
-
-            <div class="flex justify-center items-center gap-12">
-
-                {{-- shop now button --}}
-                <a href="{{ route('products') }}" class="font-Satoshi text-base text-white w-auto">
-                    Shop Now
-                </a>
-
-                {{-- trade now button --}}
-                <a href="#" class="font-Satoshi text-base text-white w-auto hover:bg-red-950 p-2 rounded-lg">
-                    Trade Now
-                </a>
-            </div>
-
-            {{-- for searching --}}
-            <form action="#">
-
-                @csrf
-
-                <div class="relative flex items-center fill-slate-500 focus-within:fill-black transition-colors">
-                    <svg class="w-5 h-5 absolute ml-3 pointer-events-none" xmlns="http://www.w3.org/2000/svg"
-                        id="Outline" viewBox="0 0 24 24" width="512" height="512">
-                        <path
-                            d="M23.707,22.293l-5.969-5.969a10.016,10.016,0,1,0-1.414,1.414l5.969,5.969a1,1,0,0,0,1.414-1.414ZM10,18a8,8,0,1,1,8-8A8.009,8.009,0,0,1,10,18Z" />
-                    </svg>
-
-                    <input type="text" name="search-text" id="search-text" autocomplete="off"
-                        placeholder="Search for products.."
-                        class="pl-12 pr-6 px-3 py-2 w-[20rem] rounded-full text-black text-left border-none focus:ring-2 focus:ring-black focus:outline-none font-Satoshi block border-0  shadow-sm bg-white placeholder-custom">
-
+    {{-- @include('partials._loading-screen') --}}
+    @include('partials._top-loading')
+    <header x-data="{ mobileMenuOpen: false }" class="relative bg-primary-color shadow-sm">
+        <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-20 sm:h-24 items-center justify-between gap-4">
+                <!-- Logo -->
+                <div class="flex-shrink-0">
+                    <a href="{{ route('index') }}" class="flex flex-col items-center" data-nav-loader>
+                        <img src="{{ asset('imgs/campusconnect_btn.png') }}" alt="logo" class="w-[180px] h-auto">
+                    </a>
                 </div>
 
-            </form>
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex md:items-center space-x-6">
+                    <a href="{{ route('products') }}"
+                        class="text-white hover:text-gray-200 px-5 py-2.5 text-base font-medium transition-colors rounded-lg hover:bg-white/10">
+                        Shop Now
+                    </a>
+                    <a href="{{ route('trade') }}"
+                        class="text-white hover:text-gray-200 px-5 py-2.5 text-base font-medium transition-colors rounded-lg hover:bg-white/10">
+                        Trade Now
+                    </a>
+                </div>
 
-            <div class="flex justify-between items-center w-fit gap-4">
-                <a href="">
-                    <svg class="w-5 h-auto fill-white" xmlns="http://www.w3.org/2000/svg" id="Outline"
-                        viewBox="0 0 24 24" width="512" height="512">
-                        <path
-                            d="M17.5,1.917a6.4,6.4,0,0,0-5.5,3.3,6.4,6.4,0,0,0-5.5-3.3A6.8,6.8,0,0,0,0,8.967c0,4.547,4.786,9.513,8.8,12.88a4.974,4.974,0,0,0,6.4,0C19.214,18.48,24,13.514,24,8.967A6.8,6.8,0,0,0,17.5,1.917Zm-3.585,18.4a2.973,2.973,0,0,1-3.83,0C4.947,16.006,2,11.87,2,8.967a4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,11,8.967a1,1,0,0,0,2,0,4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,22,8.967C22,11.87,19.053,16.006,13.915,20.313Z" />
-                    </svg>
-                </a>
+                <!-- Search Bar -->
+                <div class="hidden md:block flex-1 max-w-md mx-4">
+                    <form action="#" class="relative">
+                        @csrf
+                        <input type="text" name="search-text" placeholder="Search for products..."
+                            class="w-full rounded-full pl-12 pr-4 py-3 border-transparent focus:border-white focus:ring-white text-base bg-white/10 text-white placeholder-gray-300">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </form>
+                </div>
 
-                <a href="#">
-                    <svg class="w-5 h-auto fill-white" xmlns="http://www.w3.org/2000/svg" id="Layer_1"
-                        data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
-                        <path
-                            d="m19,4h-1.101c-.465-2.279-2.485-4-4.899-4H5C2.243,0,0,2.243,0,5v12.854c0,.794.435,1.52,1.134,1.894.318.171.667.255,1.015.255.416,0,.831-.121,1.19-.36l2.95-1.967c.691,1.935,2.541,3.324,4.711,3.324h5.697l3.964,2.643c.36.24.774.361,1.19.361.348,0,.696-.085,1.015-.256.7-.374,1.134-1.1,1.134-1.894v-12.854c0-2.757-2.243-5-5-5ZM2.23,17.979c-.019.012-.075.048-.152.007-.079-.042-.079-.109-.079-.131V5c0-1.654,1.346-3,3-3h8c1.654,0,3,1.346,3,3v7c0,1.654-1.346,3-3,3h-6c-.327,0-.541.159-.565.175l-4.205,2.804Zm19.77,3.876c0,.021,0,.089-.079.131-.079.041-.133.005-.151-.007l-4.215-2.811c-.164-.109-.357-.168-.555-.168h-6c-1.304,0-2.415-.836-2.828-2h4.828c2.757,0,5-2.243,5-5v-6h1c1.654,0,3,1.346,3,3v12.854Z" />
-                    </svg>
-                </a>
-
-                @guest
-                    {{-- <a href="{{ route('login') }}">
-                    <svg class="w-5 h-auto fill-white" xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
-                        <path d="m12,0C5.383,0,0,5.383,0,12s5.383,12,12,12,12-5.383,12-12S18.617,0,12,0Zm-4,21.164v-.164c0-2.206,1.794-4,4-4s4,1.794,4,4v.164c-1.226.537-2.578.836-4,.836s-2.774-.299-4-.836Zm9.925-1.113c-.456-2.859-2.939-5.051-5.925-5.051s-5.468,2.192-5.925,5.051c-2.47-1.823-4.075-4.753-4.075-8.051C2,6.486,6.486,2,12,2s10,4.486,10,10c0,3.298-1.605,6.228-4.075,8.051Zm-5.925-15.051c-2.206,0-4,1.794-4,4s1.794,4,4,4,4-1.794,4-4-1.794-4-4-4Zm0,6c-1.103,0-2-.897-2-2s.897-2,2-2,2,.897,2,2-.897,2-2,2Z"/>
-                    </svg>
-                </a> --}}
-
-                    <!-- Profile Button -->
-                    <button type="button" id="profileButton" data-dropdown-toggle="profileDropdown"
-                        data-dropdown-trigger="hover" class="flex items-center gap-2 hover:opacity-80 transition-all">
-                        <svg class="w-5 h-auto fill-white" xmlns="http://www.w3.org/2000/svg" id="Layer_1"
-                            data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
+                <!-- Right Navigation -->
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <!-- Wishlist -->
+                    <a href="#"
+                        class="text-white hover:text-gray-200 p-2.5 rounded-lg transition-colors hover:bg-white/10 fill-white">
+                        <svg class="w-6 h-6 sm:w-7 sm:h-7" xmlns="http://www.w3.org/2000/svg" id="Outline"
+                            viewBox="0 0 24 24">
                             <path
-                                d="m12,0C5.383,0,0,5.383,0,12s5.383,12,12,12,12-5.383,12-12S18.617,0,12,0Zm-4,21.164v-.164c0-2.206,1.794-4,4-4s4,1.794,4,4v.164c-1.226.537-2.578.836-4,.836s-2.774-.299-4-.836Zm9.925-1.113c-.456-2.859-2.939-5.051-5.925-5.051s-5.468,2.192-5.925,5.051c-2.47-1.823-4.075-4.753-4.075-8.051C2,6.486,6.486,2,12,2s10,4.486,10,10c0,3.298-1.605,6.228-4.075,8.051Zm-5.925-15.051c-2.206,0-4,1.794-4,4s1.794,4,4,4,4-1.794,4-4-1.794-4-4-4Zm0,6c-1.103,0-2-.897-2-2s.897-2,2-2,2,.897,2,2-.897,2-2,2Z" />
+                                d="M17.5,1.917a6.4,6.4,0,0,0-5.5,3.3,6.4,6.4,0,0,0-5.5-3.3A6.8,6.8,0,0,0,0,8.967c0,4.547,4.786,9.513,8.8,12.88a4.974,4.974,0,0,0,6.4,0C19.214,18.48,24,13.514,24,8.967A6.8,6.8,0,0,0,17.5,1.917Zm-3.585,18.4a2.973,2.973,0,0,1-3.83,0C4.947,16.006,2,11.87,2,8.967a4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,11,8.967a1,1,0,0,0,2,0,4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,22,8.967C22,11.87,19.053,16.006,13.915,20.313Z" />
                         </svg>
-                        <span class="text-white text-sm">Profile</span>
-                        <svg class="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg" id="Outline"
-                            viewBox="0 0 24 24" width="512" height="512">
+                    </a>
+
+                    <!-- Messages -->
+                    <a href="#"
+                        class="text-white hover:text-gray-200 p-2.5 rounded-lg transition-colors hover:bg-white/10 fill-white">
+                        <svg class="w-6 h-6 sm:w-7 sm:h-7" xmlns="http://www.w3.org/2000/svg" id="Layer_1"
+                            data-name="Layer 1" viewBox="0 0 24 24">
+                            <path
+                                d="m19,4h-1.101c-.465-2.279-2.485-4-4.899-4H5C2.243,0,0,2.243,0,5v12.854c0,.794.435,1.52,1.134,1.894.318.171.667.255,1.015.255.416,0,.831-.121,1.19-.36l2.95-1.967c.691,1.935,2.541,3.324,4.711,3.324h5.697l3.964,2.643c.36.24.774.361,1.19.361.348,0,.696-.085,1.015-.256.7-.374,1.134-1.1,1.134-1.894v-12.854c0-2.757-2.243-5-5-5ZM2.23,17.979c-.019.012-.075.048-.152.007-.079-.042-.079-.109-.079-.131V5c0-1.654,1.346-3,3-3h8c1.654,0,3,1.346,3,3v7c0,1.654-1.346,3-3,3h-6c-.327,0-.541.159-.565.175l-4.205,2.804Zm19.77,3.876c0,.021,0,.089-.079.131-.079.041-.133.005-.151-.007l-4.215-2.811c-.164-.109-.357-.168-.555-.168h-6c-1.304,0-2.415-.836-2.828-2h4.828c2.757,0,5-2.243,5-5v-6h1c1.654,0,3,1.346,3,3v12.854Z" />
+                        </svg>
+                    </a>
+
+                    <!-- Profile/Auth Section -->
+                    <div class="relative" x-data="{ open: false }">
+                        @auth
+                            <a href="{{ route('dashboard') }}"
+                                class="flex items-center gap-3 text-white hover:text-gray-200 p-2 rounded-lg transition-colors hover:bg-white/10">
+                                @if (Auth::user()->profile_picture)
+                                    <img src="{{ asset('storage/' . Auth::user()->profile_picture) }}" alt="Profile picture"
+                                        class="h-10 w-10 rounded-full object-cover border-2 border-white">
+                                @else
+                                    <div
+                                        class="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
+                                        <span
+                                            class="text-white text-lg font-medium">{{ substr(Auth::user()->first_name, 0, 1) }}</span>
+                                    </div>
+                                @endif
+                                <div class="hidden md:block">
+                                    <p class="text-sm font-medium leading-tight">
+                                        {{ Auth::user()->first_name . ' ' . Auth::user()->last_name }}</p>
+                                    <p class="text-xs text-white/70">{{ Auth::user()->username }}</p>
+                                </div>
+                            </a>
+                        @else
+                            <div class="flex items-center gap-2">
+                                <a href="{{ route('register.personal-info') }}"
+                                    class="text-white hover:text-gray-200 px-4 py-2 text-sm font-medium transition-colors rounded-lg hover:bg-white/10">
+                                    Sign Up
+                                </a>
+                                <a href="{{ route('login') }}"
+                                    class="text-primary-color bg-white hover:bg-gray-100 px-4 py-2 text-sm font-medium transition-colors rounded-lg shadow-sm">
+                                    Login
+                                </a>
+                            </div>
+                        @endauth
+                    </div>
+
+                    <!-- Mobile menu button -->
+                    <button @click="mobileMenuOpen = !mobileMenuOpen"
+                        class="md:hidden p-2.5 rounded-lg text-white hover:text-gray-200 hover:bg-white/10">
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" id="Outline" viewBox="0 0 24 24">
                             <path
                                 d="M18.71,8.21a1,1,0,0,0-1.42,0l-4.58,4.58a1,1,0,0,1-1.42,0L6.71,8.21a1,1,0,0,0-1.42,0,1,1,0,0,0,0,1.41l4.59,4.59a3,3,0,0,0,4.24,0l4.59-4.59A1,1,0,0,0,18.71,8.21Z" />
                         </svg>
                     </button>
-                @endguest
-
-                @auth
-
-                    <!-- Profile Button -->
-                    <button type="button" id="profileButton" data-dropdown-toggle="profileDropdown"
-                        data-dropdown-trigger="hover" class="flex items-center gap-2 hover:opacity-80 transition-all">
-                        <svg class="w-5 h-auto fill-white" xmlns="http://www.w3.org/2000/svg" id="Layer_1"
-                            data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512">
-                            <path
-                                d="m12,0C5.383,0,0,5.383,0,12s5.383,12,12,12,12-5.383,12-12S18.617,0,12,0Zm-4,21.164v-.164c0-2.206,1.794-4,4-4s4,1.794,4,4v.164c-1.226.537-2.578.836-4,.836s-2.774-.299-4-.836Zm9.925-1.113c-.456-2.859-2.939-5.051-5.925-5.051s-5.468,2.192-5.925,5.051c-2.47-1.823-4.075-4.753-4.075-8.051C2,6.486,6.486,2,12,2s10,4.486,10,10c0,3.298-1.605,6.228-4.075,8.051Zm-5.925-15.051c-2.206,0-4,1.794-4,4s1.794,4,4,4,4-1.794,4-4-1.794-4-4-4Zm0,6c-1.103,0-2-.897-2-2s.897-2,2-2,2,.897,2,2-.897,2-2,2Z" />
-                        </svg>
-                        <span class="text-white text-sm">Profile</span>
-                        <svg class="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg" id="Outline"
-                            viewBox="0 0 24 24" width="512" height="512">
-                            <path
-                                d="M18.71,8.21a1,1,0,0,0-1.42,0l-4.58,4.58a1,1,0,0,1-1.42,0L6.71,8.21a1,1,0,0,0-1.42,0,1,1,0,0,0,0,1.41l4.59,4.59a3,3,0,0,0,4.24,0l4.59-4.59A1,1,0,0,0,18.71,8.21Z" />
-                        </svg>
-                    </button>
-
-                @endauth
-
-
+                </div>
             </div>
 
-            {{-- @auth
-            <div>
-                <form action="{{ route('logout')}}" method="POST">
+            <!-- Mobile Search (Shown below header on mobile) -->
+            <div class="md:hidden py-4">
+                <form action="#" class="relative">
                     @csrf
-                    <input type="submit">
+                    <input type="text" name="search-text" placeholder="Search for products..."
+                        class="w-full rounded-full pl-12 pr-4 py-3 border-transparent focus:border-white focus:ring-white text-base bg-white/10 text-white placeholder-gray-300">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg class="h-6 w-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
                 </form>
             </div>
-            @endauth --}}
+
+            <!-- Mobile menu -->
+            <div x-show="mobileMenuOpen" class="md:hidden bg-white/5 rounded-lg mt-2">
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <a href="{{ route('products') }}"
+                        class="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-white/10">
+                        Shop Now
+                    </a>
+                    <a href="{{ route('trade') }}"
+                        class="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-white/10">
+                        Trade Now
+                    </a>
+                </div>
+            </div>
         </nav>
     </header>
-    {{-- 
-    @guest
-        <p>guest</p>
-    @endguest
 
-    @auth
-        <p>logged in</p>
-    @endauth --}}
-    {{-- px-16 --}}
     <main class="w-full relative">
         {{ $slot }}
     </main>
 
-    {{-- finish footer tomorrow --}}
     <footer class="w-full bg-footer flex flex-col items-center justify-center relative py-10 px-16">
 
         <div
             class="flex justify-center items-center max-w-screen-lg py-6 px-8 bg-black rounded-xl absolute top-[-4rem]">
             <div>
-                <p class="font-Footer italic text-2xl text-white w-[26rem] ">STAY UP TO DATE ABOUT OUR LATEST OFFERS</p>
+                <p class="font-Footer italic text-2xl text-white w-[26rem] ">STAY UP TO DATE ABOUT OUR LATEST OFFERS
+                </p>
             </div>
 
             {{-- input email --}}
@@ -173,7 +185,7 @@
 
         <div class="w-full h-64 mt-4 grid grid-cols-4 gap-16">
 
-            <div class="flex flex-col justify-center items-start h-full gap-4">
+            <div class="blackbox flex flex-col justify-center items-start h-full gap-4">
                 {{-- <img src="{{ asset('imgs/campusconnect_btn.png') }}" alt="logo" class="w-32 h-auto fill-black"> --}}
                 <svg class="w-32 h-auto fill-black" xmlns="http://www.w3.org/2000/svg" width="421" height="179"
                     viewBox="0 0 421 179">
@@ -343,6 +355,19 @@
     </footer>
 
     <script src="{{ asset('js/flowbite.min.js') }}"></script>
+    <script>
+        function handleLogoClick(event) {
+            const loadingBar = document.getElementById('top-loading-bar');
+            if (loadingBar) {
+                loadingBar.style.transform = 'translateX(-100%)';
+                loadingBar.style.opacity = '1';
+                requestAnimationFrame(() => {
+                    loadingBar.style.transform = 'translateX(0)';
+                });
+            }
+        }
+    </script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 
 </html>
@@ -354,7 +379,7 @@
     <div class="px-4 py-3 text-sm text-gray-900 dark:text-white">
         <div class="font-medium truncate">
             @auth
-                {{ Auth::user()->first_name }}
+                {{ Str::ucfirst(Auth::user()->first_name) }}
             @endauth
 
             @guest
@@ -528,7 +553,7 @@
             <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b">
                 <button type="button" id="continueBtn"
                     class="text-white bg-primary-color hover:opacity-80 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
-                    Continue
+                    <a href="{{ route('register.personal-info') }}">Continue</a>
                 </button>
                 <button data-modal-hide="default-modal" type="button"
                     class="ms-3 text-gray-500 bg-white focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900">Cancel</button>
@@ -536,3 +561,125 @@
         </div>
     </div>
 </div>
+
+<!-- Registration Type Modal -->
+<div id="registration-type-modal" tabindex="-1" aria-hidden="true"
+    class="hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full h-full">
+    <!-- Modal backdrop -->
+    <div class="fixed inset-0 bg-slate-900/50 z-40"></div>
+
+    <div class="relative p-4 w-full max-w-md z-50">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-lg shadow">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t">
+                <h3 class="text-xl font-semibold text-gray-400">
+                    What type of user are you?
+                </h3>
+                <button type="button"
+                    class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center"
+                    data-modal-hide="registration-type-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal body -->
+            <div class="p-4 md:p-5 space-y-4">
+                <form id="userTypeForm" action="" method="POST"
+                    data-route-highschool="{{ route('register_form_highschool') }}"
+                    data-route-college="{{ route('register_form_college') }}"
+                    data-route-employee="{{ route('register_form_employee') }}"
+                    data-route-alumni="{{ route('register_form_alumni') }}"
+                    data-route-postgraduate="{{ route('register_form_postgraduate') }}">
+                    @csrf
+                    <ul class="space-y-3">
+                        <li>
+                            <input type="radio" id="highschool" name="userType" value="highschool"
+                                class="hidden peer">
+                            <label for="highschool"
+                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
+                                <div class="block">
+                                    <div class="w-full text-lg font-semibold">High School Student</div>
+                                </div>
+                            </label>
+                        </li>
+                        <li>
+                            <input type="radio" id="college" name="userType" value="college"
+                                class="hidden peer">
+                            <label for="college"
+                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
+                                <div class="block">
+                                    <div class="w-full text-lg font-semibold">College Student</div>
+                                </div>
+                            </label>
+                        </li>
+                        <li>
+                            <input type="radio" id="alumni" name="userType" value="alumni"
+                                class="hidden peer">
+                            <label for="alumni"
+                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
+                                <div class="block">
+                                    <div class="w-full text-lg font-semibold">Alumni</div>
+                                </div>
+                            </label>
+                        </li>
+                        <li>
+                            <input type="radio" id="postgraduate" name="userType" value="postgraduate"
+                                class="hidden peer">
+                            <label for="postgraduate"
+                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
+                                <div class="block">
+                                    <div class="w-full text-lg font-semibold">Post Graduate</div>
+                                </div>
+                            </label>
+                        </li>
+                        <li>
+                            <input type="radio" id="employee" name="userType" value="employee"
+                                class="hidden peer">
+                            <label for="employee"
+                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
+                                <div class="block">
+                                    <div class="w-full text-lg font-semibold">Employee</div>
+                                </div>
+                            </label>
+                        </li>
+                    </ul>
+                </form>
+            </div>
+
+            <!-- Modal footer -->
+            <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b">
+                <button type="button" id="continueBtn"
+                    class="text-white bg-primary-color hover:opacity-80 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
+                    <a href="{{ route('register.personal-info') }}">Continue</a>
+                </button>
+                <button data-modal-hide="registration-type-modal" type="button"
+                    class="ms-3 text-gray-500 bg-white focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const continueBtn = document.getElementById('continueBtn');
+        const userTypeForm = document.getElementById('userTypeForm');
+
+        continueBtn.addEventListener('click', function() {
+            const selectedType = document.querySelector('input[name="userType"]:checked');
+
+            if (selectedType) {
+                const route = userTypeForm.dataset[
+                    `route${selectedType.value.charAt(0).toUpperCase() + selectedType.value.slice(1)}`
+                ];
+                window.location.href = route;
+            }
+        });
+    });
+</script>

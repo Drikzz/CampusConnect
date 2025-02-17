@@ -1,26 +1,27 @@
-{{-- Orders Tab Content --}}
+@props(['user', 'user_type', 'pendingOrders'])
+
 <div class="max-w-5xl mx-auto py-6">
     <div class="bg-white rounded-lg shadow-md p-6">
-        {{-- Order Status Tabs --}}
-        <div class="border-b border-gray-200 mb-6">
-            <nav class="flex space-x-8" aria-label="Orders">
-                <button class="border-b-2 border-primary-color text-primary-color py-4 px-1 text-sm font-medium">
-                    Pending
-                </button>
-                <button
-                    class="border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium">
-                    To Pay
-                </button>
-                <button
-                    class="border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium">
-                    Completed
-                </button>
-            </nav>
-        </div>
+        <nav class="flex space-x-8 border-b border-gray-200 mb-6" aria-label="Orders">
+            <button onclick="switchOrderTab('pending')"
+                class="border-b-2 border-primary-color text-primary-color py-4 px-1 text-sm font-medium order-tab"
+                data-tab="pending">
+                Pending
+            </button>
+            {{-- <button onclick="switchOrderTab('to-pay')"
+                class="border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium order-tab"
+                data-tab="to-pay">
+                To Pay
+            </button> --}}
+            <button onclick="switchOrderTab('completed')"
+                class="border-b-2 border-transparent hover:border-gray-300 text-gray-500 hover:text-gray-700 py-4 px-1 text-sm font-medium order-tab"
+                data-tab="completed">
+                Completed
+            </button>
+        </nav>
 
-        {{-- Orders List --}}
         <div class="space-y-4">
-            @forelse (auth()->user()->orders as $order)
+            @forelse ($pendingOrders as $order)
                 <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div class="flex items-center justify-between mb-4">
                         <div>
@@ -38,33 +39,52 @@
 
                     @foreach ($order->items as $item)
                         <div class="flex items-center space-x-4 mb-4">
-                            <img src="{{ $item->product->image }}" alt="{{ $item->product->name }}"
-                                class="w-20 h-20 object-cover rounded-md">
+                            <img src="{{ asset('storage/' . $item->product->images[0]) }}"
+                                alt="{{ $item->product->name }}" class="w-20 h-20 object-cover rounded-md">
                             <div class="flex-1">
                                 <h4 class="text-lg font-medium">{{ $item->product->name }}</h4>
+                                <p class="text-sm text-gray-600">Seller Code: {{ $item->product->seller_code }}</p>
+                                <p class="text-sm text-gray-600">Seller:
+                                    {{ $item->product->seller ? $item->product->seller->first_name : 'N/A' }}
+                                    {{ $item->product->seller ? $item->product->seller->last_name : '' }}</p>
                                 <p class="text-sm text-gray-600">Quantity: {{ $item->quantity }}</p>
+                                <p class="text-sm text-gray-600">Unit Price: ₱{{ number_format($item->price, 2) }}</p>
                                 <p class="text-lg font-semibold text-primary-color">
-                                    ₱{{ number_format($item->price, 2) }}</p>
+                                    Subtotal: ₱{{ number_format($item->subtotal, 2) }}</p>
                             </div>
                         </div>
                     @endforeach
 
-                    <div class="flex justify-end space-x-2 border-t pt-4">
-                        <button
-                            onclick="document.getElementById('order-modal-{{ $order->id }}').classList.remove('hidden')"
-                            class="px-4 py-2 bg-primary-color text-white rounded-lg hover:bg-primary-color/90 text-sm">
-                            View Details
-                        </button>
-                        @if ($order->status === 'pending')
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="text-sm">
+                                <p>Order Summary:</p>
+                                <p>Total Items: {{ $order->items->sum('quantity') }}</p>
+                                <p>Status: <span class="capitalize">{{ $order->status }}</span></p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-semibold text-primary-color">
+                                    Total: ₱{{ number_format($order->items->sum('subtotal'), 2) }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-2">
                             <button
-                                class="px-4 py-2 border border-primary-color text-primary-color rounded-lg hover:bg-primary-color/10 text-sm">
-                                Cancel Order
+                                onclick="document.getElementById('order-modal-{{ $order->id }}').classList.remove('hidden')"
+                                class="px-4 py-2 bg-primary-color text-white rounded-lg hover:bg-primary-color/90 text-sm">
+                                View Details
                             </button>
-                        @endif
+                            @if ($order->status === 'pending')
+                                <button
+                                    class="px-4 py-2 border border-primary-color text-primary-color rounded-lg hover:bg-primary-color/10 text-sm">
+                                    Cancel Order
+                                </button>
+                            @endif
+                        </div>
                     </div>
                 </div>
             @empty
-                {{-- Empty State --}}
                 <div class="text-center py-12">
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor">
@@ -83,8 +103,8 @@
             @endforelse
         </div>
 
-        {{-- Modals Container (outside of space-y-4) --}}
-        @foreach (auth()->user()->orders as $order)
+        {{-- Modals --}}
+        @foreach ($pendingOrders as $order)
             <div id="order-modal-{{ $order->id }}"
                 class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
                 <div class="relative mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
@@ -116,23 +136,35 @@
                             <h4 class="font-medium mb-2">Order Items</h4>
                             @foreach ($order->items as $item)
                                 <div class="flex items-center space-x-4 mb-4 border-b pb-4">
-                                    <img src="{{ $item->product->image }}" alt="{{ $item->product->name }}"
+                                    <img src="{{ $item->product->images[0] }}" alt="{{ $item->product->name }}"
                                         class="w-20 h-20 object-cover rounded-md">
                                     <div class="flex-1">
                                         <h5 class="font-medium">{{ $item->product->name }}</h5>
+                                        <p class="text-sm text-gray-600">Seller Code: {{ $item->product->seller_code }}
+                                        </p>
+                                        <p class="text-sm text-gray-600">Seller:
+                                            {{ $item->product->seller ? $item->product->seller->first_name : 'N/A' }}
+                                            {{ $item->product->seller ? $item->product->seller->last_name : '' }}</p>
+                                        <p class="text-sm text-gray-600">Contact:
+                                            {{ $item->product->seller ? $item->product->seller->wmsu_email : 'N/A' }}
+                                        </p>
+                                        <p class="text-sm text-gray-600">Department:
+                                            {{ $item->product->seller && $item->product->seller->wmsu_dept ? $item->product->seller->wmsu_dept->name : 'N/A' }}
+                                        </p>
                                         <p class="text-sm text-gray-600">Quantity: {{ $item->quantity }}</p>
-                                        <p class="text-primary-color font-medium">
+                                        <p class="text-sm text-gray-600">Unit Price:
                                             ₱{{ number_format($item->price, 2) }}</p>
+                                        <p class="text-primary-color font-medium">
+                                            Subtotal: ₱{{ number_format($item->subtotal, 2) }}</p>
                                     </div>
                                 </div>
                             @endforeach
-                        </div>
 
-                        <div class="border-t pt-4">
-                            <div class="flex justify-between items-center">
+                            {{-- Changed this section to remove double borders --}}
+                            <div class="flex justify-between items-center mt-4">
                                 <span class="font-medium">Total Amount:</span>
                                 <span class="text-lg font-semibold text-primary-color">
-                                    ₱{{ number_format($order->items->sum('price'), 2) }}
+                                    ₱{{ number_format($order->items->sum('subtotal'), 2) }}
                                 </span>
                             </div>
                         </div>

@@ -1,0 +1,19 @@
+/* Registration Form Styles */
+.registration-nav {
+    position: relative;
+    z-index: 50;
+}
+
+.user-type-option {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.user-type-option:hover {
+    transform: translateY(-2px);
+}
+
+.user-type-option.selected {
+    border-color: var(--primary-color);
+    background-color: rgba(var(--primary-color-rgb), 0.05);
+}

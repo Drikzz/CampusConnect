@@ -23,11 +23,11 @@
                                     class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg space-y-4 sm:space-y-0">
                                     {{-- Product Image and Name --}}
                                     <div class="flex items-center gap-4 w-full sm:w-auto">
-                                        <img src="{{ $product->image }}" alt="{{ $product->name }}"
+                                        <img src="{{ asset('storage/' . $product->images[0]) }}"
+                                            alt="{{ $product->name }}"
                                             class="w-16 h-16 object-cover rounded-md flex-shrink-0">
                                         <h3 class="font-Satoshi-bold">{{ Str::ucfirst($product->name) }}</h3>
                                     </div>
-
                                     <div
                                         class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                                         {{-- Quantity Controls --}}
@@ -42,6 +42,7 @@
                                                         stroke-linejoin="round" stroke-width="2" d="M1 1h16" />
                                                 </svg>
                                             </button>
+
                                             <input type="text" id="quantity" value="{{ old('quantity', 1) }}"
                                                 class="bg-gray-50 border-x-0 border-gray-300 h-11 text-center text-gray-900 text-sm focus:ring-0 focus:outline-none block w-full py-2.5"
                                                 readonly data-max-stock="{{ $product->stock }}"
@@ -62,7 +63,7 @@
                                         {{-- Subtotal --}}
                                         <div class="text-right ml-4">
                                             <p class="font-Satoshi-bold whitespace-nowrap" id="subtotal">
-                                                ₱{{ number_format($product->discounted_price, 2) }}</p>
+                                                ₱{{ number_format($product->discounted_price) }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -83,7 +84,7 @@
                             <div class="border-t border-gray-100 py-4 mb-6">
                                 <h4 class="font-Satoshi-bold mb-2">Seller Information</h4>
                                 <div class="flex items-center gap-3">
-                                    <img src="{{ Storage::url($product->seller->profile_picture) ?? 'default.jpg' }}"
+                                    <img src="{{ asset('storage/' . $product->seller->profile_picture) }}"
                                         class="w-8 h-8 rounded-full object-cover">
                                     <div>
                                         <p class="font-medium">{{ $product->seller->first_name }}</p>
@@ -107,29 +108,29 @@
                             <div class="flex justify-between">
                                 <span class="font-Satoshi">Original Price</span>
                                 <span class="text-black font-Satoshi"
-                                    id="original-price">₱{{ number_format($product->price, 2) }}</span>
+                                    id="original-price">₱{{ number_format($product->price) }}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="font-Satoshi">Discount ({{ $product->discount }}%)</span>
                                 <span class="text-red-500 font-Satoshi"
-                                    id="discount-amount">-₱{{ number_format($product->price - $product->discounted_price, 2) }}</span>
+                                    id="discount-amount">-₱{{ number_format($product->price - $product->discounted_price) }}</span>
                             </div>
                             <div class="flex justify-between font-Satoshi-bold text-lg">
                                 <span class="font-Satoshi-bold">Total</span>
                                 <span class="font-Satoshi-bold"
-                                    id="total">₱{{ number_format($product->discounted_price, 2) }}</span>
+                                    id="total">₱{{ number_format($product->discounted_price) }}</span>
                             </div>
                         </div>
                     </div>
 
                     {{-- Right Column - Checkout Form (now 1/2 width) --}}
-                    <div class="md:col-span-1 bg-white rounded-lg shadow-sm">
-                        <div class="sticky top-0 bg-white p-6 border-b z-10">
+                    <div class="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col">
+                        <div class="bg-white p-6 border-b">
                             <h2 class="text-2xl font-Satoshi-bold">Checkout Details</h2>
                         </div>
 
-                        <div class="p-6 overflow-y-auto max-h-[calc(100vh-200px)]">
-                            <div class="space-y-6 flex-grow">
+                        <div class="p-6 overflow-y-auto flex-1">
+                            <div class="space-y-6">
                                 {{-- Contact Information Section --}}
                                 <div>
                                     <div
@@ -226,14 +227,14 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {{-- Sticky Order Button --}}
-                            <div class="sticky bottom-0 bg-white p-6 border-t mt-auto">
-                                <button type="submit"
-                                    class="w-full bg-black text-white py-3 rounded-full font-Satoshi-bold hover:bg-gray-800 transition-colors">
-                                    Place Order
-                                </button>
-                            </div>
+                        {{-- Order Button (Outside of scrollable area) --}}
+                        <div class="p-6 border-t bg-white">
+                            <button type="submit"
+                                class="w-full bg-black text-white py-3 rounded-full font-Satoshi-bold hover:bg-gray-800 transition-colors">
+                                Place Order
+                            </button>
                         </div>
                     </div>
                 </div>
