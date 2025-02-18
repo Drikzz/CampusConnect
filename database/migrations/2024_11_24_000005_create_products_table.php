@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->decimal('price', 10, 2);
-            $table->integer('discount')->default(0);
+            $table->decimal('discount', 8, 2)->default(0); // Change to decimal for storing 0.15 instead of 15
             $table->decimal('discounted_price', 10, 2)->nullable();
             $table->json('images')->nullable();
             $table->integer('stock');
@@ -25,7 +25,8 @@ return new class extends Migration
             $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
             $table->boolean('is_buyable')->default(true);
             $table->boolean('is_tradable')->default(false);
-            $table->enum('status', ['Active', 'Inactive'])->default('Active');
+            $table->enum('status', ['Active', 'Inactive'])->default('Active')->nullable(false);
+            $table->softDeletes();
             $table->timestamps();
         });
     }

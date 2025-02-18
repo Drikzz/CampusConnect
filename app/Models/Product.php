@@ -6,25 +6,28 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    protected $attributes = [
+        'status' => 'Active', // Set default status
+    ];
 
     protected $fillable = [
         'name',
         'description',
         'price',
         'discount',
-        'discounted_price',
+        'discounted_price', // Make sure this matches your database column name exactly
         'images',
         'stock',
         'seller_code',
         'category_id',
         'is_buyable',
         'is_tradable',
-        'condition',
-        'trade_preferences',
         'status',
     ];
 

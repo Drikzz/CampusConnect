@@ -3,19 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Order;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 
-use function Pest\Laravel\get;
-
 class SellerController extends Controller
 {
-
+    // Keep index for dashboard
     public function index()
     {
         $sellerCode = Auth::user()->seller_code;
@@ -55,219 +53,156 @@ class SellerController extends Controller
         return view('seller.dashboard', compact('categories', 'totalOrders', 'totalSales', 'activeTrades', 'recentOrders', 'orderCounts'));
     }
 
-    public function create()
+    // Modify products listing to include option to show deleted
+    public function products(Request $request)
     {
         $sellerCode = Auth::user()->seller_code;
+        $orderCounts = $this->getOrderCounts($sellerCode);
 
-        // Update order counts to use seller_code
-        $orderCounts = (object)[
-            'pendingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Pending')->count(),
-            'processingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Processing')->count(),
-            'completedCount' => Order::where('seller_code', $sellerCode)->where('status', 'Completed')->count(),
-        ];
-        View::share('orderCounts', $orderCounts);
+        $query = Product::where('seller_code', $sellerCode)
+            ->with(['category']);
 
+        // Include deleted items if requested
+        if ($request->show_deleted) {
+            $query->withTrashed();
+        }
+
+        $products = $query->latest()->paginate(10);
         $categories = Category::all();
-        return view('seller.addproduct', compact('categories', 'orderCounts'));
+
+        return view('dashboard.products', compact('products', 'categories', 'orderCounts'));
     }
 
+    // Add method to fetch single product for editing
+    public function edit(Product $product)
+    {
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $product->load('category'); // Load the category relationship
+        return response()->json($product);
+    }
+
+    // Modify store method
     public function store(Request $request)
     {
         $sellerCode = Auth::user()->seller_code;
-
         if (!$sellerCode) {
-            return redirect()->back()->with('error', 'Seller code not found. Please update your profile.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Seller code not found. Please update your profile.'
+            ], 400);
         }
 
-        // Update order counts to use seller_code
-        $orderCounts = (object)[
-            'pendingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Pending')->count(),
-            'processingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Processing')->count(),
-            'completedCount' => Order::where('seller_code', $sellerCode)->where('status', 'Completed')->count(),
-        ];
-        View::share('orderCounts', $orderCounts);
-
-        // Ensure user is authenticated
-        if (!Auth::check()) {
-            return redirect()->route('login')
-                ->with('error', 'You must be logged in to add products.');
-        }
-
-        // Get seller code from authenticated user
-        $sellerCode = Auth::user()->seller_code;
-
-        // dd($sellerCode);    
-        if (!$sellerCode) {
-            return redirect()->back()
-                ->with('error', 'Seller code not found. Please update your profile.');
-        }
-
-        // Validate incoming request
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category' => 'required|exists:categories,id',
             'trade_availability' => 'required|in:buy,trade,both',
             'price' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0|max:100',
-            'quantity' => 'required|integer|min:1',
+            'discount' => 'nullable|integer|min:0|max:100',
+            'stock' => 'required|integer|min:0',
             'main_image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'additional_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'status' => 'required|in:Active,Inactive'
+            'additional_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
-        // Handle images with full URLs
-        $imagePaths = [];
-
-        // Handle main image (required)
-        if ($request->hasFile('main_image')) {
-            $path = $request->file('main_image')->store('products', 'public');
-            $imagePaths[] = ($path);
-        }
-
-        // Handle additional images (optional)
-        if ($request->hasFile('additional_images')) {
-            foreach ($request->file('additional_images') as $image) {
-                if ($image) {
-                    $path = $image->store('products', 'public');
-                    $imagePaths[] = ($path);
-                }
-            }
-        }
-
-        // Set is_buyable and is_tradable based on trade_availability
-        $is_buyable = in_array($validated['trade_availability'], ['buy', 'both']);
-        $is_tradable = in_array($validated['trade_availability'], ['trade', 'both']);
-
-        // Calculate discounted price
-        $price = (int)(floatval($validated['price']) * 100); // Convert to cents
-        $discount = ($validated['discount'] ?? 0) / 100; // Convert percentage to decimal
-        $taxPrice = $price * $discount;
-        $discountedPrice = $price - $taxPrice;
-        $price = $price / 100; // Convert back to dollars
-
-        // Create product
-        $product = Product::create([
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'price' => $price,
-            'discount' => $validated['discount'] ?? 0,
-            'discounted_price' => $discountedPrice,
-            'stock' => $validated['quantity'],
-            'images' => $imagePaths,
-            'seller_code' => $sellerCode,
-            'category_id' => $validated['category'],
-            'is_buyable' => $is_buyable,
-            'is_tradable' => $is_tradable,
-            'status' => $validated['status']
-        ]);
-
-        if ($product) {
-            return redirect()->route('seller.products')->with('success', 'Product added successfully!');
-        }
-
-        // return redirect()->back()->with('error', 'Failed to add product. Please try again.');
-    }
-
-    public function products()
-    {
-        $sellerCode = Auth::user()->seller_code;
-
-        // Update order counts to use seller_code
-        $orderCounts = (object)[
-            'pendingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Pending')->count(),
-            'processingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Processing')->count(),
-            'completedCount' => Order::where('seller_code', $sellerCode)->where('status', 'Completed')->count(),
-        ];
-        View::share('orderCounts', $orderCounts);
-
-        $products = Product::where('seller_code', $sellerCode)
-            ->with(['category'])
-            ->latest()
-            ->paginate(25);  // Increased from 10 to 25 items per page
-
-        $categories = Category::all();
-
-        return view('seller.product', compact('products', 'orderCounts', 'categories'));
-    }
-
-    public function update(Request $request, Product $product)
-    {
         try {
-            // Verify seller ownership
-            if ($product->seller_code !== Auth::user()->seller_code) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
-            }
+            // Handle images
+            $imagePaths = $this->handleProductImages($request);
 
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'description' => 'required|string',
-                'category' => 'required|exists:categories,id',
-                'price' => 'required|numeric|min:0',
-                'quantity' => 'required|integer|min:1',
-                'discount' => 'nullable|numeric|min:0|max:100',
-                'is_buyable' => 'required|boolean',
-                'is_tradable' => 'required|boolean',
-            ]);
+            // Set trade options
+            $tradeOptions = $this->getTradeOptions($validated['trade_availability']);
 
-            // Convert array to object for easier manipulation
-            $imageObj = [];
-            foreach ($product->images ?? [] as $index => $path) {
-                $imageObj[$index] = $path;
-            }
+            // Calculate discount as decimal (e.g., 15% becomes 0.15)
+            $discount = $validated['discount'] ? (float)($validated['discount'] / 100) : 0.0;
 
-            // Handle main image (index 0)
-            if ($request->hasFile('main_image')) {
-                // Delete old main image if exists
-                if (isset($imageObj[0])) {
-                    $oldPath = str_replace('/storage/', '', parse_url($imageObj[0], PHP_URL_PATH));
-                    Storage::disk('public')->delete($oldPath);
-                }
+            // Calculate discounted price using float values
+            $price = (float)$validated['price'];
+            $discountedPrice = $price * (1 - $discount);
 
-                // Store new image
-                $path = $request->file('main_image')->store('products', 'public');
-                $imageObj[0] = Storage::url($path);
-            }
-
-            // Handle additional images
-            for ($i = 1; $i <= 4; $i++) {
-                $inputName = "additional_image_{$i}";
-                if ($request->hasFile($inputName)) {
-                    // Delete old image if exists
-                    if (isset($imageObj[$i])) {
-                        $oldPath = str_replace('/storage/', '', parse_url($imageObj[$i], PHP_URL_PATH));
-                        Storage::disk('public')->delete($oldPath);
-                    }
-
-                    // Store new image
-                    $path = $request->file($inputName)->store('products', 'public');
-                    $imageObj[$i] = Storage::url($path);
-                }
-            }
-
-            // Remove any null values and reindex array
-            $imagePaths = array_values(array_filter($imageObj));
-
-            // Calculate discounted price
-            $price = (int)(floatval($validated['price']) * 100); // Convert to cents
-            $discount = ($validated['discount'] ?? 0) / 100; // Convert percentage to decimal
-            $taxPrice = $price * $discount;
-            $discountedPrice = $price - $taxPrice;
-            $price = $price / 100; // Convert back to dollars
-
-            // Update product without trade method
-            $product->update([
+            // Create product with Active status by default
+            $product = Product::create([
                 'name' => $validated['name'],
                 'description' => $validated['description'],
                 'price' => $price,
-                'discount' => $validated['discount'] ?? 0,
-                'discounted_price' => $discountedPrice,
-                'stock' => $validated['quantity'],
-                'quantity' => $validated['quantity'],
+                'discount' => $discount, // Store as decimal (0.15 for 15%)
+                'discounted_price' => round($discountedPrice, 2), // Round to 2 decimal places
+                'stock' => $validated['stock'],
+                'images' => $imagePaths,
+                'seller_code' => $sellerCode,
                 'category_id' => $validated['category'],
-                'images' => $imagePaths ?? $product->images,
-                'is_buyable' => filter_var($request->input('is_buyable'), FILTER_VALIDATE_BOOLEAN),
-                'is_tradable' => filter_var($request->input('is_tradable'), FILTER_VALIDATE_BOOLEAN),
+                'is_buyable' => $tradeOptions['is_buyable'],
+                'is_tradable' => $tradeOptions['is_tradable'],
+                'status' => 'Active' // Default status
+            ]);
+
+            // Check if request wants JSON
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Product added successfully',
+                    'product' => $product
+                ]);
+            }
+
+            // Redirect for regular form submit
+            return redirect()->route('dashboard.seller.products')
+                ->with('success', 'Product added successfully');
+        } catch (\Exception $e) {
+            Log::error('Product creation error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error creating product: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Error creating product: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    // Modify update method
+    public function update(Request $request, Product $product)
+    {
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            // Calculate discount as decimal
+            $discount = $request->discount ? (float)($request->discount / 100) : 0.0;
+
+            // Calculate discounted price using float values
+            $price = (float)$request->price;
+            $discountedPrice = $price * (1 - $discount);
+
+            // Debug logging
+            Log::info('Product update calculations:', [
+                'original_price' => $price,
+                'discount_percentage' => $request->discount,
+                'discount_decimal' => $discount,
+                'final_price' => $discountedPrice
+            ]);
+
+            // Handle update logic
+            $product->update([
+                'name' => $request->name,
+                'description' => $request->description,
+                'category_id' => $request->category,
+                'price' => $price,
+                'discount' => $discount,
+                'discounted_price' => round($discountedPrice, 2),
+                'stock' => $request->stock,
+                'status' => $request->status ?? 'Active',
+                'is_buyable' => in_array($request->trade_availability, ['buy', 'both']),
+                'is_tradable' => in_array($request->trade_availability, ['trade', 'both'])
             ]);
 
             return response()->json([
@@ -276,7 +211,10 @@ class SellerController extends Controller
                 'product' => $product
             ]);
         } catch (\Exception $e) {
-            Log::error('Product update error: ' . $e->getMessage());
+            Log::error('Product update error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error updating product: ' . $e->getMessage()
@@ -284,90 +222,141 @@ class SellerController extends Controller
         }
     }
 
+    // Modify destroy method to use soft delete
     public function destroy(Product $product)
     {
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         try {
-            // Verify seller ownership
-            if ($product->seller_code !== Auth::user()->seller_code) {
-                return redirect()->back()->with('error', 'Unauthorized action.');
-            }
+            // Set product status to Inactive before soft deleting
+            $product->update([
+                'status' => 'Inactive',
+                'is_buyable' => false,
+                'is_tradable' => false
+            ]);
 
-            // Delete associated images from storage
-            if ($product->images) {
-                foreach ($product->images as $image) {
-                    $path = str_replace('/storage/', '', parse_url($image, PHP_URL_PATH));
-                    if (Storage::disk('public')->exists($path)) {
-                        Storage::disk('public')->delete($path);
-                    }
-                }
-            }
-
-            // Delete the product
+            // Perform soft delete
             $product->delete();
 
-            return redirect()->route('seller.products')
-                ->with('success', 'Product deleted successfully.');
+            // Update any active orders containing this product
+            $product->orderItems()
+                ->whereHas('order', function ($query) {
+                    $query->whereIn('status', ['Pending', 'Processing']);
+                })
+                ->each(function ($orderItem) {
+                    $orderItem->order->update(['status' => 'Cancelled']);
+                });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product has been deactivated and archived'
+            ]);
         } catch (\Exception $e) {
             Log::error('Product deletion error: ' . $e->getMessage());
-            return redirect()->back()
-                ->with('error', 'Error deleting product. Please try again.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Error archiving product: ' . $e->getMessage()
+            ], 500);
         }
     }
 
-    public function categories()
+    // Optional: Add method to permanently delete if needed
+    public function forceDelete(Product $product)
     {
-        $sellerCode = Auth::user()->seller_code;
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
 
-        $orderCounts = (object)[
+        try {
+            // Delete images
+            if ($product->images) {
+                foreach ($product->images as $image) {
+                    Storage::disk('public')->delete($image);
+                }
+            }
+
+            $product->forceDelete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product permanently deleted'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error permanently deleting product: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Optional: Add method to restore deleted products
+    public function restore($id)
+    {
+        $product = Product::withTrashed()->findOrFail($id);
+
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $product->restore();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product restored successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error restoring product: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Helper methods
+    private function getOrderCounts($sellerCode)
+    {
+        return (object)[
             'pendingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Pending')->count(),
             'processingCount' => Order::where('seller_code', $sellerCode)->where('status', 'Processing')->count(),
             'completedCount' => Order::where('seller_code', $sellerCode)->where('status', 'Completed')->count(),
         ];
-        View::share('orderCounts', $orderCounts);
-
-        return view('seller.categories', compact('orderCounts'));
     }
 
-    public function orders()
+    private function handleProductImages(Request $request, Product $product = null)
     {
-        $sellerCode = Auth::user()->seller_code;
+        $imagePaths = [];
 
-        // Update order counts - removed processing
-        $orderCounts = (object)[
-            'pendingCount' => Order::where('seller_code', $sellerCode)->pending()->count(),
-            'completedCount' => Order::where('seller_code', $sellerCode)->completed()->count(),
+        // Handle main image
+        if ($request->hasFile('main_image')) {
+            // Delete old main image if exists
+            if ($product && isset($product->images[0])) {
+                Storage::disk('public')->delete($product->images[0]);
+            }
+            $imagePaths[] = $request->file('main_image')->store('products', 'public');
+        }
+
+        // Handle additional images
+        if ($request->hasFile('additional_images')) {
+            foreach ($request->file('additional_images') as $index => $image) {
+                // Delete old additional image if exists
+                if ($product && isset($product->images[$index + 1])) {
+                    Storage::disk('public')->delete($product->images[$index + 1]);
+                }
+                $imagePaths[] = $image->store('products', 'public');
+            }
+        }
+
+        return $imagePaths ?: ($product ? $product->images : []);
+    }
+
+    private function getTradeOptions($tradeAvailability)
+    {
+        return [
+            'is_buyable' => in_array($tradeAvailability, ['buy', 'both']),
+            'is_tradable' => in_array($tradeAvailability, ['trade', 'both'])
         ];
-        View::share('orderCounts', $orderCounts);
-
-        // Get all orders for the seller with buyer information
-        $orders = Order::where('seller_code', $sellerCode)
-            ->with(['buyer', 'items.product'])
-            ->latest()
-            ->paginate(10);
-
-        return view('seller.orders', compact('orders', 'orderCounts'));
-    }
-
-    // Add new methods for order details and completion
-    public function getOrderDetails(Order $order)
-    {
-        // Verify seller ownership
-        if ($order->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        return response()->json($order->load('buyer', 'items.product'));
-    }
-
-    public function completeOrder(Order $order)
-    {
-        // Verify seller ownership
-        if ($order->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $order->update(['status' => 'Completed']);
-
-        return response()->json(['success' => true]);
     }
 }

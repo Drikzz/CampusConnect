@@ -10,14 +10,13 @@ use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 
+// Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
-
-// products statics
 Route::get('/products', [ProductController::class, 'index'])->name('products');
-Route::get('/products/prod/{id}', [ProductController::class, 'product_details'])->name('prod.details');
+Route::get('/products/{id}', [ProductController::class, 'product_details'])->name('prod.details');
 Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
 
-// Move these routes before any middleware groups
+// Authentication routes
 Route::view('/login', 'auth.login')->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -44,17 +43,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/seller/terms', [DashboardController::class, 'showSellerTerms'])->name('dashboard.seller.terms');
         Route::post('/seller/terms', [DashboardController::class, 'acceptSellerTerms'])->name('dashboard.seller.terms.accept');
 
-        // Seller specific routes
-        Route::middleware(['seller'])->group(function () {
-            Route::get('/products', [DashboardController::class, 'products'])->name('dashboard.products');
-            Route::get('/analytics', [DashboardController::class, 'analytics'])->name('dashboard.analytics');
-            Route::get('/seller/orders', [OrderController::class, 'index'])->name('seller.orders.index');
-            Route::get('/seller/products/add', [SellerController::class, 'create'])->name('seller.addproduct');
-            Route::post('/seller/products/add', [SellerController::class, 'store']);
-            Route::get('/seller/products/{product}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
-            Route::post('/seller/products/{product}/update', [SellerController::class, 'update'])->name('seller.products.update');
-            Route::delete('/seller/products/{product}/remove', [SellerController::class, 'destroy'])->name('seller.products.delete');
-        });
+        Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
+        Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
+        Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.delete');
     });
 
     //checkout routes
@@ -62,33 +53,35 @@ Route::middleware('auth')->group(function () {
     Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 });
 
+// Seller routes should be last
+Route::middleware(['auth', 'seller'])->prefix('dashboard/seller')->name('dashboard.seller.')->group(function () {
+    // Dashboard & Analytics
+    Route::get('/', [SellerController::class, 'index'])->name('dashboard');
+    Route::get('/analytics', [SellerController::class, 'analytics'])->name('analytics');
+
+    // Products Management (these won't conflict with public routes now)
+    Route::get('/manage-products', [SellerController::class, 'products'])->name('products.index');
+    Route::post('/manage-products', [SellerController::class, 'store'])->name('products.store');
+    Route::get('/manage-products/{product}/edit', [SellerController::class, 'edit'])->name('products.edit');
+    Route::put('/manage-products/{product}', [SellerController::class, 'update'])->name('products.update');
+    Route::delete('/manage-products/{product}', [SellerController::class, 'destroy'])->name('products.destroy');
+
+    // Orders Management
+    Route::get('/orders', [SellerController::class, 'orders'])->name('orders');
+    Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('orders.show');
+    Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('orders.update-status');
+    Route::post('/orders/{order}/complete', [SellerController::class, 'completeOrder'])->name('orders.complete');
+
+    // Categories
+    Route::get('/categories', [SellerController::class, 'categories'])->name('categories');
+});
+
 Route::middleware('guest')->group(function () {
     Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
     Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
     Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
     Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
-
-    Route::get('/register/highschool', [AuthController::class, 'register_form_highschool'])->name('register_form_highschool');
-    Route::post('/register/highschool', [AuthController::class, 'registerHSStudent'])->name('registerHSStudent');
-
-    Route::get('/register/college', [AuthController::class, 'register_form_college'])->name('register_form_college');
-    Route::post('/register/college', [AuthController::class, 'registerCollegeStudent'])->name('registerCollegeStudent');
-
-    Route::get('/register/employee', [AuthController::class, 'register_form_employee'])->name('register_form_employee');
-    Route::post('/register/employee', [AuthController::class, 'registerEmployee'])->name('registerEmployee');
-
-    // alumni
-    Route::get('/register/alumni', [AuthController::class, 'register_form_alumni'])->name('register_form_alumni');
-    Route::post('/register/alumni', [AuthController::class, 'registerAlumni'])->name('registerAlumni');
-
-    // postGraduate
-    // Route::get('/register/postgraduate', [AuthController::class, 'register_form_postGraduate'])->name('register_form_postGraduate');
-    Route::get('/register/postgraduate', [AuthController::class, 'register_form_postgraduate'])->name('register_form_postgraduate');
-    Route::post('/register/postgraduate', [AuthController::class, 'register_postGraduate'])->name('register_postGraduate');
-
-    // IF LOGOUT LINK IS PRESENT, UNCOMMENT THIS ROUTE //
 });
-
 
 // Admin Authentication Routes
 // Route::get('/admin/login', [AdminController::class, 'showLoginForm'])->name('admin.login');

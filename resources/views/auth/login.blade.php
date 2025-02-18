@@ -94,8 +94,12 @@
                                         </svg>
                                     </div>
                                     <input type="password" id="password" name="password"
-                                        class="bg-gray-50 border border-primary-color text-black placeholder:text-gray-400 text-sm rounded-lg focus:ring-primary-color focus:ring focus:outline-none focus:transition-all block w-full ps-10 p-2.5 @error('password') ring-red-500 @enderror"
+                                        class="bg-gray-50 border border-primary-color text-black placeholder:text-gray-400 text-sm rounded-lg focus:ring-primary-color focus:ring focus:outline-none focus:transition-all block w-full ps-10 p-2.5 pr-10 @error('password') ring-red-500 @enderror"
                                         placeholder="password123">
+                                    <button type="button" id="togglePassword"
+                                        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
                                 </div>
 
                                 <div class="w-full flex justify-between items-center">
@@ -161,111 +165,24 @@
                         });
                     });
                 </script>
-
             </div>
-
         </div>
     </div>
-
 </x-layout>
 
-<!-- Main modal -->
-<div id="default-modal" tabindex="-1" aria-hidden="true"
-    class="hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full h-full">
-    <!-- Modal backdrop -->
-    <div class="fixed inset-0 bg-slate-900/50 z-40"></div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordInput = document.getElementById('password');
 
-    <div class="relative p-4 w-full max-w-md z-50">
-        <!-- Modal content -->
-        <div class="relative bg-white rounded-lg shadow">
-            <!-- Modal header -->
-            <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t">
-                <h3 class="text-xl font-semibold text-gray-400">
-                    What type of user are you?
-                </h3>
-                <button type="button"
-                    class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center"
-                    data-modal-hide="default-modal">
-                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
-                        viewBox="0 0 14 14">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                    </svg>
-                </button>
-            </div>
-            <!-- Modal body -->
-            <div class="p-4 md:p-5 space-y-4">
-                <form id="userTypeForm" action="" method="POST"
-                    data-route-highschool="{{ route('register_form_highschool') }}"
-                    data-route-college="{{ route('register_form_college') }}"
-                    data-route-employee="{{ route('register_form_employee') }}"
-                    data-route-alumni="{{ route('register_form_alumni') }}"
-                    data-route-postgraduate="{{ route('register_form_postgraduate') }}">
-                    @csrf
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
 
-                    <ul class="space-y-3">
-                        <li>
-                            <input type="radio" id="highschool" name="userType" value="highschool"
-                                class="hidden peer">
-                            <label for="highschool"
-                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
-                                <div class="block">
-                                    <div class="w-full text-lg font-semibold">High School Student</div>
-                                </div>
-                            </label>
-                        </li>
-                        <li>
-                            <input type="radio" id="college" name="userType" value="college"
-                                class="hidden peer">
-                            <label for="college"
-                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
-                                <div class="block">
-                                    <div class="w-full text-lg font-semibold">College Student</div>
-                                </div>
-                            </label>
-                        </li>
-                        <li>
-                            <input type="radio" id="alumni" name="userType" value="alumni"
-                                class="hidden peer">
-                            <label for="alumni"
-                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
-                                <div class="block">
-                                    <div class="w-full text-lg font-semibold">Alumni</div>
-                                </div>
-                            </label>
-                        </li>
-                        <li>
-                            <input type="radio" id="postgraduate" name="userType" value="postgraduate"
-                                class="hidden peer">
-                            <label for="postgraduate"
-                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
-                                <div class="block">
-                                    <div class="w-full text-lg font-semibold">Post Graduate</div>
-                                </div>
-                            </label>
-                        </li>
-                        <li>
-                            <input type="radio" id="employee" name="userType" value="employee"
-                                class="hidden peer">
-                            <label for="employee"
-                                class="transition-all inline-flex items-center justify-between w-full p-5 text-gray-500 bg-white border border-gray-200 rounded-lg cursor-pointer peer-checked:border-primary-color peer-checked:text-primary-color hover:text-gray-600 hover:bg-gray-100">
-                                <div class="block">
-                                    <div class="w-full text-lg font-semibold">Employee</div>
-                                </div>
-                            </label>
-                        </li>
-                    </ul>
-                </form>
-            </div>
-            <!-- Modal footer -->
-            <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b">
-                <button type="button" id="continueBtn"
-                    class="text-white bg-primary-color hover:opacity-80 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
-                    Continue
-                </button>
-                <button data-modal-hide="default-modal" type="button"
-                    class="ms-3 text-gray-500 bg-white focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900">Cancel</button>
-            </div>
-        </div>
-    </div>
-</div>
+            // Toggle the eye icon
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-eye');
+            icon.classList.toggle('fa-eye-slash');
+        });
+    });
+</script>

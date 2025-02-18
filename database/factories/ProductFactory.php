@@ -23,8 +23,9 @@ class ProductFactory extends Factory
     public function definition(): array
     {
         $price = $this->faker->numberBetween(100, 10000);
-        $discount = $this->faker->boolean(30) ? $this->faker->numberBetween(5, 50) : 0;
-        $discountedPrice = $price - ($price * ($discount / 100));
+        // Generate discount as decimal (0 to 0.10)
+        $discount = $this->faker->boolean(30) ? $this->faker->randomFloat(2, 0.01, 0.90) : 0;
+        $discountedPrice = $price * (1 - $discount);
 
         // Generate 1-3 random image URLs
         $imageCount = $this->faker->numberBetween(1, 3);
@@ -38,8 +39,8 @@ class ProductFactory extends Factory
             'name' => $this->faker->words(3, true),
             'description' => $this->faker->paragraphs(2, true),
             'price' => $price,
-            'discount' => $discount,
-            'discounted_price' => $discountedPrice,
+            'discount' => $discount, // Now stores as decimal (e.g., 0.05 for 5%)
+            'discounted_price' => round($discountedPrice, 2),
             'images' => $imageUrls,
             'stock' => $this->faker->numberBetween(1, 20),
             'seller_code' => null, // Will be set in DatabaseSeeder
