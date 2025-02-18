@@ -116,7 +116,7 @@ class AdminController extends Controller
 
     public function transactions()
     {
-        $transactions = Order::with('buyer')->latest()->paginate(10);
+        $transactions = Order::with(['buyer', 'seller', 'items.product.images'])->get();
         return view('admin.admin-transactions', compact('transactions'));
     }
 
