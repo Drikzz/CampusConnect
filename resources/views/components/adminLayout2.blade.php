@@ -63,7 +63,7 @@
         <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Transactions" onclick="setActive(this, '{{ route('admin.transactions') }}')">
           <i class="bx bx-transfer"></i>
         </div>
-        <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Settings" onclick="setActive(this, '#')">
+        <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Settings" onclick="setActive(this, '{{ route('admin.settings') }}')">
           <i class="bx bx-cog"></i>
         </div>
        <!-- <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Help" onclick="setActive(this)">

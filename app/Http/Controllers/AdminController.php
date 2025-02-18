@@ -124,4 +124,23 @@ class AdminController extends Controller
         $products = Product::all();
         return view('admin.admin-productManagement', compact('products'));
     }
+
+    public function settings()
+    {
+
+        return view('admin.admin-settings');
+
+        // $request->validate([
+        //     'commission_rate' => 'required|numeric|min:0|max:100',
+        // ]);
+
+        // // Save the commission rate to the database or configuration
+        // // For example, using a settings table:
+        // DB::table('settings')->updateOrInsert(
+        //     ['key' => 'commission_rate'],
+        //     ['value' => $request->commission_rate]
+        // );
+
+        // return redirect()->back()->with('success', 'Commission rate updated successfully.');
+    }
 }
