@@ -1,4 +1,5 @@
 <x-adminLayout2>
+
     <body class="bg-gray-100 p-6">
         <div class="max-w-6xl mx-auto">
             <h2 class="text-2xl font-semibold mb-4">Add User</h2>
