@@ -43,22 +43,19 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
-                        <input type="text" name="first_name" id="first_name"
-                            value="{{ old('first_name', $user->first_name) }}"
+                        <input type="text" name="first_name" id="first_name" value="{{ $user->first_name }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
 
                     <div>
                         <label for="middle_name" class="block text-sm font-medium text-gray-700">Middle Name</label>
-                        <input type="text" name="middle_name" id="middle_name"
-                            value="{{ old('middle_name', $user->middle_name) }}"
+                        <input type="text" name="middle_name" id="middle_name" value="{{ $user->middle_name }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
 
                     <div>
                         <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
-                        <input type="text" name="last_name" id="last_name"
-                            value="{{ old('last_name', $user->last_name) }}"
+                        <input type="text" name="last_name" id="last_name" value="{{ $user->last_name }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
                 </div>
@@ -108,14 +105,13 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                        <input type="tel" name="phone" id="phone" value="{{ old('phone', $user->phone) }}"
+                        <input type="tel" name="phone" id="phone" value="{{ $user->phone }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
 
                     <div>
                         <label for="date_of_birth" class="block text-sm font-medium text-gray-700">Date of Birth</label>
-                        <input type="date" name="date_of_birth" id="date_of_birth"
-                            value="{{ old('date_of_birth', $user->date_of_birth) }}"
+                        <input type="date" name="date_of_birth" id="date_of_birth" value="{{ $user->date_of_birth }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
                 </div>
@@ -127,14 +123,13 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                        <input type="text" name="username" id="username" value="{{ old('username', $user->username) }}"
+                        <input type="text" name="username" id="username" value="{{ $user->username }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
 
                     <div>
                         <label for="wmsu_email" class="block text-sm font-medium text-gray-700">WMSU Email</label>
-                        <input type="email" name="wmsu_email" id="wmsu_email"
-                            value="{{ old('wmsu_email', $user->wmsu_email) }}"
+                        <input type="email" name="wmsu_email" id="wmsu_email" value="{{ $user->wmsu_email }}"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-color focus:ring-primary-color">
                     </div>
                 </div>
@@ -152,7 +147,7 @@
                                 <option value="">Select Department</option>
                                 @foreach ($departments as $department)
                                     <option value="{{ $department->id }}"
-                                        {{ old('wmsu_dept_id', $user->wmsu_dept_id) == $department->id ? 'selected' : '' }}>
+                                        {{ $user->wmsu_dept_id == $department->id ? 'selected' : '' }}>
                                         {{ $department->name }}
                                     </option>
                                 @endforeach
@@ -171,7 +166,7 @@
                         <option value="">Select Grade Level</option>
                         @foreach ($gradeLevels as $gradeLevel)
                             <option value="{{ $gradeLevel->id }}"
-                                {{ old('grade_level_id', $user->grade_level_id) == $gradeLevel->id ? 'selected' : '' }}>
+                                {{ $user->grade_level_id == $gradeLevel->id ? 'selected' : '' }}>
                                 {{ $gradeLevel->name }}
                             </option>
                         @endforeach

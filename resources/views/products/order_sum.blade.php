@@ -3,15 +3,12 @@
         @csrf
         <input type="hidden" name="product_id" value="{{ $product->id }}">
         <input type="hidden" name="sub_total" id="form-total" value="{{ $product->discounted_price }}">
-        <input type="hidden" name="delivery_estimate"
-            value="{{ now()->addDays(3)->format('M d') }} - {{ now()->addDays(7)->format('M d') }}">
         <input type="hidden" name="quantity" id="form-quantity" value="{{ old('quantity', 1) }}">
 
         <div class="min-h-screen bg-gray-50 pb-24 pt-12 md:pb-20 md:pt-16">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {{-- Change grid-cols-3 to grid-cols-2 and adjust column spans --}}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                    {{-- Left Column - Order Summary (now 1/2 width) --}}
+                    {{-- Left Column - Order Summary --}}
                     <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-sm h-fit">
                         <div>
                             <h2 class="text-xl md:text-2xl font-Satoshi-bold mb-6">Order Summary</h2>
@@ -123,7 +120,7 @@
                         </div>
                     </div>
 
-                    {{-- Right Column - Checkout Form (now 1/2 width) --}}
+                    {{-- Right Column - Checkout Form --}}
                     <div class="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col">
                         <div class="bg-white p-6 border-b">
                             <h2 class="text-2xl font-Satoshi-bold">Checkout Details</h2>
@@ -139,22 +136,19 @@
                                     </div>
                                     <div class="py-5 border-b border-gray-200 space-y-4">
                                         <div class="space-y-2">
-                                            <label for="email"
-                                                class="block text-sm font-medium text-gray-900">Email
-                                                address: (Optional) </label>
-                                            <input type="email" id="email" name="email"
-                                                value="{{ old('email') }}" placeholder="Enter your email address"
-                                                class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none @error('email') border-red-500 @enderror">
-                                            @error('email')
-                                                <span class="text-red-500 text-sm">{{ $message }}</span>
-                                            @enderror
+                                            <label for="wmsu_email"
+                                                class="block text-sm font-medium text-gray-900">WMSU
+                                                Email</label>
+                                            <input type="email" id="wmsu_email" name="wmsu_email"
+                                                value="{{ Auth::user()->wmsu_email }}"
+                                                class="w-full px-4 py-2 border rounded-md bg-gray-100" readonly>
                                         </div>
                                         <div class="space-y-2">
                                             <label for="phone"
                                                 class="block text-sm font-medium text-gray-900">Phone
                                                 number</label>
                                             <input type="tel" id="phone" name="phone"
-                                                value="{{ old('phone', Auth::user()->phone ?? '') }}"
+                                                value="{{ old('phone', Auth::user()->phone) }}"
                                                 placeholder="Enter your phone number"
                                                 class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none @error('phone') border-red-500 @enderror">
                                             @error('phone')
@@ -164,47 +158,97 @@
                                     </div>
                                 </div>
 
-                                {{-- Shipping Information Section --}}
+                                {{-- Meetup Details Section --}}
                                 <div>
                                     <div
                                         class="flex items-center justify-between w-full py-5 font-medium border-b border-gray-200">
-                                        <span class="font-Satoshi-bold text-black">Shipping Address</span>
+                                        <span class="font-Satoshi-bold text-black">Meetup Schedule</span>
                                     </div>
                                     <div class="py-5 border-b border-gray-200 space-y-4">
-                                        <div class="space-y-2">
-                                            <label for="address"
-                                                class="block text-sm font-medium text-gray-900">Street
-                                                address</label>
-                                            <input type="text" id="address" name="address"
-                                                value="{{ old('address', auth()->user()->address ?? '') }}"
-                                                placeholder="Enter your street address"
-                                                class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none @error('address') border-red-500 @enderror">
-                                            @error('address')
-                                                <span class="text-red-500 text-sm">{{ $message }}</span>
-                                            @enderror
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="city"
-                                                class="block text-sm font-medium text-gray-900">City</label>
-                                            <input type="text" id="city" name="city"
-                                                value="{{ old('city', auth()->user()->city ?? '') }}"
-                                                placeholder="Enter your city"
-                                                class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none @error('city') border-red-500 @enderror">
-                                            @error('city')
-                                                <span class="text-red-500 text-sm">{{ $message }}</span>
-                                            @enderror
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="postal_code"
-                                                class="block text-sm font-medium text-gray-900">Postal code</label>
-                                            <input type="text" id="postal_code" name="postal_code"
-                                                value="{{ old('postal_code', auth()->user()->postal_code ?? '') }}"
-                                                placeholder="Enter your postal code"
-                                                class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none @error('postal_code') border-red-500 @enderror">
-                                            @error('postal_code')
-                                                <span class="text-red-500 text-sm">{{ $message }}</span>
-                                            @enderror
-                                        </div>
+                                        @forelse ($product->seller->meetupLocations()->where('is_active', true)->get() as $location)
+                                            <div class="border rounded-lg p-4 space-y-4">
+                                                <div class="font-medium text-gray-900">{{ $location->full_name }}
+                                                </div>
+                                                <div class="text-sm text-gray-600">{{ $location->description }}</div>
+
+                                                {{-- Available Schedules --}}
+                                                <div class="space-y-2">
+                                                    @php
+                                                        $availableDays = json_decode($location->available_days);
+                                                        $timeFrom = \Carbon\Carbon::parse(
+                                                            $location->available_from,
+                                                        )->format('g:i A');
+                                                        $timeUntil = \Carbon\Carbon::parse(
+                                                            $location->available_until,
+                                                        )->format('g:i A');
+                                                        $schedules = [];
+
+                                                        foreach ($availableDays as $day) {
+                                                            $dayName = match ((int) $day) {
+                                                                0 => 'Sunday',
+                                                                1 => 'Monday',
+                                                                2 => 'Tuesday',
+                                                                3 => 'Wednesday',
+                                                                4 => 'Thursday',
+                                                                5 => 'Friday',
+                                                                6 => 'Saturday',
+                                                                default => 'Unknown',
+                                                            };
+
+                                                            $schedules[] = [
+                                                                'day_num' => $day,
+                                                                'day_name' => $dayName,
+                                                                'time_range' => "$timeFrom - $timeUntil",
+                                                            ];
+                                                        }
+                                                    @endphp
+
+                                                    @foreach ($schedules as $schedule)
+                                                        <label
+                                                            class="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer">
+                                                            <input type="radio" name="meetup_schedule"
+                                                                value="{{ $location->id }}_{{ $schedule['day_num'] }}"
+                                                                class="form-radio text-black mr-3">
+                                                            <div>
+                                                                <span
+                                                                    class="font-medium">{{ $schedule['day_name'] }}</span>
+                                                                <span
+                                                                    class="text-gray-600 text-sm ml-2">{{ $schedule['time_range'] }}</span>
+                                                            </div>
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+
+                                                {{-- Location Details --}}
+                                                <div class="text-sm text-gray-600 mt-2">
+                                                    <p>{{ $location->custom_location }}</p>
+                                                    @if ($location->latitude && $location->longitude)
+                                                        <a href="https://maps.google.com/?q={{ $location->latitude }},{{ $location->longitude }}"
+                                                            target="_blank"
+                                                            class="inline-flex items-center text-primary-color hover:text-primary-color/80 mt-2">
+                                                            <svg class="w-4 h-4 mr-1" fill="none"
+                                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                                    stroke-width="2"
+                                                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                                    stroke-width="2"
+                                                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            </svg>
+                                                            View on Maps
+                                                        </a>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="text-center py-4 text-gray-500">
+                                                No meetup schedules available
+                                            </div>
+                                        @endforelse
+
+                                        <p class="text-xs text-gray-500 mt-4">
+                                            * Limited to {{ $location->max_daily_meetups ?? 5 }} meetups per day
+                                        </p>
                                     </div>
                                 </div>
 
@@ -216,7 +260,7 @@
                                             <input type="radio" name="payment_method" value="cash"
                                                 {{ old('payment_method', 'cash') == 'cash' ? 'checked' : '' }}
                                                 class="form-radio text-black">
-                                            <span>Cash on Delivery</span>
+                                            <span>Cash on Meetup</span>
                                         </label>
                                         <label class="flex items-center space-x-3">
                                             <input type="radio" name="payment_method" value="gcash"
@@ -229,7 +273,7 @@
                             </div>
                         </div>
 
-                        {{-- Order Button (Outside of scrollable area) --}}
+                        {{-- Order Button --}}
                         <div class="p-6 border-t bg-white">
                             <button type="submit"
                                 class="w-full bg-black text-white py-3 rounded-full font-Satoshi-bold hover:bg-gray-800 transition-colors">
@@ -241,4 +285,18 @@
             </div>
         </div>
     </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const meetupLocations = document.querySelectorAll('input[name="meetup_location_id"]');
+
+            meetupLocations.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    // You could add additional functionality here if needed
+                    // For example, updating a summary section or handling location selection
+                });
+            });
+        });
+    </script>
+
 </x-layout>

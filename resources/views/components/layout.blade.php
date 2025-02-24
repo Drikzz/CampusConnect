@@ -8,11 +8,14 @@
     <title>{{ env('APP_NAME') }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/jquery-3.7.1.min.js', 'public/js/app.js', '/public/js/flowbite.min.js', 'resources/css/seller.css'])
+    @inertiaHead
 </head>
 
 <body>
     {{-- @include('partials._loading-screen') --}}
+    @intertia
     @include('partials._top-loading')
     <header x-data="{ mobileMenuOpen: false }" class="relative bg-primary-color shadow-sm">
         <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

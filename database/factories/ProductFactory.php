@@ -28,7 +28,7 @@ class ProductFactory extends Factory
         $discountedPrice = $price * (1 - $discount);
 
         // Generate 1-3 random image URLs
-        $imageCount = $this->faker->numberBetween(1, 3);
+        $imageCount = $this->faker->numberBetween(1, 11);
         $imageUrls = [];
         for ($i = 0; $i < $imageCount; $i++) {
             $selectedIndex = $this->faker->numberBetween(1, 8);

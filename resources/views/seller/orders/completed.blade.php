@@ -1,4 +1,6 @@
-<x-sellerLayout>
+@extends('dashboard.dashboard')
+
+@section('dashboard-content')
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-2xl font-bold mb-6">Completed Orders</h1>
 
@@ -67,4 +69,4 @@
             </div>
         @endif
     </div>
-</x-sellerLayout>
+@endsection

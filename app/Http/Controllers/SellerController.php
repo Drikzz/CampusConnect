@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\DB;
+use App\Models\Wishlist;
+use App\Models\OrderItem;
+
 
 class SellerController extends Controller
 {
@@ -56,32 +60,174 @@ class SellerController extends Controller
     // Modify products listing to include option to show deleted
     public function products(Request $request)
     {
-        $sellerCode = Auth::user()->seller_code;
-        $orderCounts = $this->getOrderCounts($sellerCode);
+        $user = auth()->user();
+        $sellerCode = $user->seller_code;
+
+        // Get seller statistics
+        $totalOrders = Order::where('buyer_id', $user->id)->count();
+        $activeOrders = Order::where('buyer_id', $user->id)
+            ->whereNotIn('status', ['Completed', 'Cancelled'])
+            ->count();
+        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
+        $totalSales = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Completed');
+            })
+            ->sum('subtotal');
+
+        $activeProducts = Product::where('seller_code', $sellerCode)
+            ->where('status', 'Active')
+            ->count();
+
+        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Pending');
+            })->count();
 
         $query = Product::where('seller_code', $sellerCode)
-            ->with(['category']);
-
-        // Include deleted items if requested
-        if ($request->show_deleted) {
-            $query->withTrashed();
-        }
+            ->with(['category'])
+            ->withTrashed(); // Always include trashed items
 
         $products = $query->latest()->paginate(10);
         $categories = Category::all();
 
-        return view('dashboard.products', compact('products', 'categories', 'orderCounts'));
+        return view('dashboard.seller.products', compact(
+            'products',
+            'categories',
+            'totalOrders',
+            'activeOrders',
+            'wishlistCount',
+            'totalSales',
+            'activeProducts',
+            'pendingOrders'
+        ));
     }
 
     // Add method to fetch single product for editing
-    public function edit(Product $product)
+    public function edit($id)
     {
+        $product = Product::withTrashed()->findOrFail($id);
+
         if ($product->seller_code !== Auth::user()->seller_code) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $product->load('category'); // Load the category relationship
+        // Load relationships
+        $product->load('category');
         return response()->json($product);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $product = Product::withTrashed()->findOrFail($id);
+
+        if ($product->seller_code !== Auth::user()->seller_code) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+            return redirect()->back()->with('error', 'Unauthorized action');
+        }
+
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'required|string',
+                'category' => 'required|exists:categories,id',
+                'price' => 'required|numeric|min:0',
+                'discount' => 'nullable|numeric|min:0|max:100',
+                'stock' => 'required|integer|min:0',
+                'trade_availability' => 'required|in:buy,trade,both',
+                'status' => 'required|in:Active,Inactive',
+                'main_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'additional_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
+
+            DB::beginTransaction();
+
+            // If status is being set to Inactive, handle soft delete
+            if ($validated['status'] === 'Inactive') {
+                // Store current state
+                $product->old_attributes = [
+                    'status' => $product->status,
+                    'is_buyable' => $product->is_buyable,
+                    'is_tradable' => $product->is_tradable
+                ];
+
+                // Update status and trade options
+                $product->status = 'Inactive';
+                $product->is_buyable = false;
+                $product->is_tradable = false;
+                $product->save();
+
+                // Perform soft delete
+                $product->delete();
+
+                DB::commit();
+
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Product has been deactivated and archived'
+                    ]);
+                }
+
+                return redirect()->route('dashboard.seller.products')
+                    ->with('success', 'Product has been deactivated and archived');
+            }
+
+            // Continue with normal update for active products
+            $imagePaths = $product->images;
+            if ($request->hasFile('main_image') || $request->hasFile('additional_images')) {
+                $imagePaths = $this->handleProductImages($request, $product);
+            }
+
+            $discount = $validated['discount'] ? (float)($validated['discount'] / 100) : 0.0;
+            $price = (float)$validated['price'];
+            $discountedPrice = $price * (1 - $discount);
+
+            $product->update([
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'category_id' => $validated['category'],
+                'price' => $price,
+                'discount' => $discount,
+                'discounted_price' => round($discountedPrice, 2),
+                'stock' => $validated['stock'],
+                'images' => $imagePaths,
+                'status' => $validated['status'],
+                'is_buyable' => in_array($validated['trade_availability'], ['buy', 'both']),
+                'is_tradable' => in_array($validated['trade_availability'], ['trade', 'both'])
+            ]);
+
+            DB::commit();
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Product updated successfully'
+                ]);
+            }
+
+            return redirect()->route('dashboard.seller.products')
+                ->with('success', 'Product updated successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product update error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error updating product: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Error updating product: ' . $e->getMessage())
+                ->withInput();
+        }
     }
 
     // Modify store method
@@ -168,103 +314,53 @@ class SellerController extends Controller
         }
     }
 
-    // Modify update method
-    public function update(Request $request, Product $product)
-    {
-        if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        try {
-            // Calculate discount as decimal
-            $discount = $request->discount ? (float)($request->discount / 100) : 0.0;
-
-            // Calculate discounted price using float values
-            $price = (float)$request->price;
-            $discountedPrice = $price * (1 - $discount);
-
-            // Debug logging
-            Log::info('Product update calculations:', [
-                'original_price' => $price,
-                'discount_percentage' => $request->discount,
-                'discount_decimal' => $discount,
-                'final_price' => $discountedPrice
-            ]);
-
-            // Handle update logic
-            $product->update([
-                'name' => $request->name,
-                'description' => $request->description,
-                'category_id' => $request->category,
-                'price' => $price,
-                'discount' => $discount,
-                'discounted_price' => round($discountedPrice, 2),
-                'stock' => $request->stock,
-                'status' => $request->status ?? 'Active',
-                'is_buyable' => in_array($request->trade_availability, ['buy', 'both']),
-                'is_tradable' => in_array($request->trade_availability, ['trade', 'both'])
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Product updated successfully',
-                'product' => $product
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Product update error:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating product: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
     // Modify destroy method to use soft delete
-    public function destroy(Product $product)
+    public function destroy($id)
     {
+        $product = Product::withTrashed()->findOrFail($id);
+
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         try {
-            // Set product status to Inactive before soft deleting
+            DB::beginTransaction();
+
+            // Store current state before soft delete
             $product->update([
+                'old_attributes' => [
+                    'status' => $product->status,
+                    'is_buyable' => $product->is_buyable,
+                    'is_tradable' => $product->is_tradable
+                ],
                 'status' => 'Inactive',
                 'is_buyable' => false,
                 'is_tradable' => false
             ]);
 
-            // Perform soft delete
             $product->delete();
 
-            // Update any active orders containing this product
-            $product->orderItems()
-                ->whereHas('order', function ($query) {
-                    $query->whereIn('status', ['Pending', 'Processing']);
-                })
-                ->each(function ($orderItem) {
-                    $orderItem->order->update(['status' => 'Cancelled']);
-                });
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Product has been deactivated and archived'
+                'message' => 'Product successfully archived'
             ]);
         } catch (\Exception $e) {
-            Log::error('Product deletion error: ' . $e->getMessage());
+            DB::rollBack();
+            \Log::error('Product deletion error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error archiving product: ' . $e->getMessage()
+                'message' => 'Error archiving product'
             ], 500);
         }
     }
 
     // Optional: Add method to permanently delete if needed
-    public function forceDelete(Product $product)
+    public function forceDelete($id)
     {
+        $product = Product::withTrashed()->findOrFail($id);
+
         if ($product->seller_code !== Auth::user()->seller_code) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
@@ -301,18 +397,254 @@ class SellerController extends Controller
         }
 
         try {
+            DB::beginTransaction();
+
+            // First restore the product
             $product->restore();
+
+            // Restore the old attributes if they exist, otherwise use defaults
+            $oldAttributes = $product->old_attributes ?? [
+                'status' => 'Active',
+                'is_buyable' => false,
+                'is_tradable' => false
+            ];
+
+            // Update with the stored attributes
+            $product->update([
+                'status' => $oldAttributes['status'],
+                'is_buyable' => $oldAttributes['is_buyable'],
+                'is_tradable' => $oldAttributes['is_tradable']
+            ]);
+
+            // Clear the stored old attributes
+            $product->old_attributes = null;
+            $product->save();
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Product restored successfully'
+                'message' => 'Product restored successfully with original attributes'
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product restore error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error restoring product: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    // Add orders method
+    public function orders()
+    {
+        $user = auth()->user();
+        $sellerCode = $user->seller_code;
+
+        // Get seller statistics
+        $totalOrders = Order::where('buyer_id', $user->id)->count();
+        $activeOrders = Order::where('buyer_id', $user->id)
+            ->whereNotIn('status', ['Completed', 'Cancelled'])
+            ->count();
+        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
+        $totalSales = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Completed');
+            })
+            ->sum('subtotal');
+
+        $activeProducts = Product::where('seller_code', $sellerCode)
+            ->where('status', 'Active')
+            ->count();
+
+        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Pending');
+            })->count();
+
+        $orders = Order::where('seller_code', $sellerCode)
+            ->with(['items.product', 'buyer'])
+            ->latest()
+            ->paginate(10);
+
+        return view('dashboard.seller.orders', compact(
+            'orders',
+            'totalOrders',
+            'activeOrders',
+            'wishlistCount',
+            'totalSales',
+            'activeProducts',
+            'pendingOrders'
+        ));
+    }
+
+    public function showOrder(Order $order)
+    {
+        if ($order->seller_code !== auth()->user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $user = auth()->user();
+        $sellerCode = $user->seller_code;
+
+        // Get seller statistics
+        $totalOrders = Order::where('buyer_id', $user->id)->count();
+        $activeOrders = Order::where('buyer_id', $user->id)
+            ->whereNotIn('status', ['Completed', 'Cancelled'])
+            ->count();
+        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
+        $totalSales = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Completed');
+            })
+            ->sum('subtotal');
+
+        $activeProducts = Product::where('seller_code', $sellerCode)
+            ->where('status', 'Active')
+            ->count();
+
+        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Pending');
+            })->count();
+
+        $order->load(['items.product', 'buyer']);
+
+        return view('dashboard.seller.order-details', compact(
+            'order',
+            'totalOrders',
+            'activeOrders',
+            'wishlistCount',
+            'totalSales',
+            'activeProducts',
+            'pendingOrders'
+        ));
+    }
+
+    public function updateOrderStatus(Request $request, Order $order)
+    {
+        if ($order->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|in:Accepted,Delivered,Completed,Cancelled'
+        ]);
+
+        try {
+            $order->update(['status' => $validated['status']]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Order status updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating order status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function completeOrder(Order $order)
+    {
+        if ($order->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $order->update(['status' => 'Completed']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Order marked as completed'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error completing order: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function scheduleMeetup(Request $request, Order $order)
+    {
+        if ($order->seller_code !== Auth::user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'meetup_location' => 'required|string',
+            'meetup_schedule' => 'required|date|after:now'
+        ]);
+
+        try {
+            $order->update([
+                'meetup_location' => $validated['meetup_location'],
+                'meetup_schedule' => $validated['meetup_schedule'],
+                'status' => 'Meetup Scheduled'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Meetup scheduled successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error scheduling meetup: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function analytics()
+    {
+        $user = auth()->user();
+        $sellerCode = $user->seller_code;
+
+        // Get seller statistics
+        $totalOrders = Order::where('buyer_id', $user->id)->count();
+        $activeOrders = Order::where('buyer_id', $user->id)
+            ->whereNotIn('status', ['Completed', 'Cancelled'])
+            ->count();
+        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
+        $totalSales = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Completed');
+            })
+            ->sum('subtotal');
+
+        $activeProducts = Product::where('seller_code', $sellerCode)
+            ->where('status', 'Active')
+            ->count();
+
+        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
+            ->whereHas('order', function ($query) {
+                $query->where('status', 'Pending');
+            })->count();
+
+        // Get sales data for the last 30 days
+        $thirtyDaysAgo = now()->subDays(30);
+        $salesData = Order::where('seller_code', $sellerCode)
+            ->where('status', 'Completed')
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->get();
+
+        $averageOrderValue = $salesData->count() > 0 ? $totalSales / $salesData->count() : 0;
+
+        return view('dashboard.seller.analytics', compact(
+            'totalOrders',
+            'activeOrders',
+            'wishlistCount',
+            'totalSales',
+            'activeProducts',
+            'pendingOrders',
+            'averageOrderValue',
+            'salesData'
+        ));
     }
 
     // Helper methods

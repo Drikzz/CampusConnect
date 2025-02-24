@@ -1,91 +1,76 @@
-# A Guide to cloning a Laravel Repository
+# 🚀 Campus Connect - Laravel Setup Guide
 
--   **1st**, check if your current branch is the same as main branch itself.
--   **2nd**, clone the current branch to your local storage and open it in VS Code.
+## 📋 Pre-Installation Checklist
 
-## WARNING
+> Before you begin, ensure you have the following installed:
 
-Please refer to <a href="https://youtu.be/XTDNs4TB_lE?si=sb2QOxhU0OEvEGPX">Installation of Laravel</a> for the installation of the following:
+-   🔧 Composer
+-   🌐 XAMPP (version 8.1 or higher)
+-   ⚡ Laravel (version 11)
 
-You need these three for laravel to work:
+## 🎯 Quick Start Guide
 
--   Composer
--   XAMPP ver. 8.1 ^
--   Laravel ver. 11
+### 1️⃣ Initial Setup
 
-## Checking of requirements
+1. Verify your branch matches the main branch
+2. Clone the repository and open in VS Code
+3. Run these checks in CMD:
 
-If you already installed those, it's better to it check your sytem.
+    ```bash
+    # Check Composer version
+    composer -v
 
--   **3rd**, open CMD and type the following commands:
+    # Check Laravel installation
+    laravel
+    ```
 
-To check for composer:
+### 2️⃣ Core Installation Steps
 
-```
-composer -v
-```
+#### Install Required Dependencies
 
-To check for Laravel:
-
-```
-laravel
-```
-
-As for **XAMPP**, check your applications if you have XAMPP installed.
-
-## Setting up the Cloned Laravel Repo
-
--   **4th**, go now to the cloned repository and do the following commands below.
-
--   **5th**, open the terminal in your VSCODE using `` CTRL + SHIFT + `  ``.
-
-We first have to install the following for the cloned project:
-
--   **Node modules**
--   **Vendor Files**
--   **Filament**
--   **Livewire**
-
-To install the **Node modules**, run the command below:
-
-```
-npm i
-```
-
-_or_
-
-```
+```bash
+# Install Node modules
 npm install
-```
 
-To install the **Vendor Files**, run the command below:
-
-```
+# Install PHP dependencies
 composer install
+composer update
+
+# Install Vue & Inertia
+npm i vue@latest
+composer require inertiajs/inertia-laravel
+npm install @inertiajs/vue3
 ```
 
-To install the **Filament**, run the command below:
+#### Setup Frontend Tools
 
-```
-composer require filament/filament
-php artisan filament:install --panels
+```bash
+# Install Vue & development tools
+npm install @vitejs/plugin-vue
+npm i -g npx
+npx shadcn-vue@latest init
+
+# Install UI dependencies
+npm install @vueuse/core
+npm install -D @iconify/vue @iconify-json/radix-icons
+
+# Install route handling
+composer require tightenco/ziggy
 ```
 
-To install the **Livewire**, run the command below:
+### 3️⃣ Environment Configuration
 
-```
-composer require livewire/livewire
-```
-
--   **6th**, copy the _.env.example_ to create a _.env_ using:
-
-```
+```bash
+# Create environment file
 cp .env.example .env
+
+# Generate application key
+php artisan key:generate
 ```
 
--   **7th**, open the `env` and locate the following:
+#### Required .env settings:
 
-```
+```env
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -96,46 +81,48 @@ DB_PASSWORD=
 FILESYSTEM_DISK=public
 ```
 
--   You need to copy snippet above to the `.env` file.
+### 4️⃣ Final Setup Steps
 
--   You can change the `DB_DATABASE=cc_website` to your own database name:
+Run these commands in order:
 
--   **8th**, run the `php artisan key:generate` command to generate new key:
+```bash
+# 1. Start XAMPP
 
-```
-php artisan key:generate
-```
-
--   **9th**, after all, that make sure to run your XAMPP application.
-
--   **10th**, open the terminal in the vscode, run the `php artisan migrate` command to run the migrations in the clone project.
-
-```
+# 2. Run database migrations
 php artisan migrate
-```
 
--   **11th**, open another terminal in vscode, run `php artisan storage:link` command and go to the link provided:
-
-```
+# 3. Create storage link
 php artisan storage:link
-```
 
--   **12th**, open another terminal in vscode, run `php artisan db:seed` command:
-
-```
+# 4. Seed the database
 php artisan db:seed
-```
 
--   **13th**, open another terminal in vscode, run `php artisan serve` command:
-
-```
+# 5. Start the development server
 php artisan serve
-```
 
--   **14th**, lastly, open another terminal in vscode, then run `npm run dev` command:
-
-```
+# 6. Start Vite development server
 npm run dev
 ```
 
--   **15th**, congratulations! You're done setting up your project!
+## 🔧 Troubleshooting
+
+### ShadCN Vue Installation Issues
+
+If `npx shadcn-vue@latest` fails:
+
+```bash
+# Install TypeScript dependencies
+npm install --save-dev typescript @types/node
+
+# If components.json becomes corrupt:
+npx clear-npx-cache
+npm cache clean --force
+```
+
+## ✨ Success!
+
+Once all steps are completed, your Campus Connect development environment should be up and running!
+
+---
+
+📝 **Note**: Keep this guide handy for future reference. For detailed Laravel installation instructions, check out [this video guide](https://youtu.be/XTDNs4TB_lE?si=sb2QOxhU0OEvEGPX).

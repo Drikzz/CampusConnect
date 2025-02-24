@@ -16,14 +16,53 @@
             @endif
         </div>
 
-        {{-- Stats Overview --}}
+        {{-- Stats Overview - Now centralized here --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             @if (auth()->user()->is_seller)
-                <x-dashboard.stat-card title="Total Sales"
-                    value="₱{{ isset($totalSales) ? number_format((float) $totalSales, 2) : '0.00' }}" icon="cash"
-                    type="money" />
-                <x-dashboard.stat-card title="Active Products" value="{{ $activeProducts ?? 0 }}" icon="box" />
-                <x-dashboard.stat-card title="Pending Orders" value="{{ $pendingOrders ?? 0 }}" icon="clock" />
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-primary-color/10 rounded-full">
+                            <svg class="w-6 h-6 text-primary-color" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Total Sales</h2>
+                            <p class="text-lg font-semibold">₱{{ number_format($totalSales ?? 0, 2) }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-primary-color/10 rounded-full">
+                            <svg class="w-6 h-6 text-primary-color" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Active Products</h2>
+                            <p class="text-lg font-semibold">{{ $activeProducts ?? 0 }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-primary-color/10 rounded-full">
+                            <svg class="w-6 h-6 text-primary-color" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Pending Orders</h2>
+                            <p class="text-lg font-semibold">{{ $pendingOrders ?? 0 }}</p>
+                        </div>
+                    </div>
+                </div>
             @else
                 <x-dashboard.stat-card title="Total Orders" value="{{ $totalOrders ?? 0 }}" icon="shopping-bag" />
                 <x-dashboard.stat-card title="Wishlist Items" value="{{ $wishlistCount ?? 0 }}" icon="heart" />
@@ -37,14 +76,14 @@
             <aside class="w-full md:w-64 md:sticky md:top-4 md:h-[calc(100vh-8rem)]">
                 <nav class="bg-white rounded-lg shadow p-4">
                     <x-dashboard.nav-section title="Account">
-                        <x-dashboard.nav-item route="profile" icon="user">Profile</x-dashboard.nav-item>
-                        <x-dashboard.nav-item route="address" icon="map">Meet-Up Locations</x-dashboard.nav-item>
+                        <x-dashboard.nav-item route="dashboard.profile" icon="user">Profile</x-dashboard.nav-item>
+                        <x-dashboard.nav-item route="dashboard.address" icon="map">Meet-Up
+                            Locations</x-dashboard.nav-item>
                     </x-dashboard.nav-section>
 
                     @if (auth()->user()->is_seller)
                         <x-dashboard.nav-section title="Store Management">
-                            <x-dashboard.nav-item route="seller.products.index"
-                                icon="tag">Products</x-dashboard.nav-item>
+                            <x-dashboard.nav-item route="seller.products" icon="tag">Products</x-dashboard.nav-item>
                             <x-dashboard.nav-item route="seller.orders"
                                 icon="shopping-cart">Orders</x-dashboard.nav-item>
                             <x-dashboard.nav-item route="seller.analytics"
@@ -52,14 +91,17 @@
                         </x-dashboard.nav-section>
                     @else
                         <x-dashboard.nav-section title="Shopping">
-                            <x-dashboard.nav-item route="orders" icon="shopping-bag">My Orders</x-dashboard.nav-item>
-                            <x-dashboard.nav-item route="wishlist" icon="heart">Wishlist</x-dashboard.nav-item>
-                            <x-dashboard.nav-item route="reviews" icon="star">My Reviews</x-dashboard.nav-item>
+                            <x-dashboard.nav-item route="dashboard.orders" icon="shopping-bag">My
+                                Orders</x-dashboard.nav-item>
+                            <x-dashboard.nav-item route="dashboard.wishlist"
+                                icon="heart">Wishlist</x-dashboard.nav-item>
+                            <x-dashboard.nav-item route="dashboard.reviews" icon="star">My
+                                Reviews</x-dashboard.nav-item>
                         </x-dashboard.nav-section>
 
                         {{-- New Seller Section --}}
                         <x-dashboard.nav-section title="Seller">
-                            <x-dashboard.nav-item route="become-seller" icon="store">Become a
+                            <x-dashboard.nav-item route="dashboard.become-seller" icon="store">Become a
                                 Seller</x-dashboard.nav-item>
                         </x-dashboard.nav-section>
                     @endif

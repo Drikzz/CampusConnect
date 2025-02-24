@@ -29,13 +29,14 @@ class Product extends Model
         'is_buyable',
         'is_tradable',
         'status',
+        'old_attributes'
     ];
 
     protected $casts = [
         'images' => 'array',
         'is_buyable' => 'boolean',
         'is_tradable' => 'boolean',
-        'trade_preferences' => 'array',
+        'old_attributes' => 'json',
     ];
 
     public function seller(): BelongsTo
