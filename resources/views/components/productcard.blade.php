@@ -5,11 +5,13 @@
         <a href="{{ route('prod.details', $product->id) }}">
             <img src="{{ asset('storage/' . $product->images[0]) }}" alt="" class="w-52 h-64 object-cover">
         </a>
-        <div class="absolute bottom-2 right-2 rounded-2xl bg-white px-3 py-1">
-            <p class="font-Satoshi-bold text-sm text-black">
-                {{ $product->discount }}%
-            </p>
-        </div>
+        @if ($product->discount > 0.0)
+            <div class="absolute bottom-2 right-2 rounded-2xl bg-white px-3 py-1">
+                <p class="font-Satoshi-bold text-sm text-black">
+                    {{ round($product->discount * 100) }}%
+                </p>
+            </div>
+        @endif
 
         <div
             class="absolute top-3 right-3 bg-white p-2 rounded-full hover:shadow-md hover:ring-2 hover:ring-black hover:transition-all">

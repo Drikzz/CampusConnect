@@ -23,7 +23,7 @@
                 </ol>
 
                 <div class="mt-8 text-center">
-                    <a href="{{ route('dashboard.seller.terms') }}"
+                    <a href="{{ route('dashboard.become-seller') }}"
                         class="inline-block bg-primary-color text-white px-6 py-3 rounded-md hover:bg-primary-color/90">
                         Continue to Seller Terms
                     </a>

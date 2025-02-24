@@ -9,26 +9,31 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
+// Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
 
-// products statics
+// Route::inertia('/about', 'About', ['user' => 'About Us']);
+
+// Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
-Route::get('/products/prod/{id}', [ProductController::class, 'product_details'])->name('prod.details');
-Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
+Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
 
-// Move these routes before any middleware groups
-Route::view('/login', 'auth.login')->name('login');
-Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('guest')->group(function () {
+    // This is the correct route we want to use
+    Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [AuthController::class, 'login']);
 
-// Admin login routes
-Route::view('/admin/login', 'admin.adminlogin')->name('admin.login');
-Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
-Route::post('/admin/login/filter', [AdminController::class, 'login'])->name('admin.login.filter');
+    Route::middleware(['web'])->group(function () {
+        Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
+        Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
+        Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
+        Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
+    });
+});
 
-Route::get('/admin/login', function () {
-    return view('admin.adminlogin');
-})->name('admin.login');
 
 Route::middleware('auth')->group(function () {
 
@@ -40,7 +45,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
         Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
         Route::get('/wishlist', [DashboardController::class, 'wishlist'])->name('dashboard.wishlist');
-        Route::get('/address', [DashboardController::class, 'address'])->name('dashboard.address');
+        Route::get('/meetup-locations', [DashboardController::class, 'address'])->name('dashboard.address');
         Route::get('/reviews', [DashboardController::class, 'reviews'])->name('dashboard.reviews');
 
         // Profile update route
@@ -48,21 +53,52 @@ Route::middleware('auth')->group(function () {
         Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancelOrder'])->name('orders.cancel');
         Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
 
+        // Meetup locations CRUD
+        Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
+        Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
+        Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
+
         // Add new seller registration routes
-        Route::get('/become-seller', [DashboardController::class, 'showSellerRegistration'])->name('dashboard.become-seller');
-        Route::get('/seller/terms', [DashboardController::class, 'showSellerTerms'])->name('dashboard.seller.terms');
+        Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])
+            ->name('dashboard.become-seller');
+        Route::post('/become-seller', [UserController::class, 'becomeSeller'])
+            ->name('dashboard.seller.become');
+
         Route::post('/seller/terms', [DashboardController::class, 'acceptSellerTerms'])->name('dashboard.seller.terms.accept');
 
-        // Seller specific routes
-        Route::middleware(['seller'])->group(function () {
-            Route::get('/products', [DashboardController::class, 'products'])->name('dashboard.products');
-            Route::get('/analytics', [DashboardController::class, 'analytics'])->name('dashboard.analytics');
-            Route::get('/seller/orders', [OrderController::class, 'index'])->name('seller.orders.index');
-            Route::get('/seller/products/add', [SellerController::class, 'create'])->name('seller.addproduct');
-            Route::post('/seller/products/add', [SellerController::class, 'store']);
-            Route::get('/seller/products/{product}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
-            Route::post('/seller/products/{product}/update', [SellerController::class, 'update'])->name('seller.products.update');
-            Route::delete('/seller/products/{product}/remove', [SellerController::class, 'destroy'])->name('seller.products.delete');
+        // Remove or comment out these old routes
+        // Route::get('/seller/terms', [DashboardController::class, 'showSellerTerms'])->name('dashboard.seller.terms');
+
+        Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
+        Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
+        Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
+
+        // Product management routes
+        Route::prefix('seller')->group(function () {
+            // Seller dashboard routes
+            Route::get('/', [SellerController::class, 'index'])->name('seller.index');
+            Route::get('/products', [SellerController::class, 'products'])->name('seller.products');
+            Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders');
+            Route::get('/analytics', [SellerController::class, 'analytics'])->name('seller.analytics');
+            Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
+            Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
+            Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
+
+            // Product CRUD routes
+            Route::post('/products', [SellerController::class, 'store'])->name('dashboard.seller.products.store');
+            Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('dashboard.seller.products.edit');
+            Route::put('/products/{id}', [SellerController::class, 'update'])->name('dashboard.seller.products.update');
+            Route::delete('/products/{id}', [SellerController::class, 'destroy'])->name('dashboard.seller.products.destroy');
+            Route::post('/products/{product}/restore', [SellerController::class, 'restore'])->name('dashboard.seller.products.restore');
+            Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('dashboard.seller.products.force-delete');
+
+            // Add meetup location routes inside seller prefix
+            Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])
+                ->name('meetup-locations.store');
+            Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])
+                ->name('meetup-locations.update');
+            Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])
+                ->name('meetup-locations.destroy');
         });
     });
 
@@ -70,71 +106,103 @@ Route::middleware('auth')->group(function () {
     Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
     Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 
-    // Admin product management routes
-    Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin.productManagement');
-    Route::post('/admin/product-management/store', [AdminController::class, 'storeProduct'])->name('admin.productManagement.store');
-    Route::delete('/admin/products/{id}', [AdminController::class, 'destroyProduct']);
-    Route::post('/admin/products/bulk-delete', [AdminController::class, 'bulkDestroyProducts']);
-    Route::put('/admin/products/{id}', [AdminController::class, 'updateProduct'])->name('admin.updateProduct');
-    Route::get('/admin/products/{id}', [AdminController::class, 'getProduct'])->name('admin.getProduct'); // Ensure this route is defined
+    Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
+        ->name('profile.revert');
 });
 
-Route::middleware('guest')->group(function () {
-    Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
-    Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
-    Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
-    Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
+// Admin Authentication Routes
+// Route::get('/admin/login', [AdminController::class, 'showLoginForm'])->name('admin.login');
+// Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
 
-    Route::get('/register/highschool', [AuthController::class, 'register_form_highschool'])->name('register_form_highschool');
-    Route::post('/register/highschool', [AuthController::class, 'registerHSStudent'])->name('registerHSStudent');
+// Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
 
-    Route::get('/register/college', [AuthController::class, 'register_form_college'])->name('register_form_college');
-    Route::post('/register/college', [AuthController::class, 'registerCollegeStudent'])->name('registerCollegeStudent');
+// Admin Dashboard Route
+// Route::get('/admin/dashboard', function () {
+//     return view('admin.admin-dashboard');
+// })->name('admin.dashboard');
 
-    Route::get('/register/employee', [AuthController::class, 'register_form_employee'])->name('register_form_employee');
-    Route::post('/register/employee', [AuthController::class, 'registerEmployee'])->name('registerEmployee');
+// Route::get('/admin/dashboard2', [AdminController::class, 'dashboard2'])->name('admin-dashboard2');
+// Route::get('/admin/userManagement', [AdminController::class, 'userManagement'])->name('admin-userManagement');
+// Route::get('/admin/userManagement/create', [AdminController::class, 'create'])->name('admin-userManagement.create');
+// Route::post('/admin/userManagement', [AdminController::class, 'store'])->name('admin-userManagement.store');
+// Route::get('/admin/userManagement/{user}/edit', [AdminController::class, 'edit'])->name('admin-userManagement.edit');
+// Route::put('/admin/userManagement/{user}', [AdminController::class, 'update'])->name('admin-userManagement.update');
+// Route::delete('/admin/userManagement/{user}', [AdminController::class, 'destroy'])->name('admin-userManagement.destroy');
+// Route::get('/admin/userManagement/{user}', [AdminController::class, 'show'])->name('admin-userManagement.show');
 
-    // alumni
-    Route::get('/register/alumni', [AuthController::class, 'register_form_alumni'])->name('register_form_alumni');
-    Route::post('/register/alumni', [AuthController::class, 'registerAlumni'])->name('registerAlumni');
+// Route::get('/admin/sales', function () {
+//     return view('admin.admin-sales');
+// })->name('admin.sales');
 
-    // postGraduate
-    // Route::get('/register/postgraduate', [AuthController::class, 'register_form_postGraduate'])->name('register_form_postGraduate');
-    Route::get('/register/postgraduate', [AuthController::class, 'register_form_postgraduate'])->name('register_form_postgraduate');
-    Route::post('/register/postgraduate', [AuthController::class, 'register_postGraduate'])->name('register_postGraduate');
+// Route::get('/admin/transactions', function () {
+//     return view('admin.admin-transactions');
+// })->name('admin.transactions');
 
-    // IF LOGOUT LINK IS PRESENT, UNCOMMENT THIS ROUTE //
+// Route::get('/admin/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
+
+// Route::get('/admin/users', function () {
+//     return view('admin.admin-userManagement');
+// })->name('admin.users');
+
+// Route::get('/admin/reports', function () {
+//     return view('admin.admin-reportManagement');
+// })->name('admin.reports');
+
+
+// Route::get('/admin/funds', function () {
+//     return view('admin.admin-fundManagement');
+// })->name('admin.funds');
+
+// Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
+
+// PLS DON'T DELETE THIS CODE FOR A WHILE
+// Protected Admin Routes
+// Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+//     // Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+//     // Route::get('/sales', [AdminController::class, 'sales'])->name('admin.sales');
+//     // Route::get('/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
+//     // Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
+//     // Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
+//     Route::get('/products', [AdminController::class, 'products'])->name('admin.products');
+//     Route::get('/funds', [AdminController::class, 'funds'])->name('admin.funds');
+// });
+
+// Route::view('/admin/sales', 'admin.admin-sales')->name('adminsales');
+
+// Route::view('/admin/products', 'admin.admin-productManagement')->name('admin-product-management');
+// Route::view('/admin/userManagement', 'admin.admin-userManagement')->name('admin-userManagement');
+// Route::view('/admin/funds', 'admin.admin-fundManagement')->name('admin-funds');
+
+// Route::view('/Adminside-userprofile', 'admin.adminside-userprofile  ')->name('admin-userManagement');
+// Route::view('/Admin-transactions', 'admin.admin-transactions')->name('admin-transactions');
+
+// Route::view('/Admin-user-approve', 'admin.admin-user-approved')->name('admin-user-approved');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return Inertia::render('Dashboard/Profile', [
+            'user' => Auth::user(),
+            'stats' => [
+                'totalOrders' => 0, // Add your stats logic here
+                'wishlistCount' => 0,
+                'activeOrders' => 0,
+            ]
+        ]);
+    })->name('dashboard');
+
+    Route::get('/dashboard/meetup-locations', function () {
+        return Inertia::render('Dashboard/MeetupLocations', [
+            'user' => Auth::user(),
+            'stats' => [
+                'totalOrders' => 0, // Add your stats logic here
+                'wishlistCount' => 0,
+                'activeOrders' => 0,
+            ],
+            'locations' => [] // Add your locations data here
+        ]);
+    })->name('dashboard.address');
 });
 
-// Admin routes with middleware
-Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-    Route::get('/dashboard2', [AdminController::class, 'dashboard2'])->name('admin-dashboard2');
+Route::fallback(function () {
+    return Inertia::render('404');
 });
-Route::get('/dashboard2', [AdminController::class, 'dashboard2'])->name('admin-dashboard2');
-Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-    
-Route::resource('productManagement', 'ProductManagementController');
-
-Route::get('/userManagement', [AdminController::class, 'userManagement'])->name('admin-userManagement');
-Route::get('/userManagement/create', [AdminController::class, 'create'])->name('admin-userManagement.create');
-Route::post('/userManagement', [AdminController::class, 'store'])->name('admin-userManagement.store');
-Route::get('/userManagement/{user}/edit', [AdminController::class, 'edit'])->name('admin-userManagement.edit');
-Route::put('/userManagement/{user}', [AdminController::class, 'update'])->name('admin-userManagement.update');
-Route::delete('/userManagement/{user}', [AdminController::class, 'destroy'])->name('admin-userManagement.destroy');
-Route::get('/userManagement/{user}', [AdminController::class, 'show'])->name('admin-userManagement.show');
-
-Route::get('/product-management', [AdminController::class, 'productManagement'])->name('admin.productManagement');
-Route::post('/product-management/store', [AdminController::class, 'storeProduct'])->name('admin.productManagement.store');
-Route::delete('/products/{id}', [AdminController::class, 'destroyProduct']);
-Route::post('/products/bulk-delete', [AdminController::class, 'bulkDestroyProducts']);
-Route::put('/products/{id}', [AdminController::class, 'updateProduct'])->name('admin.updateProduct');
-Route::get('/products/{id}', [AdminController::class, 'getProduct'])->name('admin.getProduct');
-
-Route::get('/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
-Route::delete('/transactions/{id}', [AdminController::class, 'destroyTransaction'])->name('admin.transactions.destroy');
-Route::post('/transactions/bulk-delete', [AdminController::class, 'bulkDestroyTransactions'])->name('admin.transactions.bulkDestroy');
-Route::post('/transactions/{id}/cancel', [AdminController::class, 'cancelTransaction']);
-
-Route::get('/users', function () {
-    return view('admin.admin-userManagement');
-})->name('admin.users');

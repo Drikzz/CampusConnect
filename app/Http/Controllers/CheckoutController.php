@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\MeetupLocation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -36,6 +37,7 @@ class CheckoutController extends Controller
             'city' => 'required|string',
             'postal_code' => 'required|string',
             'payment_method' => ['required', 'string', 'in:cash,gcash'],
+            'meetup_schedule' => ['required', 'string'], // Format: "locationId_dayNumber"
         ]);
 
         $product = Product::find($request->product_id);
@@ -50,6 +52,10 @@ class CheckoutController extends Controller
             return back()->with('error', 'Not enough stock available.');
         }
 
+        // Parse the meetup schedule
+        [$locationId, $dayNumber] = explode('_', $request->meetup_schedule);
+        $meetupLocation = MeetupLocation::findOrFail($locationId);
+
         // Create the order
         $order = Order::create([
             'buyer_id' => Auth::user()->id,
@@ -61,6 +67,10 @@ class CheckoutController extends Controller
             'sub_total' => $request->sub_total,
             'status' => 'Pending',
             'payment_method' => $request->payment_method,
+            'meetup_location_id' => $locationId,
+            'meetup_day' => $dayNumber,
+            'meetup_time_from' => $meetupLocation->available_from,
+            'meetup_time_until' => $meetupLocation->available_until,
         ]);
 
         // Create order item

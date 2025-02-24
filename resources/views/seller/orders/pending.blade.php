@@ -1,4 +1,6 @@
-<x-sellerLayout>
+@extends('dashboard.dashboard')
+
+@section('dashboard-content')
     <div class="container mx-auto px-4 py-8">
         <a href="{{ route('seller.orders.index') }}" class="py-3 px-3 bg-red outline-1 outline-red">
             back buton
@@ -70,4 +72,4 @@
             </div>
         @endif
     </div>
-</x-sellerLayout>
+@endsection

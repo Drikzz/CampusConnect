@@ -4,15 +4,14 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Models\Contracts\HasName;
-use Filament\Panel;
+// use Filament\Models\Contracts\HasName;
+// use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable implements HasName
+class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -76,32 +75,33 @@ class User extends Authenticatable implements HasName
     //     return $this->first_name ?? 'Admin'; // Use `first_name` as the display name
     // }
 
-    public function getFilamentName(): string
-    {
-        return $this->getAttributeValue('first_name');
-    }
+    // public function getFilamentName(): string
+    // {
+    //     return $this->getAttributeValue('first_name');
+    // }
 
-    /**
-     * Check if the user can access Filament.
-     */
-    public function canAccessPanel(Panel $panel): bool
-    {
-        return $this->is_admin; // Only allow admin users to access Filament
-    }
+    // /**
+    //  * Check if the user can access Filament.
+    //  */
+    // public function canAccessPanel(Panel $panel): bool
+    // {
+    //     return $this->is_admin; // Only allow admin users to access Filament
+    // }
 
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
-    public function userType(): HasMany
+    public function userType()
     {
-        return $this->hasMany(UserType::class);
+        return $this->belongsTo(UserType::class, 'user_type_id');
     }
 
-    public function department(): HasMany
+    public function department()
     {
-        return $this->hasMany(Department::class);
+        // Change from hasMany to belongsTo since a user belongs to a department
+        return $this->belongsTo(Department::class, 'wmsu_dept_id');
     }
 
     public function gradeLevel(): HasMany
@@ -124,9 +124,26 @@ class User extends Authenticatable implements HasName
         return $this->hasMany(Order::class, 'seller_code', 'seller_code'); // as seller
     }
 
-    public function isAdmin(): bool
+    public function verification()
     {
-        return (bool) $this->is_admin;
+        return $this->hasOne(UserVerification::class);
     }
 
+    public function usernameHistory()
+    {
+        return $this->hasMany(UsernameHistory::class);
+    }
+
+    public function meetupLocations()
+    {
+        return $this->hasMany(MeetupLocation::class);
+    }
+
+    public function getDefaultMeetupLocation()
+    {
+        return $this->meetupLocations()
+            ->where('is_active', true)
+            ->where('is_default', true)
+            ->first();
+    }
 }

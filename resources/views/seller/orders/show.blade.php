@@ -1,10 +1,12 @@
-<x-sellerLayout>
+@extends('dashboard.dashboard')
+
+@section('dashboard-content')
     <div class="container mx-auto px-4 py-8">
         <div class="max-w-4xl mx-auto">
             {{-- Back Button and Order Status Header --}}
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center space-x-4">
-                    <a href="{{ route('seller.orders.index') }}" class="text-gray-600 hover:text-gray-900">
+                    <a href="{{ route('seller.index') }}" class="text-gray-600 hover:text-gray-900">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -15,7 +17,6 @@
                 <span
                     class="px-4 py-2 rounded-full text-sm font-semibold
                     @if ($order->status === 'Completed') bg-green-100 text-green-800
-                    {{-- @elseif($order->status === 'Processing') bg-yellow-100 text-yellow-800 --}}
                     @else bg-blue-100 text-blue-800 @endif">
                     {{ $order->status }}
                 </span>
@@ -115,8 +116,6 @@
                             </option>
                             <option value="Completed" {{ $order->status === 'Completed' ? 'selected' : '' }}>Completed
                             </option>
-                            <option value="Canceled" {{ $order->status === 'Canceled' ? 'selected' : '' }}>Cancel Order
-                            </option>
                         </select>
                         <button type="submit"
                             class="px-6 py-2 bg-primary-color text-white rounded-lg hover:bg-primary-color/90 transition-colors">
@@ -127,4 +126,4 @@
             @endif
         </div>
     </div>
-</x-sellerLayout>
+@endsection
