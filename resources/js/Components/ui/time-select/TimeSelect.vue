@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Button } from '@/Components/ui/button'
 import {
   Popover,
@@ -14,30 +14,13 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: 'Select time'
-  },
-  minHour: {
-    type: Number,
-    default: 0
-  },
-  maxHour: {
-    type: Number,
-    default: 23
   }
 })
 
 const emit = defineEmits(['update:modelValue'])
 
-const hours = computed(() => {
-  const hourArray = []
-  for (let i = props.minHour; i <= props.maxHour; i++) {
-    const hour12 = convert24to12Hour(i.toString().padStart(2, '0'))
-    if (!hourArray.includes(hour12.hour)) {
-      hourArray.push(hour12.hour)
-    }
-  }
-  return hourArray
-})
-
+// Generate hours in 12-hour format
+const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'))
 const minutes = ['00', '15', '30', '45']
 
 const selectedHour = ref(null) // Change from default value to null
@@ -74,6 +57,27 @@ const displayTime = computed(() => {
 const updateTime = () => {
   emit('update:modelValue', formattedTime.value)
 }
+
+// Add method to initialize from 24h format
+const initializeFromValue = () => {
+  if (props.modelValue) {
+    const [hour24, minute] = props.modelValue.split(':')
+    const { hour, period } = convert24to12Hour(hour24)
+    selectedHour.value = hour
+    selectedMinute.value = minute
+    selectedPeriod.value = period
+  }
+}
+
+// Call on mounted
+onMounted(() => {
+  initializeFromValue()
+})
+
+// Watch for modelValue changes
+watch(() => props.modelValue, () => {
+  initializeFromValue()
+})
 </script>
 
 <template>

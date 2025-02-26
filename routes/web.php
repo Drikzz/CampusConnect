@@ -90,7 +90,7 @@ Route::middleware('auth')->group(function () {
             Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('dashboard.seller.products.force-delete');
 
             // Add meetup location routes here
-            Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations.index');
+            Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations');
             Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
             Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');
             Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');

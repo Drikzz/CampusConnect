@@ -87,7 +87,7 @@
             <template v-if="user.is_seller">
               <NavSection title="Seller Management">
                 <li>
-                  <Link :href="route('seller.meetup-locations.index')"
+                  <Link :href="route('seller.meetup-locations')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                     :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/meetup-locations') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -755,7 +755,6 @@ class SellerController extends Controller
     public function storeMeetupLocation(Request $request)
     {
         try {
-            // Validate the request
             $validated = $request->validate([
                 'location_id' => 'required|exists:locations,id',
                 'full_name' => 'required|string|max:255',
@@ -769,17 +768,8 @@ class SellerController extends Controller
                 'is_default' => 'boolean'
             ]);
 
-            // Log the received data
-            Log::info('Received meetup location data:', [
-                'available_days' => $request->available_days,
-                'available_days_type' => gettype($request->available_days)
-            ]);
-
-            $location = Location::findOrFail($validated['location_id']);
-
             DB::beginTransaction();
 
-            // Create meetup location with the array directly
             $meetupLocation = auth()->user()->meetupLocations()->create([
                 'location_id' => $validated['location_id'],
                 'full_name' => $validated['full_name'],
@@ -787,15 +777,14 @@ class SellerController extends Controller
                 'description' => $validated['description'] ?? '',
                 'available_from' => $validated['available_from'],
                 'available_until' => $validated['available_until'],
-                'available_days' => $validated['available_days'], // Just pass the array directly
+                'available_days' => $validated['available_days'],
                 'max_daily_meetups' => $validated['max_daily_meetups'],
-                'latitude' => $location->latitude,
-                'longitude' => $location->longitude,
+                'latitude' => Location::find($validated['location_id'])->latitude,
+                'longitude' => Location::find($validated['location_id'])->longitude,
                 'is_active' => true,
                 'is_default' => $validated['is_default'] ?? false,
             ]);
 
-            // If this is the first location or is set as default
             if (auth()->user()->meetupLocations()->count() === 1 || ($validated['is_default'] ?? false)) {
                 auth()->user()->meetupLocations()
                     ->where('id', '!=', $meetupLocation->id)
@@ -803,36 +792,10 @@ class SellerController extends Controller
             }
 
             DB::commit();
-
-            Log::info('Created meetup location:', [
-                'id' => $meetupLocation->id,
-                'available_days' => $meetupLocation->available_days
-            ]);
-
-            // Return Inertia redirect with flash message instead of JSON response
-            return redirect()->route('seller.meetup-locations')->with([
-                'message' => 'Meetup location added successfully',
-                'type' => 'success'
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            Log::error('Validation error creating meetup location:', [
-                'errors' => $e->errors()
-            ]);
-
-            // Redirect back with errors for Inertia to handle
-            return back()->withErrors($e->errors());
+            return redirect()->back()->with(['message' => 'Meetup location added successfully', 'type' => 'success']);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating meetup location:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            // Redirect back with generic error message
-            return back()->withErrors([
-                'error' => 'Failed to create meetup location: ' . $e->getMessage()
-            ]);
+            return back()->withErrors(['error' => 'Failed to create meetup location: ' . $e->getMessage()]);
         }
     }
 
@@ -852,19 +815,11 @@ class SellerController extends Controller
                 'is_default' => 'boolean'
             ]);
 
+            DB::beginTransaction();
+
             $meetupLocation = auth()->user()->meetupLocations()->findOrFail($id);
             $location = Location::findOrFail($validated['location_id']);
 
-            // Log data for debugging
-            Log::info('Updating meetup location:', [
-                'id' => $id,
-                'available_days' => $request->available_days,
-                'available_days_type' => gettype($request->available_days)
-            ]);
-
-            DB::beginTransaction();
-
-            // Update with the array directly
             $meetupLocation->update([
                 'location_id' => $validated['location_id'],
                 'full_name' => $validated['full_name'],
@@ -872,7 +827,7 @@ class SellerController extends Controller
                 'description' => $validated['description'] ?? '',
                 'available_from' => $validated['available_from'],
                 'available_until' => $validated['available_until'],
-                'available_days' => $validated['available_days'], // Pass the array directly
+                'available_days' => $validated['available_days'],
                 'max_daily_meetups' => $validated['max_daily_meetups'],
                 'latitude' => $location->latitude,
                 'longitude' => $location->longitude,
@@ -887,31 +842,10 @@ class SellerController extends Controller
             }
 
             DB::commit();
-
-            // Return Inertia redirect with success message
-            return redirect()->route('seller.meetup-locations')->with([
-                'message' => 'Meetup location updated successfully',
-                'type' => 'success'
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            Log::error('Validation error updating meetup location:', [
-                'errors' => $e->errors()
-            ]);
-
-            // Redirect back with validation errors
-            return back()->withErrors($e->errors());
+            return redirect()->back()->with(['message' => 'Meetup location updated successfully', 'type' => 'success']);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error updating meetup location:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            // Redirect back with error message
-            return back()->withErrors([
-                'error' => 'Failed to update meetup location: ' . $e->getMessage()
-            ]);
+            return back()->withErrors(['error' => 'Failed to update meetup location: ' . $e->getMessage()]);
         }
     }
 
