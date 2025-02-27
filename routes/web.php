@@ -54,9 +54,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
 
         // Meetup locations CRUD
-        Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
-        Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
-        Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
+        // Remove these routes from here since we'll move them to seller prefix
+        // Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
+        // Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
+        // Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
 
         // Add new seller registration routes
         Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])
@@ -69,11 +70,6 @@ Route::middleware('auth')->group(function () {
         // Remove or comment out these old routes
         // Route::get('/seller/terms', [DashboardController::class, 'showSellerTerms'])->name('dashboard.seller.terms');
 
-        Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
-        Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
-        Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
-
-        // Product management routes
         Route::prefix('seller')->group(function () {
             // Seller dashboard routes
             Route::get('/', [SellerController::class, 'index'])->name('seller.index');
@@ -83,6 +79,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
             Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
             Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
+            Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews'); // Add this line
 
             // Product CRUD routes
             Route::post('/products', [SellerController::class, 'store'])->name('dashboard.seller.products.store');
@@ -92,13 +89,11 @@ Route::middleware('auth')->group(function () {
             Route::post('/products/{product}/restore', [SellerController::class, 'restore'])->name('dashboard.seller.products.restore');
             Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('dashboard.seller.products.force-delete');
 
-            // Add meetup location routes inside seller prefix
-            Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])
-                ->name('meetup-locations.store');
-            Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])
-                ->name('meetup-locations.update');
-            Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])
-                ->name('meetup-locations.destroy');
+            // Add meetup location routes here
+            Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations');
+            Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
+            Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');
+            Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
         });
     });
 

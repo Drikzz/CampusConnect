@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wishlist;
 use App\Models\OrderItem;
-
+use Inertia\Inertia;
 
 class SellerController extends Controller
 {
@@ -690,5 +691,197 @@ class SellerController extends Controller
             'is_buyable' => in_array($tradeAvailability, ['buy', 'both']),
             'is_tradable' => in_array($tradeAvailability, ['trade', 'both'])
         ];
+    }
+
+    public function meetupLocations()
+    {
+        $user = auth()->user();
+        $stats = $this->getDashboardStats($user);
+
+        return Inertia::render('Dashboard/seller/MeetupLocations', [
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'last_name' => $user->last_name,
+                'phone' => $user->phone,
+                'is_seller' => $user->is_seller,
+                'seller_code' => $user->seller_code,
+            ],
+            'stats' => $stats,
+            'meetupLocations' => $user->meetupLocations()
+                ->with('location')
+                ->orderByDesc('is_default')
+                ->get(),
+            'locations' => Location::select('id', 'name', 'latitude', 'longitude')
+                ->orderBy('name')
+                ->get()
+        ]);
+    }
+
+    private function getDashboardStats($user)
+    {
+        $stats = [
+            'totalOrders' => Order::where('buyer_id', $user->id)->count(),
+            'activeOrders' => Order::where('buyer_id', $user->id)
+                ->whereNotIn('status', ['Completed', 'Cancelled'])
+                ->count(),
+            'wishlistCount' => Wishlist::where('user_id', $user->id)->count(),
+            'totalSales' => 0,
+            'activeProducts' => 0,
+            'pendingOrders' => 0
+        ];
+
+        if ($user->is_seller) {
+            $stats['totalSales'] = OrderItem::where('seller_code', $user->seller_code)
+                ->whereHas('order', function ($query) {
+                    $query->where('status', 'Completed');
+                })
+                ->sum('subtotal');
+
+            $stats['activeProducts'] = Product::where('seller_code', $user->seller_code)
+                ->where('status', 'Active')
+                ->count();
+
+            $stats['pendingOrders'] = OrderItem::where('seller_code', $user->seller_code)
+                ->whereHas('order', function ($query) {
+                    $query->where('status', 'Pending');
+                })->count();
+        }
+
+        return $stats;
+    }
+
+    public function storeMeetupLocation(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'location_id' => 'required|exists:locations,id',
+                'full_name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'description' => 'nullable|string',
+                'available_from' => 'required|date_format:H:i',
+                'available_until' => 'required|date_format:H:i|after:available_from',
+                'available_days' => 'required|array|min:1',
+                'available_days.*' => 'string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'max_daily_meetups' => 'required|integer|min:1|max:50',
+                'is_default' => 'boolean'
+            ]);
+
+            DB::beginTransaction();
+
+            $meetupLocation = auth()->user()->meetupLocations()->create([
+                'location_id' => $validated['location_id'],
+                'full_name' => $validated['full_name'],
+                'phone' => $validated['phone'],
+                'description' => $validated['description'] ?? '',
+                'available_from' => $validated['available_from'],
+                'available_until' => $validated['available_until'],
+                'available_days' => $validated['available_days'],
+                'max_daily_meetups' => $validated['max_daily_meetups'],
+                'latitude' => Location::find($validated['location_id'])->latitude,
+                'longitude' => Location::find($validated['location_id'])->longitude,
+                'is_active' => true,
+                'is_default' => $validated['is_default'] ?? false,
+            ]);
+
+            if (auth()->user()->meetupLocations()->count() === 1 || ($validated['is_default'] ?? false)) {
+                auth()->user()->meetupLocations()
+                    ->where('id', '!=', $meetupLocation->id)
+                    ->update(['is_default' => false]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with(['message' => 'Meetup location added successfully', 'type' => 'success']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to create meetup location: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateMeetupLocation(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'location_id' => 'required|exists:locations,id',
+                'full_name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'description' => 'nullable|string',
+                'available_from' => 'required|date_format:H:i',
+                'available_until' => 'required|date_format:H:i|after:available_from',
+                'available_days' => 'required|array|min:1',
+                'available_days.*' => 'string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'max_daily_meetups' => 'required|integer|min:1|max:50',
+                'is_default' => 'boolean'
+            ]);
+
+            DB::beginTransaction();
+
+            $meetupLocation = auth()->user()->meetupLocations()->findOrFail($id);
+            $location = Location::findOrFail($validated['location_id']);
+
+            $meetupLocation->update([
+                'location_id' => $validated['location_id'],
+                'full_name' => $validated['full_name'],
+                'phone' => $validated['phone'],
+                'description' => $validated['description'] ?? '',
+                'available_from' => $validated['available_from'],
+                'available_until' => $validated['available_until'],
+                'available_days' => $validated['available_days'],
+                'max_daily_meetups' => $validated['max_daily_meetups'],
+                'latitude' => $location->latitude,
+                'longitude' => $location->longitude,
+                'is_active' => true,
+                'is_default' => $validated['is_default'] ?? false,
+            ]);
+
+            if ($validated['is_default'] ?? false) {
+                auth()->user()->meetupLocations()
+                    ->where('id', '!=', $id)
+                    ->update(['is_default' => false]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with(['message' => 'Meetup location updated successfully', 'type' => 'success']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to update meetup location: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteMeetupLocation($id)
+    {
+        try {
+            $user = auth()->user();
+            $location = $user->meetupLocations()->findOrFail($id);
+
+            DB::beginTransaction();
+
+            $wasDefault = $location->is_default;
+            $location->delete();
+
+            if ($wasDefault) {
+                $newDefault = $user->meetupLocations()->first();
+                if ($newDefault) {
+                    $newDefault->update(['is_default' => true]);
+                }
+            }
+
+            DB::commit();
+
+            // Return Inertia redirect with success message
+            return redirect()->route('seller.meetup-locations.index')->with([
+                'message' => 'Meetup location deleted successfully',
+                'type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error deleting meetup location: ' . $e->getMessage());
+
+            // Redirect back with error message
+            return back()->withErrors([
+                'error' => 'Failed to delete meetup location: ' . $e->getMessage()
+            ]);
+        }
     }
 }
