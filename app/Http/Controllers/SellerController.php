@@ -304,7 +304,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -326,17 +326,17 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product successfully archived'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product successfully archived',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Product deletion error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Error archiving product'
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error archiving product',
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -346,7 +346,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -359,15 +359,15 @@ class SellerController extends Controller
 
             $product->forceDelete();
 
-            // Return redirect response for Inertia
-            return redirect()->route('seller.products')->with('success', 'Product permanently deleted');
-        } catch (\Exception $e) {
-            Log::error('Product force delete error:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product permanently deleted',
+                'type' => 'success'
             ]);
-
-            return redirect()->back()->with('error', 'Error deleting product: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return redirect()->back()->with([
+                'message' => 'Error deleting product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -377,7 +377,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -386,7 +386,7 @@ class SellerController extends Controller
             // First restore the product
             $product->restore();
 
-            // Restore the old attributes if they exist
+            // Restore the old attributes if they exist, otherwise use defaults
             $oldAttributes = $product->old_attributes ?? [
                 'status' => 'Active',
                 'is_buyable' => false,
@@ -397,14 +397,19 @@ class SellerController extends Controller
             $product->update([
                 'status' => $oldAttributes['status'],
                 'is_buyable' => $oldAttributes['is_buyable'],
-                'is_tradable' => $oldAttributes['is_tradable'],
-                'old_attributes' => null
+                'is_tradable' => $oldAttributes['is_tradable']
             ]);
+
+            // Clear the stored old attributes
+            $product->old_attributes = null;
+            $product->save();
 
             DB::commit();
 
-            // Return redirect response for Inertia
-            return redirect()->route('seller.products')->with('success', 'Product restored successfully');
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product restored successfully',
+                'type' => 'success'
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product restore error:', [
@@ -412,7 +417,10 @@ class SellerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->back()->with('error', 'Error restoring product: ' . $e->getMessage());
+            return redirect()->back()->with([
+                'message' => 'Error restoring product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
