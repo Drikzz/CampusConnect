@@ -55,53 +55,36 @@ class SellerController extends Controller
             ->get();
 
         // dd($recentOrders);
-        return view('seller.dashboard', compact('categories', 'totalOrders', 'totalSales', 'activeTrades', 'recentOrders', 'orderCounts'));
+        return view('seller.index', compact('categories', 'totalOrders', 'totalSales', 'activeTrades', 'recentOrders', 'orderCounts'));
     }
 
     // Modify products listing to include option to show deleted
-    public function products(Request $request)
+    public function products()
     {
         $user = auth()->user();
         $sellerCode = $user->seller_code;
+        $stats = $this->getDashboardStats($user);
 
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
-
-        $query = Product::where('seller_code', $sellerCode)
+        $products = Product::where('seller_code', $sellerCode)
             ->with(['category'])
-            ->withTrashed(); // Always include trashed items
+            ->withTrashed()
+            ->latest()
+            ->paginate(10);
 
-        $products = $query->latest()->paginate(10);
-        $categories = Category::all();
-
-        return view('dashboard.seller.products', compact(
-            'products',
-            'categories',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/Products', [
+            'user' => $user,
+            'stats' => $stats,
+            'products' => [
+                'data' => $products->items(),
+                'meta' => [
+                    'total' => $products->total(),
+                    'per_page' => $products->perPage(),
+                    'current_page' => $products->currentPage(),
+                    'last_page' => $products->lastPage()
+                ]
+            ],
+            'categories' => Category::all()
+        ]);
     }
 
     // Add method to fetch single product for editing
@@ -321,7 +304,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -343,17 +326,17 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product successfully archived'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product successfully archived',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Product deletion error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Error archiving product'
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error archiving product',
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -363,7 +346,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -376,15 +359,15 @@ class SellerController extends Controller
 
             $product->forceDelete();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product permanently deleted'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product permanently deleted',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error permanently deleting product: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error deleting product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -394,7 +377,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -423,9 +406,9 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product restored successfully with original attributes'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product restored successfully',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -434,10 +417,10 @@ class SellerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error restoring product: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error restoring product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -446,85 +429,54 @@ class SellerController extends Controller
     {
         $user = auth()->user();
         $sellerCode = $user->seller_code;
-
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
+        $stats = $this->getDashboardStats($user);
 
         $orders = Order::where('seller_code', $sellerCode)
             ->with(['items.product', 'buyer'])
             ->latest()
             ->paginate(10);
 
-        return view('dashboard.seller.orders', compact(
-            'orders',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/Orders', [
+            'user' => $user,
+            'stats' => $stats,
+            'orders' => [
+                'data' => $orders->items(),
+                'meta' => [
+                    'total' => $orders->total(),
+                    'per_page' => $orders->perPage(),
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage()
+                ]
+            ],
+            'orderCounts' => [
+                'pendingOrders' => Order::where('seller_code', $sellerCode)->pending()->count(),
+                'activeOrders' => Order::where('seller_code', $sellerCode)
+                    ->whereIn('status', ['Accepted', 'Processing', 'Meetup Scheduled'])->count(),
+                'totalOrders' => Order::where('seller_code', $sellerCode)->count(),
+                'totalSales' => Order::where('seller_code', $sellerCode)
+                    ->where('status', 'Completed')
+                    ->sum('sub_total')
+            ]
+        ]);
     }
 
     public function showOrder(Order $order)
     {
         if ($order->seller_code !== auth()->user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            abort(403);
         }
 
         $user = auth()->user();
-        $sellerCode = $user->seller_code;
+        $stats = $this->getDashboardStats($user);
 
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
-
-        $order->load(['items.product', 'buyer']);
-
-        return view('dashboard.seller.order-details', compact(
-            'order',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/OrderDetails', [
+            'user' => $user,
+            'stats' => $stats,
+            'order' => $order->load(['items.product', 'buyer']),
+            'meetupLocations' => auth()->user()->meetupLocations()
+                ->with('location')
+                ->get()
+        ]);
     }
 
     public function updateOrderStatus(Request $request, Order $order)
