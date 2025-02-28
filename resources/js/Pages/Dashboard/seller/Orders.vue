@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
 import { router } from '@inertiajs/vue3'
-import DashboardLayout from '../DashboardLayout.vue';
-import StatsCard from '../../../Components/StatsCard.vue'
-import OrderStatusBadge from '../../../Components/OrderStatusBadge.vue'
+import DashboardLayout from '../DashboardLayout.vue'
+import StatsCard from '@/Components/StatsCard.vue'
+import OrderStatusBadge from '@/Components/OrderStatusBadge.vue'
 import { Button } from '@/Components/ui/button'
 import {
   Table,
@@ -25,7 +25,8 @@ import { h } from 'vue'
 const props = defineProps({
   user: Object,
   stats: Object,
-  orders: Array
+  orders: Object,
+  orderCounts: Object
 })
 
 const data = shallowRef(props.orders)
@@ -80,6 +81,7 @@ const table = useVueTable({
 
 const formatNumber = (num: number) => new Intl.NumberFormat().format(num)
 const formatDate = (date: string) => new Date(date).toLocaleDateString()
+const formatPrice = (price) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price)
 
 const viewOrder = (orderId: string) => {
   router.visit(route('seller.orders.show', orderId))
@@ -91,10 +93,10 @@ const viewOrder = (orderId: string) => {
     <div class="space-y-6">
       <!-- Stats Overview -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Pending Orders" :value="stats.pendingOrders" />
-        <StatsCard title="Active Orders" :value="stats.activeOrders" />
-        <StatsCard title="Total Orders" :value="stats.totalOrders" />
-        <StatsCard title="Total Sales" :value="`₱${formatNumber(stats.totalSales)}`" />
+        <StatsCard title="Pending Orders" :value="orderCounts.pendingOrders" />
+        <StatsCard title="Active Orders" :value="orderCounts.activeOrders" />
+        <StatsCard title="Total Orders" :value="orderCounts.totalOrders" />
+        <StatsCard title="Total Sales" :value="formatPrice(orderCounts.totalSales)" />
       </div>
 
       <!-- Orders Table -->

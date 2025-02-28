@@ -53,12 +53,6 @@ Route::middleware('auth')->group(function () {
         Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancelOrder'])->name('orders.cancel');
         Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
 
-        // Meetup locations CRUD
-        // Remove these routes from here since we'll move them to seller prefix
-        // Route::post('/meetup-locations', [DashboardController::class, 'storeMeetupLocation'])->name('meetup-locations.store');
-        // Route::put('/meetup-locations/{id}', [DashboardController::class, 'updateMeetupLocation'])->name('meetup-locations.update');
-        // Route::delete('/meetup-locations/{id}', [DashboardController::class, 'deleteMeetupLocation'])->name('meetup-locations.destroy');
-
         // Add new seller registration routes
         Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])
             ->name('dashboard.become-seller');
@@ -67,29 +61,27 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/seller/terms', [DashboardController::class, 'acceptSellerTerms'])->name('dashboard.seller.terms.accept');
 
-        // Remove or comment out these old routes
-        // Route::get('/seller/terms', [DashboardController::class, 'showSellerTerms'])->name('dashboard.seller.terms');
-
-        Route::prefix('seller')->group(function () {
-            // Seller dashboard routes
+        Route::prefix('seller')->middleware('seller')->group(function () {
+            // Dashboard and main routes
             Route::get('/', [SellerController::class, 'index'])->name('seller.index');
             Route::get('/products', [SellerController::class, 'products'])->name('seller.products');
             Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders');
             Route::get('/analytics', [SellerController::class, 'analytics'])->name('seller.analytics');
+            Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews');
+
+            // Order management routes
             Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
             Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
             Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
-            Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews'); // Add this line
 
-            // Product CRUD routes
-            Route::post('/products', [SellerController::class, 'store'])->name('dashboard.seller.products.store');
-            Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('dashboard.seller.products.edit');
-            Route::put('/products/{id}', [SellerController::class, 'update'])->name('dashboard.seller.products.update');
-            Route::delete('/products/{id}', [SellerController::class, 'destroy'])->name('dashboard.seller.products.destroy');
-            Route::post('/products/{product}/restore', [SellerController::class, 'restore'])->name('dashboard.seller.products.restore');
-            Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('dashboard.seller.products.force-delete');
+            // Product management routes
+            Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
+            Route::put('/products/{id}', [SellerController::class, 'update'])->name('seller.products.update');
+            Route::delete('/products/{id}', [SellerController::class, 'destroy'])->name('seller.products.destroy');
+            Route::post('/products/{id}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
+            Route::delete('/products/{id}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
 
-            // Add meetup location routes here
+            // Meetup location routes
             Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations');
             Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
             Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');

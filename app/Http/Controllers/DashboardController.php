@@ -298,8 +298,13 @@ class DashboardController extends Controller
         $user = auth()->user();
         $stats = $this->getDashboardStats($user);
 
-        $orders = Order::where('buyer_id', auth()->id())
-            ->with(['items.product'])
+        $orders = Order::where('buyer_id', $user->id)
+            ->with([
+                'items.product' => function ($query) {
+                    $query->select('id', 'name', 'images', 'price');
+                },
+                'seller:id,first_name,last_name,seller_code'
+            ])
             ->latest()
             ->paginate(10);
 
@@ -308,17 +313,18 @@ class DashboardController extends Controller
             'stats' => $stats,
             'orders' => [
                 'data' => $orders->items(),
-                'first_page_url' => $orders->url(1),
-                'last_page_url' => $orders->url($orders->lastPage()),
-                'prev_page_url' => $orders->previousPageUrl(),
-                'next_page_url' => $orders->nextPageUrl(),
-                'links' => collect($orders->links()->elements[0])->map(function ($url, $page) use ($orders) {
-                    return [
-                        'url' => $url,
-                        'label' => $page,
-                        'active' => $page === $orders->currentPage()
-                    ];
-                })
+                'meta' => [
+                    'total' => $orders->total(),
+                    'per_page' => $orders->perPage(),
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage()
+                ],
+                'links' => [
+                    'first' => $orders->url(1),
+                    'last' => $orders->url($orders->lastPage()),
+                    'prev' => $orders->previousPageUrl(),
+                    'next' => $orders->nextPageUrl()
+                ]
             ]
         ]);
     }

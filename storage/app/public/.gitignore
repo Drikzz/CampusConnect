@@ -1,3 +1,5 @@
 *
+!assets/
+!imgs/
 !products/
 !.gitignore
