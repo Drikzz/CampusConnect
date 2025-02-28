@@ -140,7 +140,8 @@ Route::middleware('auth')->group(function () {
 //     return view('admin.admin-fundManagement');
 // })->name('admin.funds');
 
-// Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
+Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
+Route::get('/admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
 
 // PLS DON'T DELETE THIS CODE FOR A WHILE
 // Protected Admin Routes
