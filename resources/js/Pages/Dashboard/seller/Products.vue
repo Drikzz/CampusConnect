@@ -88,271 +88,296 @@
 
       <!-- Product Form Dialog -->
       <Dialog :open="showDialog" @update:open="closeDialog">
-        <DialogContent class="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader class="sticky top-0 z-20 bg-white border-b pb-3">
-            <DialogTitle>{{ isEditing ? 'Edit' : 'Add' }} Product</DialogTitle>
-          </DialogHeader>
+        <DialogContent class="flex flex-col max-h-[90vh] w-full max-w-3xl p-0">
+          <div class="flex items-center justify-between px-6 py-4 border-b">
+            <DialogTitle class="text-lg font-semibold">
+              {{ isEditing ? 'Edit' : 'Add' }} Product
+            </DialogTitle>
+            <DialogClose class="text-gray-400 hover:text-gray-500 focus:outline-none">
+              <!-- <X class="h-5 w-5" />
+              <span class="sr-only">Close</span> -->
+            </DialogClose>
+          </div>
 
-          <form @submit.prevent="handleSubmit" class="space-y-4 py-4">
-            <div class="grid grid-cols-2 gap-6">
-              <!-- Left Column -->
-              <div class="space-y-4">
-                <!-- Name -->
-                <div>
-                  <Label for="name">Product Name</Label>
-                  <Input 
-                    id="name" 
-                    v-model="form.name" 
-                    :disabled="isSubmitting"
-                    :class="{'border-red-500': formErrors.name}"
-                  />
-                  <p v-if="formErrors.name" class="text-red-500 text-xs mt-1">
-                    {{ formErrors.name }}
-                  </p>
-                </div>
+          <div class="flex-1 overflow-y-auto p-4">
+            <form @submit.prevent="handleSubmit" class="space-y-4">
+              <div class="grid grid-cols-2 gap-6">
+                <!-- Left Column -->
+                <div class="space-y-4">
+                  <!-- Name -->
+                  <div>
+                    <Label for="name">Product Name</Label>
+                    <Input 
+                      id="name" 
+                      v-model="form.name" 
+                      :disabled="isSubmitting"
+                      :class="{'border-red-500': formErrors.name}"
+                    />
+                    <p v-if="formErrors.name" class="text-red-500 text-xs mt-1">
+                      {{ formErrors.name }}
+                    </p>
+                  </div>
 
-                <!-- Category Selection -->
-                <div>
-                  <Label>Category</Label>
-                  <Popover v-model:open="categoryOpen">
-                    <PopoverTrigger as-child>
-                      <Button
-                        variant="outline"
-                        role="combobox"
+                  <!-- Category Selection -->
+                  <div>
+                    <Label>Category</Label>
+                    <Popover v-model:open="categoryOpen">
+                      <PopoverTrigger as-child>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          :disabled="isSubmitting"
+                          :aria-expanded="categoryOpen"
+                          class="w-full justify-between"
+                        >
+                          {{ props.categories.find(c => c.id.toString() === form.category)?.name || 'Select category...' }}
+                          <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent class="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search category..." v-model="categorySearch" />
+                          <CommandEmpty>No category found.</CommandEmpty>
+                          <CommandGroup>
+                            <ScrollArea class="h-fit">
+                              <CommandItem
+                                v-for="category in filteredCategories"
+                                :key="category.value"
+                                :value="category.value"
+                                @select="selectCategory(category.value)"
+                              >
+                                <Check
+                                  :class="[
+                                    'mr-2 h-4 w-4',
+                                    form.category === category.value ? 'opacity-100' : 'opacity-0'
+                                  ]"
+                                />
+                                {{ category.label }}
+                              </CommandItem>
+                            </ScrollArea>
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <p v-if="formErrors.category" class="text-red-500 text-xs mt-1">
+                      {{ formErrors.category }}
+                    </p>
+                  </div>
+
+                  <!-- Price, Discount, and Stock in one row -->
+                  <div class="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label for="price">Price (₱)</Label>
+                      <Input 
+                        id="price" 
+                        type="number" 
+                        v-model="form.price"
+                        min="0"
+                        step="0.01"
                         :disabled="isSubmitting"
-                        :aria-expanded="categoryOpen"
-                        class="w-full justify-between"
-                      >
-                        {{ props.categories.find(c => c.id.toString() === form.category)?.name || 'Select category...' }}
-                        <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent class="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Search category..." v-model="categorySearch" />
-                        <CommandEmpty>No category found.</CommandEmpty>
-                        <CommandGroup>
-                          <ScrollArea class="h-[200px]">
-                            <CommandItem
-                              v-for="category in filteredCategories"
-                              :key="category.value"
-                              :value="category.value"
-                              @select="selectCategory(category.value)"
-                            >
-                              <Check
-                                :class="[
-                                  'mr-2 h-4 w-4',
-                                  form.category === category.value ? 'opacity-100' : 'opacity-0'
-                                ]"
-                              />
-                              {{ category.label }}
-                            </CommandItem>
-                          </ScrollArea>
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <p v-if="formErrors.category" class="text-red-500 text-xs mt-1">
-                    {{ formErrors.category }}
-                  </p>
-                </div>
-
-                <!-- Price, Discount, and Stock in one row -->
-                <div class="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label for="price">Price (₱)</Label>
-                    <Input 
-                      id="price" 
-                      type="number" 
-                      v-model="form.price"
-                      min="0"
-                      step="0.01"
-                      :disabled="isSubmitting"
-                      :class="{'border-red-500': formErrors.price}"
-                    />
-                    <p v-if="formErrors.price" class="text-red-500 text-xs mt-1">
-                      {{ formErrors.price }}
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label for="discount">Discount (%)</Label>
-                    <Input 
-                      id="discount" 
-                      type="number" 
-                      v-model="form.discount"
-                      min="0"
-                      max="100"
-                      :disabled="isSubmitting"
-                      :class="{'border-red-500': formErrors.discount}"
-                    />
-                    <p v-if="formErrors.discount" class="text-red-500 text-xs mt-1">
-                      {{ formErrors.discount }}
-                    </p>
-                    <p class="text-xs text-gray-500 mt-1" v-if="form.price && form.discount">
-                      Final price: ₱{{ calculateDiscountedPrice }}
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label for="stock">Stock</Label>
-                    <Input 
-                      id="stock" 
-                      type="number" 
-                      v-model="form.stock"
-                      min="0"
-                      :disabled="isSubmitting"
-                      :class="{'border-red-500': formErrors.stock}"
-                    />
-                    <p v-if="formErrors.stock" class="text-red-500 text-xs mt-1">
-                      {{ formErrors.stock }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Add Status field only in edit mode -->
-                <div v-if="isEditing" class="space-y-2">
-                  <Label>Status</Label>
-                  <div class="flex space-x-4">
-                    <label v-for="status in statusOptions" :key="status" class="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        :value="status"
-                        v-model="form.status"
-                        name="status"
-                        class="text-primary-600 focus:ring-primary-500"
+                        :class="{'border-red-500': formErrors.price}"
                       />
-                      <span>{{ status }}</span>
-                    </label>
+                      <p v-if="formErrors.price" class="text-red-500 text-xs mt-1">
+                        {{ formErrors.price }}
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label for="discount">Discount (%)</Label>
+                      <Input 
+                        id="discount" 
+                        type="number" 
+                        v-model="form.discount"
+                        min="0"
+                        max="100"
+                        :disabled="isSubmitting"
+                        :class="{'border-red-500': formErrors.discount}"
+                      />
+                      <p v-if="formErrors.discount" class="text-red-500 text-xs mt-1">
+                        {{ formErrors.discount }}
+                      </p>
+                      <p class="text-xs text-gray-500 mt-1" v-if="form.price && form.discount">
+                        Final price: ₱{{ calculateDiscountedPrice }}
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label for="stock">Stock</Label>
+                      <Input 
+                        id="stock" 
+                        type="number" 
+                        v-model="form.stock"
+                        min="0"
+                        :disabled="isSubmitting"
+                        :class="{'border-red-500': formErrors.stock}"
+                      />
+                      <p v-if="formErrors.stock" class="text-red-500 text-xs mt-1">
+                        {{ formErrors.stock }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Add Status field only in edit mode -->
+                  <div v-if="isEditing" class="space-y-2">
+                    <Label>Status</Label>
+                    <div class="flex space-x-4">
+                      <label v-for="status in statusOptions" :key="status" class="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          :value="status"
+                          v-model="form.status"
+                          name="status"
+                          class="text-primary-600 focus:ring-primary-500"
+                        />
+                        <span>{{ status }}</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Description with static height -->
+                  <div>
+                    <Label for="description">Description</Label>
+                    <Textarea 
+                      id="description" 
+                      v-model="form.description"
+                      rows="4"
+                      :disabled="isSubmitting"
+                    />
+                  </div>
+
+                  <!-- Trade Availability -->
+                  <div>
+                    <Label class="mb-2">Availability</Label>
+                    <RadioGroup v-model="form.trade_availability" class="grid grid-cols-3 gap-2">
+                      <div class="flex items-center space-x-2">
+                        <RadioGroupItem value="buy" id="buy" />
+                        <Label for="buy" class="text-sm">For Sale</Label>
+                      </div>
+                      <div class="flex items-center space-x-2">
+                        <RadioGroupItem value="trade" id="trade" />
+                        <Label for="trade" class="text-sm">For Trade</Label>
+                      </div>
+                      <div class="flex items-center space-x-2">
+                        <RadioGroupItem value="both" id="both" />
+                        <Label for="both" class="text-sm">Both</Label>
+                      </div>
+                    </RadioGroup>
                   </div>
                 </div>
 
-                <!-- Description with static height -->
-                <div>
-                  <Label for="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    v-model="form.description"
-                    rows="4"
-                    :disabled="isSubmitting"
-                  />
-                </div>
+                <!-- Right Column -->
+                <div class="space-y-4">
+                  <Label class="block mb-2">Product Images</Label>
+                  <!-- Main Image -->
+                  <div class="mb-4">
+                    <div class="aspect-video relative border rounded-lg overflow-hidden">
+                      <img 
+                        v-if="form.imagesPreviews[0]" 
+                        :src="form.imagesPreviews[0]"
+                        class="w-full h-full object-cover"
+                      />
+                      <div 
+                        v-else
+                        class="w-full h-full flex items-center justify-center bg-gray-50"
+                      >
+                        <label 
+                          class="cursor-pointer text-center p-4"
+                          :for="'main-image'"
+                        >
+                          <span class="block text-sm text-gray-500">Main Image</span>
+                          <span class="text-xs text-gray-400">(Click to upload)</span>
+                        </label>
+                      </div>
+                      <input
+                        type="file"
+                        id="main-image"
+                        class="hidden"
+                        accept="image/*"
+                        @change="handleMainImageUpload"
+                      />
+                    </div>
+                  </div>
 
-                <!-- Trade Availability -->
-                <div>
-                  <Label class="mb-2">Availability</Label>
-                  <RadioGroup v-model="form.trade_availability" class="grid grid-cols-3 gap-2">
-                    <div class="flex items-center space-x-2">
-                      <RadioGroupItem value="buy" id="buy" />
-                      <Label for="buy" class="text-sm">For Sale</Label>
+                  <!-- Additional Images -->
+                  <div class="grid grid-cols-3 gap-2">
+                    <div 
+                      v-for="(img, index) in form.additionalImages"
+                      :key="`additional-${index}`"
+                      class="aspect-square relative border rounded-lg overflow-hidden group"
+                    >
+                      <img 
+                        v-if="img?.preview" 
+                        :src="img.preview"
+                        class="w-full h-full object-cover"
+                      />
+                      <div 
+                        v-else
+                        class="w-full h-full flex items-center justify-center bg-gray-50"
+                      >
+                        <label 
+                          class="cursor-pointer text-center p-2"
+                          :for="`additional-image-${index}`"
+                        >
+                          <span class="block text-xs text-gray-400">Image {{ index + 1 }}</span>
+                          <span class="block text-xs text-gray-400">(Click to add)</span>
+                        </label>
+                      </div>
+                      <!-- Add delete button for existing images -->
+                      <button
+                        v-if="img?.preview"
+                        type="button"
+                        class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 
+                               opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click.prevent="() => {
+                          if (img?.preview) URL.revokeObjectURL(img.preview)
+                          form.additionalImages[index] = { file: null, preview: null }
+                        }"
+                      >
+                        <span class="sr-only">Remove image</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M4.293 4.293a1 1 011.414 0L10 8.586l4.293-4.293a1 1 011.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                      </button>
+                      <input
+                        type="file"
+                        :id="`additional-image-${index}`"
+                        class="hidden"
+                        accept="image/*"
+                        @change="(e) => handleAdditionalImagesUpload(e, index)"
+                      />
                     </div>
-                    <div class="flex items-center space-x-2">
-                      <RadioGroupItem value="trade" id="trade" />
-                      <Label for="trade" class="text-sm">For Trade</Label>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                      <RadioGroupItem value="both" id="both" />
-                      <Label for="both" class="text-sm">Both</Label>
-                    </div>
-                  </RadioGroup>
+                  </div>
+                  <p class="text-xs text-gray-500">Main image required. Up to 5 additional images allowed.</p>
                 </div>
               </div>
 
-              <!-- Right Column -->
-              <div class="space-y-4">
-                <Label class="block mb-2">Product Images</Label>
-                <!-- Main Image -->
-                <div class="mb-4">
-                  <div class="aspect-video relative border rounded-lg overflow-hidden">
-                    <img 
-                      v-if="form.imagesPreviews[0]" 
-                      :src="form.imagesPreviews[0]"
-                      class="w-full h-full object-cover"
-                    />
-                    <div 
-                      v-else
-                      class="w-full h-full flex items-center justify-center bg-gray-50"
-                    >
-                      <label 
-                        class="cursor-pointer text-center p-4"
-                        :for="'main-image'"
-                      >
-                        <span class="block text-sm text-gray-500">Main Image</span>
-                        <span class="text-xs text-gray-400">(Click to upload)</span>
-                      </label>
-                    </div>
-                    <input
-                      type="file"
-                      id="main-image"
-                      class="hidden"
-                      accept="image/*"
-                      @change="handleMainImageUpload"
-                    />
-                  </div>
-                </div>
-
-                <!-- Additional Images -->
-                <div class="grid grid-cols-3 gap-2">
-                  <div 
-                    v-for="(img, index) in form.additionalImages"
-                    :key="`additional-${index}`"
-                    class="aspect-square relative border rounded-lg overflow-hidden group"
+              <DialogFooter class="border-t p-4 mt-auto">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  :disabled="isSubmitting"
+                  @click="closeDialog"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  :disabled="isSubmitting"
+                  class="relative ml-2"
+                >
+                  <span :class="{ 'opacity-0': isSubmitting }">
+                    {{ isEditing ? 'Update' : 'Save' }} Product
+                  </span>
+                  <span 
+                    v-if="isSubmitting" 
+                    class="absolute inset-0 flex items-center justify-center"
                   >
-                    <img 
-                      v-if="img?.preview" 
-                      :src="img.preview"
-                      class="w-full h-full object-cover"
-                    />
-                    <div 
-                      v-else
-                      class="w-full h-full flex items-center justify-center bg-gray-50"
-                    >
-                      <label 
-                        class="cursor-pointer text-center p-2"
-                        :for="`additional-image-${index}`"
-                      >
-                        <span class="block text-xs text-gray-400">Image {{ index + 1 }}</span>
-                        <span class="block text-xs text-gray-400">(Click to add)</span>
-                      </label>
-                    </div>
-                    <!-- Add delete button for existing images -->
-                    <button
-                      v-if="img?.preview"
-                      type="button"
-                      class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 
-                             opacity-0 group-hover:opacity-100 transition-opacity"
-                      @click.prevent="() => {
-                        if (img?.preview) URL.revokeObjectURL(img.preview)
-                        form.additionalImages[index] = { file: null, preview: null }
-                      }"
-                    >
-                      <span class="sr-only">Remove image</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 011.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clip-rule="evenodd" />
-                      </svg>
-                    </button>
-                    <input
-                      type="file"
-                      :id="`additional-image-${index}`"
-                      class="hidden"
-                      accept="image/*"
-                      @change="(e) => handleAdditionalImagesUpload(e, index)"
-                    />
-                  </div>
-                </div>
-                <p class="text-xs text-gray-500">Main image required. Up to 5 additional images allowed.</p>
-              </div>
-            </div>
-
-            <DialogFooter class="sticky bottom-0 z-20 bg-white border-t pt-4 mt-4">
-              <Button type="button" variant="outline" @click="closeDialog" :disabled="isSubmitting">
-                Cancel
-              </Button>
-              <Button type="submit" :disabled="isSubmitting">
-                {{ isSubmitting ? 'Saving...' : (isEditing ? 'Update' : 'Save') }}
-              </Button>
-            </DialogFooter>
-          </form>
+                    Saving...
+                  </span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -407,6 +432,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose
 } from '@/Components/ui/dialog'
 import {
   AlertDialog,
@@ -418,7 +444,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/Components/ui/alert-dialog'
-import { Check, ChevronsUpDown } from 'lucide-vue-next'
+import { Check, ChevronsUpDown, X } from 'lucide-vue-next'
 import { ScrollArea } from '@/Components/ui/scroll-area'
 import { 
   Command,
@@ -835,8 +861,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // Cleanup any created object URLs
+  // Just cleanup image previews and form state
   cleanupPreviews()
+  showDialog.value = false
+  showDeleteAlert.value = false
+  showUpdateAlert.value = false
+  resetForm()
 })
 
 // Add restore and force delete functions
@@ -905,21 +935,18 @@ const getActions = (product) => {
 }
 </script>
 
-<style>
-.DialogContent {
-  @apply p-4;
+<style scoped>
+/* Remove default padding from DialogContent */
+:deep(.DialogContent) {
+  padding: 0 !important;
 }
 
-/* Add sticky header/footer styles */
-.DialogHeader {
-  @apply sticky top-0 bg-white border-b z-20;
+/* Hide any default close button */
+:deep(.DialogClose) {
+  display: none !important;
 }
 
-.DialogFooter {
-  @apply sticky bottom-0 bg-white border-t z-20;
-}
-
-/* Keep other necessary styles */
+/* Keep other styles */
 .aspect-video {
   aspect-ratio: 3 / 2;
 }

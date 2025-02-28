@@ -552,8 +552,20 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  router.off('success');
+  // Just cleanup any remaining state if needed
+  showDialog.value = false;
+  showDeleteAlert.value = false;
+  showUpdateAlert.value = false;
+  cleanupForm();
 });
+
+// Add cleanup helper
+const cleanupForm = () => {
+  formErrors.value = {};
+  isSubmitting.value = false;
+  originalLocation.value = null;
+  resetForm();
+};
 
 </script>
 
