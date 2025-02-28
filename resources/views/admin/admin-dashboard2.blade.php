@@ -127,9 +127,9 @@
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->name }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->category->name }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->stock }}</td>
-              <td class="py-2 px-4 border-b border-gray-200">${{ number_format($product->price, 2) }}</td>
+              <td class="py-2 px-4 border-b border-gray-200">₱{{ number_format($product->price, 2) }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->discount }}%</td>
-              <td class="py-2 px-4 border-b border-gray-200">${{ number_format($product->discounted_price, 2) }}</td>
+              <td class="py-2 px-4 border-b border-gray-200">₱{{ number_format($product->discounted_price, 2) }}</td>
               <td class="py-2 px-4 border-b border-gray-200">
                 <img src="{{ asset('storage/' . ($product->images[0] ?? 'default-image.jpg')) }}" class="w-16 h-16 object-cover">
               </td>

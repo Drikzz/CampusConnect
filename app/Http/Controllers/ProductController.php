@@ -3,23 +3,62 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\Category;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $products = Product::latest()->get();
-        return view('products.products', ['products' => $products]);
+        try {
+            $products = Product::query()
+                ->where('status', 'Active')
+                ->with(['category', 'seller'])
+                ->latest()
+                ->paginate(12);
 
-        // return response()->json($products);
+            $formattedProducts = $products->through(fn($product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'description' => $product->description,
+                'price' => (float)$product->price,
+                'discounted_price' => (float)$product->discounted_price,
+                'discount' => (float)$product->discount,
+                'images' => array_map(fn($image) => asset('storage/' . $image), $product->images ?? []),
+                'category' => [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name
+                ],
+                'seller' => [
+                    'id' => $product->seller->id,
+                    'name' => $product->seller->first_name . ' ' . $product->seller->last_name,
+                    'username' => $product->seller->username,
+                    'profile_picture' => $product->seller->profile_picture ?
+                        asset('storage/' . $product->seller->profile_picture) : null
+                ],
+                'stock' => $product->stock,
+                'is_buyable' => (bool)$product->is_buyable,
+                'is_tradable' => (bool)$product->is_tradable,
+                'status' => $product->status,
+            ]);
+
+            return Inertia::render('Products/Index', [
+                'products' => $formattedProducts,
+                'filters' => request()->all(['search', 'category', 'price']),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading products page: ' . $e->getMessage());
+            return Inertia::render('Products/Index', [
+                'products' => [],
+                'filters' => request()->all(['search', 'category', 'price']),
+            ]);
+        }
     }
 
     public function trade()
@@ -30,52 +69,175 @@ class ProductController extends Controller
 
     public function welcome()
     {
-        $products = Product::latest()->get();
-        return view('welcome', ['products' => $products]);
+        try {
+            $products = Product::with(['category', 'seller'])
+                ->where('status', 'Active')
+                ->latest()
+                ->take(8)
+                ->get()
+                ->transform(function ($product) {
+                    return [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'description' => $product->description,
+                        'price' => (float)$product->price,
+                        'discounted_price' => (float)$product->discounted_price,
+                        'discount' => (float)$product->discount,
+                        'images' => array_map(function ($image) {
+                            return asset('storage/' . $image);
+                        }, $product->images ?? []),
+                        'category' => [
+                            'id' => $product->category->id,
+                            'name' => $product->category->name
+                        ],
+                        'seller' => [
+                            'id' => $product->seller->id,
+                            'name' => $product->seller->first_name . ' ' . $product->seller->last_name
+                        ],
+                        'is_buyable' => (bool)$product->is_buyable,
+                        'is_tradable' => (bool)$product->is_tradable,
+                        'status' => $product->status,
+                    ];
+                });
+
+            return Inertia::render('Welcome', [
+                'products' => $products,
+                'canLogin' => Route::has('login'),
+                'canRegister' => Route::has('register'),
+            ]);
+        } catch (\Exception $e) {
+            // Log the error and return an empty products array
+            \Log::error('Error loading welcome page: ' . $e->getMessage());
+            return Inertia::render('Welcome', [
+                'products' => [],
+                'canLogin' => Route::has('login'),
+                'canRegister' => Route::has('register'),
+            ]);
+        }
     }
 
-    public function product_details($id)
+    public function show($id)
     {
-        $product = Product::findOrFail($id);
-        $randomProducts = Product::inRandomOrder()->take(4)->get(); // Fetch 4 random products
+        try {
+            $product = Product::with(['category', 'seller'])
+                ->findOrFail($id);
 
-        return view('products.prod_details', [
-            'product' => $product,
-            'randomProducts' => $randomProducts,
-        ]);
+            $randomProducts = Product::where('id', '!=', $id)
+                ->with(['category', 'seller'])
+                ->inRandomOrder()
+                ->take(4)
+                ->get()
+                ->map(function ($product) {
+                    return [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'description' => $product->description,
+                        'price' => (float)$product->price,
+                        'discounted_price' => (float)$product->discounted_price,
+                        'discount' => (float)$product->discount,
+                        'stock' => $product->stock,
+                        'images' => array_map(function ($image) {
+                            return asset('storage/' . $image);
+                        }, $product->images ?? []),
+                        'category' => [
+                            'id' => $product->category->id,
+                            'name' => $product->category->name
+                        ],
+                        'seller' => [
+                            'id' => $product->seller->id,
+                            'name' => $product->seller->first_name . ' ' . $product->seller->last_name,
+                            'username' => $product->seller->username,
+                            'profile_picture' => $product->seller->profile_picture ?
+                                asset('storage/' . $product->seller->profile_picture) : null
+                        ],
+                        'is_buyable' => (bool)$product->is_buyable,
+                        'is_tradable' => (bool)$product->is_tradable,
+                    ];
+                });
+
+            $formattedProduct = [
+                'id' => $product->id,
+                'name' => $product->name,
+                'description' => $product->description,
+                'price' => (float)$product->price,
+                'discounted_price' => (float)$product->discounted_price,
+                'discount' => (float)$product->discount,
+                'stock' => $product->stock,
+                'images' => array_map(function ($image) {
+                    return asset('storage/' . $image);
+                }, $product->images ?? []),
+                'category' => [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name
+                ],
+                'seller' => [
+                    'id' => $product->seller->id,
+                    'name' => $product->seller->first_name . ' ' . $product->seller->last_name,
+                    'username' => $product->seller->username,
+                    'profile_picture' => $product->seller->profile_picture ?
+                        asset('storage/' . $product->seller->profile_picture) : null,
+                    'rating' => 5,
+                    'reviews_count' => 5,
+                    'location' => 'Zamboanga City' // Add default location or get from seller's data
+                ],
+                'tags' => ['Uniforms', 'CCS', 'Male'],
+                'is_buyable' => (bool)$product->is_buyable,
+                'is_tradable' => (bool)$product->is_tradable,
+                'status' => $product->status,
+            ];
+
+            // Change the render path to match the directory structure
+            return Inertia::render('Products/Show', [
+                'product' => $formattedProduct,
+                'randomProducts' => $randomProducts
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading product details: ' . $e->getMessage());
+            return redirect()->route('products')
+                ->with('error', 'Unable to load product details');
+        }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create(Request $request)
     {
         //no need since we are using a modal
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreProductRequest $request)
+    public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'category_id' => 'required|exists:categories,id',
+            'status' => 'required|in:Active,Inactive',
+            'images.*' => 'required|image|mimes:jpeg,png,jpg|max:2048'
+        ]);
+
+        $imagePaths = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('products', 'public');
+                $imagePaths[] = $path;
+            }
+        }
+
+        $product = Product::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'],
+            'price' => $validated['price'],
+            'stock' => $validated['stock'],
+            'category_id' => $validated['category_id'],
+            'status' => $request->has('status') ? 'Active' : 'Inactive',
+            'images' => $imagePaths,
+            'seller_code' => auth()->user()->seller_code
+        ]);
+
+        return redirect()->route('dashboard.seller.products')
+            ->with('success', 'Product created successfully');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    // Product $product remove this from the parameter
-    public function show($id)
-    {
-        $product = Product::findOrFail($id);
-        return view('products.prod_details', ['product' => $product]);
-
-        // return response()->json($product);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Product $product)
     {
         $product = Product::findOrFail($id);
@@ -83,38 +245,72 @@ class ProductController extends Controller
         return view('user.edit', ['product' => $product]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateProductRequest $request, Product $product)
+    public function update(Request $request, Product $product)
     {
-        $validatedData = $request->validate([
+        if ($product->seller_code !== auth()->user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'price' => 'required|numeric',
-            'discounted_price' => 'nullable|numeric',
-            'image' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'category_id' => 'required|exists:categories,id',
+            'status' => 'required|in:Active,Inactive',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
         ]);
 
-        $product = Product::findOrFail($id);
-        $product->update($validatedData);
+        // Handle image updates
+        $imagePaths = $product->images ?? [];
+        if ($request->hasFile('images')) {
+            // Delete old images
+            foreach ($imagePaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
 
-        // return response()->json($product);
+            // Store new images
+            $imagePaths = [];
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('products', 'public');
+                $imagePaths[] = $path;
+            }
+        }
+
+        $product->update([
+            'name' => $validated['name'],
+            'description' => $validated['description'],
+            'price' => $validated['price'],
+            'stock' => $validated['stock'],
+            'category_id' => $validated['category_id'],
+            'status' => $request->has('status') ? 'Active' : 'Inactive',
+            'images' => $imagePaths
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product updated successfully'
+        ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Product $product)
     {
-        // find the product using the id
-        $product = Product::findOrFail($id);
+        if ($product->seller_code !== auth()->user()->seller_code) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
 
-        // delete the product
+        // Delete product images
+        if ($product->images) {
+            foreach ($product->images as $path) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+
         $product->delete();
 
-        return redirect()->route('seller.products')->with('success', 'Product removed.');
-
-        // return response()->json(null, 204);
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ]);
     }
 }

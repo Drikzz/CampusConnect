@@ -54,7 +54,7 @@
         <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Products" onclick="setActive(this, '{{ route('admin-productManagement') }}')">
           <i class="bx bx-package"></i>
         </div>
-        <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Wallet" onclick="setActive(this, '#')">
+        <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Wallet" onclick="setActive(this, '{{ route('admin-fundManagement') }}')">
           <i class="bx bx-credit-card"></i>
         </div>
         <!-- <div class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1" data-tooltip="Analytics" onclick="setActive(this)">

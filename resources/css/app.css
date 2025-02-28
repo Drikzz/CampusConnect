@@ -1,43 +1,102 @@
-@import "flowbite/dist/flowbite.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-    @font-face {
-        font-family: "FontSpring-hvy";
-        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-heavy.otf);
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 0 0% 3.9%;
+        
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 3.9%;
+        
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 3.9%;
+        
+        --primary: 0 72.2% 50.6%;
+        --primary-foreground: 0 85.7% 97.3%;
+        
+        --secondary: 0 0% 96.1%;
+        --secondary-foreground: 0 0% 9%;
+        
+        --muted: 0 0% 96.1%;
+        --muted-foreground: 0 0% 45.1%;
+        
+        --accent: 0 0% 96.1%;
+        --accent-foreground: 0 0% 9%;
+        
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        
+        --border:0 0% 89.8%;
+        --input:0 0% 89.8%;
+        --ring:0 72.2% 50.6%;
+        --radius: 0.5rem;
+    }
+
+    .dark {
+        --background:0 0% 3.9%;
+        --foreground:0 0% 98%;
+    
+        --card:0 0% 3.9%;
+        --card-foreground:0 0% 98%;
+    
+        --popover:0 0% 3.9%;
+        --popover-foreground:0 0% 98%;
+    
+        --primary:0 72.2% 50.6%;
+        --primary-foreground:0 85.7% 97.3%;
+    
+        --secondary:0 0% 14.9%;
+        --secondary-foreground:0 0% 98%;
+    
+        --muted:0 0% 14.9%;
+        --muted-foreground:0 0% 63.9%;
+    
+        --accent:0 0% 14.9%;
+        --accent-foreground:0 0% 98%;
+    
+        --destructive:0 62.8% 30.6%;
+        --destructive-foreground:0 0% 98%;
+    
+        --border:0 0% 14.9%;
+        --input:0 0% 14.9%;
+        --ring:0 72.2% 50.6%;
+    }
+
+  @font-face {
+    font-family: "FontSpring-hvy";
+    src: url(/storage/app/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-heavy.otf);
     }
 
     @font-face {
         font-family: "FontSpring-demi";
-        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demibold.otf);
+        src: url(/storage/app/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demibold.otf);
     }
 
     @font-face {
         font-family: "FontSpring-bold";
-        src: url(/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-bold.otf);
+        src: url(/storage/app/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-bold.otf);
     }
 
     @font-face {
         font-family: "FontSpring-extra-bold";
-        src: url(../../public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demiboldoblique.otf);
+        src: url(/storage/app/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-demiboldoblique.otf);
     }
 
     @font-face {
         font-family: "Satoshi";
-        src: url(/public/assets/fonts/satoshi/Satoshi-Regular.otf);
+        src: url(/storage/app/public/assets/fonts/satoshi/Satoshi-Regular.otf);
     }
 
     @font-face {
         font-family: "Satoshi-bold";
-        src: url(/public/assets/fonts/satoshi/Satoshi-Bold.otf);
+        src: url(/storage/app/public/assets/fonts/satoshi/Satoshi-Bold.otf);
     }
 
     @font-face {
         font-family: 'FontSpring-bold-oblique';
-        src:url(../../public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-boldoblique.otf);
+        src:url(/storage/app/public/assets/fonts/fontspring/Fontspring-DEMO-integralcf-boldoblique.otf);
     }
 
     :root {
@@ -49,12 +108,8 @@
         -webkit-appearance: none;
     }
 
-    /* .error {
-        @apply text-xs text-red-500 mt-1;
-    } */
-
     .background {
-        background-image: url(/public/imgs/wmsu_pic.jpg);
+        background-image: url(/storage/app/public/imgs/wmsu_pic.jpg);
         background-position: center;
         background-size: cover;
         /* backdrop-filter: blur(100px); */
@@ -72,71 +127,28 @@
         backdrop-filter: blur(5px); /*apply the blur effect*/
         pointer-events: none; /* make the */
     }
+}
 
-    /* .register{
-        z-index: 2;
-        display: flex;
-        margin-top: 50px;
-        margin-bottom: 100px;
-    }
-
-    .img{
-    z-index: 2;
-    width: 600px;
-    height: 600px;
-    margin-left: 10%;
-   }
-
-   .welcome{
-    z-index: 2;
-    position: absolute;
-    top: 15%;
-    left: 70%;
-   }
-
-   .input{
-        @apply block w-80 rounded-md border-0 p-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-500 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm bg-white;
-   }
-
-   .reg-form{
-    z-index: 2;
-    transform: translateY(90px);
-    margin-left: 15%;
-    width: 34%;
-    height: 420px;
-    padding: 20px;
-    border-radius: 10px;
-   }
-
-   .register2{
-    z-index: 2;
-    display: flex;
-    margin-top: 50px;
-    margin-bottom: 100px;
-    }
-
-    .reg-form2{
-        z-index: 2;
-        transform: translateY(90px);
-        margin-left: 5%;
-        width: 42.5%;
-        height: 430px;
-        padding: 20px;
-        border-radius: 10px;
-       } */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 @layer utilities {
-    .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: .7;
-        }
-    }
+  .animate-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse {
+      0%, 100% {
+          opacity: 1;
+      }
+      50% {
+          opacity: .7;
+      }
+  }
 }

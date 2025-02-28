@@ -111,7 +111,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, Order $order)
     {
         $validated = $request->validate([
-            'status' => 'required|in:Pending,Processing,Completed,Canceled'
+            'status' => 'required|in:Pending,ProcessingCompleted,Canceled'
         ]);
 
         if ($order->seller_code !== auth()->user()->seller_code) {

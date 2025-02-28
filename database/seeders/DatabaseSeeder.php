@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\UserType;
+use App\Models\UserVerification;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -19,7 +20,7 @@ class DatabaseSeeder extends Seeder
         // Create users of different types
 
         // Admin User
-        User::create([
+        $admin = User::create([
             'username' => 'admin',
             'password' => Hash::make('Admin@1234!'), // Matches password requirements
             'first_name' => 'System',
@@ -30,11 +31,16 @@ class DatabaseSeeder extends Seeder
             'gender' => 'male',
             'profile_picture' => 'defaults/admin-avatar.jpg',
             'user_type_id' => null,
-            'wmsu_dept_id' => 1,
+            'wmsu_dept_id' => null,
             'is_admin' => true,
-            'is_verified' => true,
-            'verified_at' => now(),
-            'email_verified_at' => now(),
+            // 'email_verified_at' => now(),
+        ]);
+
+        // Create admin's verification record
+        UserVerification::create([
+            'user_id' => $admin->id,
+            'is_email_verified' => true,
+            'is_phone_verified' => true
         ]);
 
         // College Student (Seller)
@@ -54,10 +60,18 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_back' => 'college/id_back/student1-id-back.jpg',
             'is_seller' => true,
             'seller_code' => 'S' . str_pad(1, 5, '0', STR_PAD_LEFT),
+            // 'email_verified_at' => now(),
+        ]);
+
+        // Create user1's verification record
+        UserVerification::create([
+            'user_id' => $user1->id,
+            'is_email_verified' => true,
+            'is_phone_verified' => true
         ]);
 
         // High School Student
-        User::create([
+        $user2 = User::create([
             'username' => 'hsstudent',
             'password' => Hash::make('Student@1234!'),
             'first_name' => 'John',
@@ -73,8 +87,15 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_back' => 'highschool/id_back/student2-id-back.jpg',
         ]);
 
+        // Create user2's verification record
+        UserVerification::create([
+            'user_id' => $user2->id,
+            'is_email_verified' => false,
+            'is_phone_verified' => false
+        ]);
+
         // Employee
-        User::create([
+        $user3 = User::create([
             'username' => 'employee',
             'password' => Hash::make('Employee@1234!'),
             'first_name' => 'Jane',
@@ -84,12 +105,20 @@ class DatabaseSeeder extends Seeder
             'date_of_birth' => Carbon::now()->subYears(rand(25, 50))->format('Y-m-d'),
             'gender' => 'female',
             'user_type_id' => UserType::where('code', 'EMP')->first()->id,
-            'wmsu_dept_id' => 3,
+            'wmsu_dept_id' => null,
             'profile_picture' => 'employee/profile_pictures/emp1-avatar.jpg',
+            // 'email_verified_at' => now(),
+        ]);
+
+        // Create employee's verification record
+        UserVerification::create([
+            'user_id' => $user3->id,
+            'is_email_verified' => true,
+            'is_phone_verified' => true
         ]);
 
         // Alumni (Seller)
-        $user2 = User::create([
+        $user4 = User::create([
             'username' => 'alumni',
             'password' => Hash::make('Alumni@1234!'),
             'first_name' => 'Robert',
@@ -103,14 +132,22 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_back' => 'alumni/id_back/alum1-id-back.jpg',
             'is_seller' => true,
             'seller_code' => 'S' . str_pad(2, 5, '0', STR_PAD_LEFT),
+            // 'email_verified_at' => now(),
+        ]);
+
+        // Create alumni's verification record
+        UserVerification::create([
+            'user_id' => $user4->id,
+            'is_email_verified' => true,
+            'is_phone_verified' => true
         ]);
 
         // Create products for sellers
-        foreach ([$user1, $user2] as $user) {
+        foreach ([$user1, $user4] as $user) {
             for ($i = 0; $i < 4; $i++) {
                 Product::factory()->create([
                     'seller_code' => $user->seller_code,
-                    'category_id' => rand(1, 4),
+                    'category_id' => rand(1, 3),
                     'status' => 'Active'
                 ]);
             }
