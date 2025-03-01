@@ -8,79 +8,24 @@
       </div>
 
       <!-- Products Table and Empty State -->
-      <div v-if="formattedProducts.length > 0" class="bg-white rounded-lg shadow">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Availability</TableHead>
-              <TableHead class="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="product in formattedProducts" :key="product.id">
-              <TableCell>
-                <div class="flex items-center space-x-3">
-                  <img 
-                    :src="product.images?.[0] ? `/storage/${product.images[0]}` : '/placeholder.png'"
-                    class="h-10 w-10 rounded-lg object-cover"
-                    :alt="product.name"
-                  />
-                  <div>
-                    <span class="font-medium">{{ product.name }}</span>
-                    <p v-if="product.discounted_price" class="text-xs text-gray-500">
-                      <span class="line-through">₱{{ product.price }}</span>
-                      <span class="text-primary-color ml-1">₱{{ product.discounted_price }}</span>
-                    </p>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>{{ product.category?.name }}</TableCell>
-              <TableCell>
-                <span v-if="!product.discounted_price">₱{{ product.price }}</span>
-                <span v-else class="text-primary-color">₱{{ product.discounted_price }}</span>
-              </TableCell>
-              <TableCell>{{ product.stock }}</TableCell>
-              <TableCell>
-                <span :class="{
-                  'px-2 py-1 rounded-full text-xs': true,
-                  'bg-green-100 text-green-800': product.status === 'Active',
-                  'bg-red-100 text-red-800': product.status === 'Inactive'
-                }">
-                  {{ product.status }}
-                </span>
-              </TableCell>
-              <TableCell>
-                <div class="flex space-x-1">
-                  <span v-if="product.is_buyable" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                    Sale
-                  </span>
-                  <span v-if="product.is_tradable" class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                    Trade
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell class="text-right">
-                <div class="flex justify-end space-x-2">
-                  <template v-for="action in getActions(product)" :key="action.label">
-                    <Button 
-                      size="sm" 
-                      :variant="action.variant"
-                      :class="action.class"
-                      @click="action.action"
-                    >
-                      {{ action.label }}
-                    </Button>
-                  </template>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+      <div v-if="formattedProducts.length > 0">
+        <DataTable
+          ref="dataTable"
+          :columns="[
+            { key: 'product', label: 'Product' },
+            { key: 'category', label: 'Category' },
+            { key: 'price', label: 'Price', sortable: true },
+            { key: 'stock', label: 'Stock', sortable: true },
+            { key: 'status', label: 'Status', sortable: true },
+            { key: 'availability', label: 'Availability' },
+            { key: 'actions', label: 'Actions' }
+          ]"
+          :data="formattedProducts"
+          :get-actions="getActions"
+          @bulk-delete="handleBulkDelete"
+          @bulk-restore="handleBulkRestore"
+          @bulk-force-delete="handleBulkForceDelete"
+        />
       </div>
       <div v-else class="bg-gray-50 p-10 text-center rounded-lg">
         <p class="text-gray-500">No products found. Add your first product to get started.</p>
@@ -263,6 +208,13 @@
                       </div>
                     </RadioGroup>
                   </div>
+
+                  <!-- Add TagSelect component -->
+                  <TagSelect
+                    v-model="form.tags"
+                    :available-tags="availableTags"
+                    :error="formErrors.tags"
+                  />
                 </div>
 
                 <!-- Right Column -->
@@ -270,7 +222,7 @@
                   <Label class="block mb-2">Product Images</Label>
                   <!-- Main Image -->
                   <div class="mb-4">
-                    <div class="aspect-video relative border rounded-lg overflow-hidden">
+                    <div class="aspect-video relative border rounded-lg overflow-hidden group">
                       <img 
                         v-if="form.imagesPreviews[0]" 
                         :src="form.imagesPreviews[0]"
@@ -288,6 +240,16 @@
                           <span class="text-xs text-gray-400">(Click to upload)</span>
                         </label>
                       </div>
+                      <!-- Add remove button -->
+                      <button
+                        v-if="form.imagesPreviews[0]"
+                        type="button"
+                        @click="removeImage(0, true)"
+                        class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 
+                               opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X class="h-4 w-4" />
+                      </button>
                       <input
                         type="file"
                         id="main-image"
@@ -322,21 +284,15 @@
                           <span class="block text-xs text-gray-400">(Click to add)</span>
                         </label>
                       </div>
-                      <!-- Add delete button for existing images -->
+                      <!-- Add remove button -->
                       <button
                         v-if="img?.preview"
                         type="button"
-                        class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 
+                        @click="removeImage(index)"
+                        class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 
                                opacity-0 group-hover:opacity-100 transition-opacity"
-                        @click.prevent="() => {
-                          if (img?.preview) URL.revokeObjectURL(img.preview)
-                          form.additionalImages[index] = { file: null, preview: null }
-                        }"
                       >
-                        <span class="sr-only">Remove image</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M4.293 4.293a1 1 011.414 0L10 8.586l4.293-4.293a1 1 011.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 01-1.414-1.414L8.586 10 4.293 5.707a1 1 010-1.414z" clip-rule="evenodd" />
-                        </svg>
+                        <X class="h-4 w-4" />
                       </button>
                       <input
                         type="file"
@@ -412,6 +368,22 @@
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <!-- Force Delete Confirmation Dialog -->
+      <AlertDialog :open="showForceDeleteAlert" @update:open="showForceDeleteAlert = $event">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the product and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel @click="showForceDeleteAlert = false">Cancel</AlertDialogCancel>
+            <AlertDialogAction @click="confirmForceDelete">Delete Permanently</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   </DashboardLayout>
 </template>
@@ -473,6 +445,10 @@ import {
   TableRow,
 } from '@/Components/ui/table'
 
+// Add to script setup imports
+import TagSelect from '@/Components/Forms/TagSelect.vue';
+import DataTable from '@/Components/ui/data-table.vue'
+
 const props = defineProps({
   user: Object,
   stats: Object,
@@ -489,19 +465,30 @@ const props = defineProps({
       }
     })
   },
-  categories: Array
+  categories: Array,
+  availableTags: {
+    type: Array,
+    required: true
+  }
 })
 
 // Add a computed property for formatted products
 const formattedProducts = computed(() => {
   return props.products?.data?.map(product => ({
-    ...product,
-    price: parseFloat(product.price).toFixed(2),
-    discounted_price: product.discounted_price 
-      ? parseFloat(product.discounted_price).toFixed(2) 
-      : null,
-    images: Array.isArray(product.images) ? product.images : [],
-    category: product.category || { name: 'Uncategorized' }
+    id: product.id,
+    name: product.name,
+    category: product.category,
+    price: product.price,
+    discounted_price: product.discounted_price,
+    stock: product.stock,
+    status: product.status,
+    is_buyable: product.is_buyable,
+    is_tradable: product.is_tradable,
+    images: product.images,
+    tags: product.tags,
+    deleted_at: product.deleted_at,
+    category_id: product.category_id,
+    description: product.description
   })) || []
 })
 
@@ -512,10 +499,12 @@ const page = usePage()
 const showDialog = ref(false)
 const showDeleteAlert = ref(false)
 const showUpdateAlert = ref(false)
+const showForceDeleteAlert = ref(false)
 const isEditing = ref(false)
 const isSubmitting = ref(false)
 const editingProduct = ref(null)
 const productToDelete = ref(null)
+const productToForceDelete = ref(null)
 const formErrors = ref({})
 const imagePreview = ref(null)
 
@@ -556,7 +545,8 @@ const form = ref({
     preview: null
   })),
   status: 'Active',
-  imagesPreviews: Array(6).fill(null) // 1 main + 5 additional
+  imagesPreviews: Array(6).fill(null), // 1 main + 5 additional
+  tags: [],
 })
 
 // Add status options
@@ -587,7 +577,8 @@ const resetForm = () => {
       preview: null
     })),
     status: 'Active',
-    imagesPreviews: Array(6).fill(null)
+    imagesPreviews: Array(6).fill(null),
+    tags: [],
   }
   imagePreview.value = null
   formErrors.value = {}
@@ -601,47 +592,54 @@ const showAddForm = () => {
   showDialog.value = true
 }
 
-// Edit product
+// Update the editProduct function to properly set tags
 const editProduct = async (product) => {
-  isEditing.value = true
-  editingProduct.value = product
-  
-  // First, clean up any existing previews
-  cleanupPreviews()
-  
-  form.value = {
-    name: product.name,
-    description: product.description,
-    category: product.category_id.toString(), // Make sure it's a string
-    price: product.price,
-    discount: product.discount ? product.discount * 100 : 0,
-    stock: product.stock,
-    trade_availability: product.is_buyable && product.is_tradable ? 'both' : 
-                       product.is_buyable ? 'buy' : 'trade',
-    status: product.status,
-    main_image: null,
-    additionalImages: Array(5).fill({ file: null, preview: null }),
-    imagesPreviews: Array(6).fill(null)
-  }
-
-  // Load existing images if available
-  if (product.images?.length > 0) {
-    // Set main image preview
-    form.value.imagesPreviews[0] = `/storage/${product.images[0]}`
+    isEditing.value = true
+    editingProduct.value = product
     
-    // Set additional images previews
-    product.images.slice(1).forEach((image, index) => {
-      if (index < 5) { // Limit to 5 additional images
-        form.value.additionalImages[index] = {
-          file: null,
-          preview: `/storage/${image}`
-        }
-        form.value.imagesPreviews[index + 1] = `/storage/${image}`
-      }
-    })
-  }
-  
-  showDialog.value = true
+    cleanupPreviews()
+    
+    form.value = {
+        name: product.name,
+        description: product.description,
+        category: product.category_id.toString(), // Make sure it's a string
+        price: product.price,
+        discount: product.discount ? product.discount * 100 : 0,
+        stock: product.stock,
+        trade_availability: product.is_buyable && product.is_tradable ? 'both' : 
+                       product.is_buyable ? 'buy' : 'trade',
+        status: product.status,
+        main_image: null,
+        additionalImages: Array(5).fill().map(() => ({ file: null, preview: null })),
+        imagesPreviews: Array(6).fill(null),
+        tags: product.tags?.map(tag => ({
+            id: tag.id,
+            name: tag.name,
+            slug: tag.slug || ''
+        })) || []
+    }
+
+    // Log the tags for debugging
+    console.log('Loaded product tags:', product.tags)
+    
+    // Load existing images if available
+    if (product.images?.length > 0) {
+        // Set main image preview
+        form.value.imagesPreviews[0] = `/storage/${product.images[0]}`
+        
+        // Set additional images previews
+        product.images.slice(1).forEach((image, index) => {
+            if (index < 5) { // Limit to 5 additional images
+                form.value.additionalImages[index] = {
+                    file: null,
+                    preview: `/storage/${image}`,
+                    existingPath: image // Keep track of existing image path
+                }
+            }
+        })
+    }
+    
+    showDialog.value = true
 }
 
 // Confirm delete
@@ -679,8 +677,8 @@ const handleSubmit = () => {
   if (!validateForm()) return
 
   if (isEditing.value) {
-    showDialog.value = false
     showUpdateAlert.value = true
+    showDialog.value = false
   } else {
     submitForm()
   }
@@ -716,6 +714,11 @@ const validateForm = () => {
     isValid = false
   }
 
+  if (form.value.tags.length > 5) {
+    formErrors.value.tags = 'Maximum 5 tags allowed'
+    isValid = false
+  }
+
   if (!isValid) {
     toast({
       title: 'Validation Error',
@@ -727,61 +730,118 @@ const validateForm = () => {
   return isValid
 }
 
-// Submit form
+// Update the submitForm function's tag handling
 const submitForm = () => {
-  if (!validateForm()) return
+    if (!validateForm()) return;
 
-  const formData = new FormData()
-  
-  // Handle basic fields
-  const fields = [
-    'name', 'description', 'category', 'price', 'discount', 
-    'stock', 'trade_availability', 'status'
-  ]
-  
-  fields.forEach(field => {
-    formData.append(field, form.value[field])
-  })
+    isSubmitting.value = true;
+    const formData = new FormData();
+    
+    // Add basic fields
+    formData.append('name', form.value.name);
+    formData.append('description', form.value.description);
+    formData.append('category', form.value.category);
+    formData.append('price', form.value.price);
+    formData.append('discount', form.value.discount);
+    formData.append('stock', form.value.stock);
+    formData.append('trade_availability', form.value.trade_availability);
+    formData.append('status', form.value.status);
 
-  // Handle images
-  if (form.value.main_image) {
-    formData.append('main_image', form.value.main_image)
-  }
-
-  form.value.additionalImages.forEach((img, index) => {
-    if (img?.file) {
-      formData.append(`additional_images[${index}]`, img.file)
+    // Update tag handling
+    if (form.value.tags && form.value.tags.length > 0) {
+        const tagIds = form.value.tags.map(tag => tag.id);
+        formData.append('tags', JSON.stringify(tagIds));
+    } else {
+        formData.append('tags', JSON.stringify([]));  // Send empty array if no tags
     }
-  })
 
-  if (isEditing.value) {
-    // Use post with _method field for PUT request
-    formData.append('_method', 'PUT')
-    router.post(route('seller.products.update', editingProduct.value.id), formData, {
-      onSuccess: () => handleSuccess('Product updated successfully'),
-      onError: handleError
-    })
-  } else {
-    router.post(route('seller.products.store'), formData, {
-      onSuccess: () => handleSuccess('Product added successfully'),
-      onError: handleError
-    })
-  }
-}
+    // Handle main image - Fix for new images
+    if (form.value.main_image instanceof File) {
+        formData.append('main_image', form.value.main_image);
+    }
+
+    // Handle additional images - Fix for new images
+    form.value.additionalImages
+        .filter(img => img?.file instanceof File)
+        .forEach((img, index) => {
+            formData.append(`additional_images[${index}]`, img.file);
+        });
+
+    // Handle removed images
+    if (isEditing.value && editingProduct.value) {
+        const removedImages = [];
+        const currentImages = [];
+
+        // Track current main image
+        if (form.value.imagesPreviews[0]) {
+            const mainImagePath = form.value.imagesPreviews[0].replace('/storage/', '');
+            if (!mainImagePath.startsWith('blob:')) {
+                currentImages.push(mainImagePath);
+            }
+        }
+
+        // Track current additional images
+        form.value.additionalImages.forEach(img => {
+            if (img?.preview) {
+                const preview = img.preview.replace('/storage/', '');
+                if (!preview.startsWith('blob:')) {
+                    currentImages.push(preview);
+                }
+            }
+        });
+
+        // Find removed images
+        editingProduct.value.images?.forEach(img => {
+            if (!currentImages.includes(img)) {
+                removedImages.push(img);
+            }
+        });
+
+        if (removedImages.length > 0) {
+            formData.append('removed_images', JSON.stringify(removedImages));
+        }
+    }
+
+    if (isEditing.value) {
+        // Use route helper for update
+        router.post(route('seller.products.update', editingProduct.value.id), formData, {
+            onSuccess: () => {
+                handleSuccess('Product updated successfully');
+                showUpdateAlert.value = false;
+                showDialog.value = false;
+            },
+            onError: (errors) => {
+                handleError(errors);
+                showDialog.value = true;
+            },
+            preserveScroll: true
+        });
+    } else {
+        router.post(route('seller.products.store'), formData, {
+            onSuccess: () => {
+                handleSuccess('Product added successfully');
+                showDialog.value = false;
+            },
+            onError: handleError,
+            preserveScroll: true
+        });
+    }
+};
 
 // Handle image uploads
 const handleMainImageUpload = (event) => {
-  const file = event.target.files[0]
-  if (file) {
-    // Clean up existing preview
-    if (form.value.imagesPreviews[0]) {
-      URL.revokeObjectURL(form.value.imagesPreviews[0])
+    const file = event.target.files[0];
+    if (file) {
+        // Clean up existing preview
+        if (form.value.imagesPreviews[0]) {
+            URL.revokeObjectURL(form.value.imagesPreviews[0]);
+        }
+        form.value.main_image = file;
+        form.value.imagesPreviews[0] = URL.createObjectURL(file);
     }
-    form.value.main_image = file
-    form.value.imagesPreviews[0] = URL.createObjectURL(file)
-  }
-}
+};
 
+// Handle additional images upload
 const handleAdditionalImagesUpload = (event, index) => {
   const file = event.target.files[0]
   if (!file) return
@@ -794,9 +854,24 @@ const handleAdditionalImagesUpload = (event, index) => {
   const previewUrl = URL.createObjectURL(file)
   form.value.additionalImages[index] = {
     file,
-    preview: previewUrl
+    preview: previewUrl,
+    existingPath: null // Clear existing path when new file is uploaded
   }
-  form.value.imagesPreviews[index + 1] = previewUrl // Update the preview array
+}
+
+const removeImage = (index, isMainImage = false) => {
+  if (isMainImage) {
+    if (form.value.imagesPreviews[0]) {
+      URL.revokeObjectURL(form.value.imagesPreviews[0])
+    }
+    form.value.main_image = null
+    form.value.imagesPreviews[0] = null
+  } else {
+    if (form.value.additionalImages[index]?.preview) {
+      URL.revokeObjectURL(form.value.additionalImages[index].preview)
+    }
+    form.value.additionalImages[index] = { file: null, preview: null, existingPath: null }
+  }
 }
 
 // Add cleanup for all image previews
@@ -866,6 +941,8 @@ onUnmounted(() => {
   showDialog.value = false
   showDeleteAlert.value = false
   showUpdateAlert.value = false
+  showForceDeleteAlert.value = false
+  productToForceDelete.value = null
   resetForm()
 })
 
@@ -884,20 +961,25 @@ const handleRestore = (product) => {
 }
 
 const handleForceDelete = (product) => {
-  if (!confirm('This action cannot be undone. Are you sure you want to permanently delete this product?')) {
-    return
-  }
+  productToForceDelete.value = product
+  showForceDeleteAlert.value = true
+}
 
-  router.delete(route('seller.products.force-delete', product.id), {
-    onSuccess: () => {
-      toast({
-        title: 'Success',
-        description: 'Product permanently deleted',
-        variant: 'default'
-      })
-    },
-    onError: (error) => handleError(error)
-  })
+const confirmForceDelete = () => {
+  if (productToForceDelete.value) {
+    router.delete(route('seller.products.force-delete', productToForceDelete.value.id), {
+      onSuccess: () => {
+        showForceDeleteAlert.value = false
+        productToForceDelete.value = null
+        toast({
+          title: 'Success',
+          description: 'Product permanently deleted',
+          variant: 'default'
+        })
+      },
+      onError: (error) => handleError(error)
+    })
+  }
 }
 
 // Update table actions cell
@@ -933,6 +1015,62 @@ const getActions = (product) => {
     }
   ]
 }
+
+// Add bulk action methods
+const handleBulkDelete = (selectedIds) => {
+  router.delete(route('seller.products.bulk-delete'), {
+    data: { ids: selectedIds },
+    preserveScroll: true,
+    onBefore: () => {
+      isSubmitting.value = true;
+    },
+    onSuccess: () => {
+      if (dataTable.value) {
+        dataTable.value.clearSelection();
+      }
+    },
+    onFinish: () => {
+      isSubmitting.value = false;
+    }
+  });
+};
+
+const handleBulkRestore = (selectedIds) => {
+  router.post(route('seller.products.bulk-restore'), {
+    ids: selectedIds
+  }, {
+    preserveScroll: true,
+    onBefore: () => {
+      isSubmitting.value = true;
+    },
+    onSuccess: () => {
+      if (dataTable.value) {
+        dataTable.value.clearSelection();
+      }
+    },
+    onFinish: () => {
+      isSubmitting.value = false;
+    }
+  });
+};
+
+const handleBulkForceDelete = (selectedIds) => {
+  router.delete(route('seller.products.bulk-force-delete'), {
+    data: { ids: selectedIds },
+    preserveScroll: true,
+    onBefore: () => {
+      isSubmitting.value = true;
+    },
+    onSuccess: () => {
+      if (dataTable.value) {
+        dataTable.value.clearSelection();
+      }
+    },
+    onFinish: () => {
+      isSubmitting.value = false;
+    }
+  });
+};
 </script>
 
 <style scoped>
