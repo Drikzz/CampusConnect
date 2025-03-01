@@ -36,11 +36,11 @@ Route::middleware('guest')->group(function () {
 
 
 Route::middleware('auth')->group(function () {
-
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Combined Dashboard and Seller routes
-    Route::middleware('auth')->prefix('dashboard')->group(function () {
+    Route::prefix('dashboard')->group(function () {
+        // Main dashboard routes
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
         Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
@@ -48,19 +48,17 @@ Route::middleware('auth')->group(function () {
         Route::get('/meetup-locations', [DashboardController::class, 'address'])->name('dashboard.address');
         Route::get('/reviews', [DashboardController::class, 'reviews'])->name('dashboard.reviews');
 
-        // Profile update route
+        // Profile and wishlist routes
         Route::post('/profile/update', [DashboardController::class, 'updateProfile'])->name('profile.update');
         Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancelOrder'])->name('orders.cancel');
         Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
 
-        // Add new seller registration routes
-        Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])
-            ->name('dashboard.become-seller');
-        Route::post('/become-seller', [UserController::class, 'becomeSeller'])
-            ->name('dashboard.seller.become');
-
+        // Seller registration routes
+        Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])->name('dashboard.become-seller');
+        Route::post('/become-seller', [UserController::class, 'becomeSeller'])->name('dashboard.seller.become');
         Route::post('/seller/terms', [DashboardController::class, 'acceptSellerTerms'])->name('dashboard.seller.terms.accept');
 
+        // Seller specific routes
         Route::prefix('seller')->middleware('seller')->group(function () {
             // Dashboard and main routes
             Route::get('/', [SellerController::class, 'index'])->name('seller.index');
@@ -76,10 +74,14 @@ Route::middleware('auth')->group(function () {
 
             // Product management routes
             Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
+            Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
             Route::put('/products/{id}', [SellerController::class, 'update'])->name('seller.products.update');
             Route::delete('/products/{id}', [SellerController::class, 'destroy'])->name('seller.products.destroy');
-            Route::post('/products/{id}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
-            Route::delete('/products/{id}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
+            Route::post('/products/{product}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
+            Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
+
+            Route::post('/seller/products/{product}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
+            Route::delete('/seller/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
 
             // Meetup location routes
             Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations');
@@ -140,8 +142,7 @@ Route::middleware('auth')->group(function () {
 //     return view('admin.admin-fundManagement');
 // })->name('admin.funds');
 
-Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
-Route::get('/admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
+// Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
 
 // PLS DON'T DELETE THIS CODE FOR A WHILE
 // Protected Admin Routes
