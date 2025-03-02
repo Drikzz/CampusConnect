@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
+use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -75,13 +76,19 @@ Route::middleware('auth')->group(function () {
             // Product management routes
             Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
             Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
-            Route::put('/products/{id}', [SellerController::class, 'update'])->name('seller.products.update');
+            Route::post('/products/{id}', [SellerController::class, 'update'])->name('seller.products.update');
+            // Route::put('/products/{id}', [SellerController::class, 'update']);  // Add this as fallback
             Route::delete('/products/{id}', [SellerController::class, 'destroy'])->name('seller.products.destroy');
             Route::post('/products/{product}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
             Route::delete('/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
 
-            Route::post('/seller/products/{product}/restore', [SellerController::class, 'restore'])->name('seller.products.restore');
-            Route::delete('/seller/products/{product}/force-delete', [SellerController::class, 'forceDelete'])->name('seller.products.force-delete');
+            // Add bulk action routes
+            Route::delete('/products/bulk-delete', [SellerController::class, 'bulkDelete'])
+                ->name('seller.products.bulk-delete');
+            Route::post('/products/bulk-restore', [SellerController::class, 'bulkRestore'])
+                ->name('seller.products.bulk-restore');
+            Route::delete('/products/bulk-force-delete', [SellerController::class, 'bulkForceDelete'])
+                ->name('seller.products.bulk-force-delete');
 
             // Meetup location routes
             Route::get('/meetup-locations', [SellerController::class, 'meetupLocations'])->name('seller.meetup-locations');
@@ -97,6 +104,13 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
         ->name('profile.revert');
+});
+
+// Add these routes in the appropriate place (e.g., inside a middleware group if needed)
+Route::prefix('tags')->group(function () {
+    Route::get('/', [TagController::class, 'index'])->name('tags.index');
+    Route::post('/', [TagController::class, 'store'])->name('tags.store');
+    Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
 });
 
 // Admin Authentication Routes
@@ -166,31 +180,6 @@ Route::middleware('auth')->group(function () {
 // Route::view('/Admin-transactions', 'admin.admin-transactions')->name('admin-transactions');
 
 // Route::view('/Admin-user-approve', 'admin.admin-user-approved')->name('admin-user-approved');
-
-Route::middleware(['auth'])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard/Profile', [
-            'user' => Auth::user(),
-            'stats' => [
-                'totalOrders' => 0, // Add your stats logic here
-                'wishlistCount' => 0,
-                'activeOrders' => 0,
-            ]
-        ]);
-    })->name('dashboard');
-
-    Route::get('/dashboard/meetup-locations', function () {
-        return Inertia::render('Dashboard/MeetupLocations', [
-            'user' => Auth::user(),
-            'stats' => [
-                'totalOrders' => 0, // Add your stats logic here
-                'wishlistCount' => 0,
-                'activeOrders' => 0,
-            ],
-            'locations' => [] // Add your locations data here
-        ]);
-    })->name('dashboard.address');
-});
 
 Route::fallback(function () {
     return Inertia::render('404');

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -36,7 +37,7 @@ class Product extends Model
         'images' => 'array',
         'is_buyable' => 'boolean',
         'is_tradable' => 'boolean',
-        'old_attributes' => 'json',
+        'old_attributes' => 'array',
     ];
 
     public function seller(): BelongsTo
@@ -90,4 +91,9 @@ class Product extends Model
     // {
     //     return $this->hasMany(ProductVariant::class);
     // }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)->withTimestamps();
+    }
 }
