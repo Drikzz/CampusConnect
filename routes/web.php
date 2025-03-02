@@ -20,6 +20,7 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
+Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
