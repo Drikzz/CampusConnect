@@ -657,7 +657,7 @@ const handleDelete = () => {
         productToDelete.value = null
         toast({
           title: 'Success',
-          description: 'Product deleted successfully',
+          description: 'Product archived successfully',
           variant: 'default'
         })
       },
@@ -1008,7 +1008,7 @@ const getActions = (product) => {
       variant: 'outline'
     },
     {
-      label: 'Delete',
+      label: 'Archive',
       action: () => confirmDelete(product),
       variant: 'outline',
       class: 'text-red-600'
