@@ -15,7 +15,7 @@ use Inertia\Inertia;
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
 
-// Route::inertia('/about', 'About', ['user' => 'About Us']);
+// Route::inertia('/about', 'About', ['user' => 'About Us']);   
 
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
@@ -92,7 +92,7 @@ Route::middleware('auth')->group(function () {
     });
 
     //checkout routes
-    Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
+    Route::get('/checkout/{id}', [CheckoutController::class, 'summary'])->name('checkout.show');
     Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 
     Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
