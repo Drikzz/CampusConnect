@@ -49,7 +49,7 @@
                 <Link :href="route('dashboard.profile')" 
                   :preserve-scroll="true"
                   class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': route().current('dashboard.profile') }">
+                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/profile') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -63,7 +63,7 @@
               <li>
                 <Link :href="route('dashboard.orders')"
                   class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': route().current('dashboard.orders') }">
+                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/orders') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
@@ -74,7 +74,7 @@
               <li>
                 <Link :href="route('dashboard.wishlist')"
                   class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': route().current('dashboard.wishlist') }">
+                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/wishlist') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
@@ -87,9 +87,9 @@
             <template v-if="user.is_seller">
               <NavSection title="Seller Management">
                 <li>
-                  <Link :href="route('seller.meetup')"
+                  <Link :href="route('seller.meetup-locations')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': route().current('seller.meetup') }">
+                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/meetup-locations') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -187,7 +187,8 @@ const props = defineProps({
   stats: Object
 })
 
-const flash = computed(() => usePage().props.flash || {})
+const page = usePage()
+const flash = computed(() => page.props.flash || {})
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-PH', {

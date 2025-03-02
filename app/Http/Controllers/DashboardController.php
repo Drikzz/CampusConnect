@@ -264,85 +264,6 @@ class DashboardController extends Controller
         }
     }
 
-    public function storeMeetupLocation(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'full_name' => 'required|string|max:255',
-                'phone' => 'required|string|max:20',
-                'location_id' => 'required|exists:locations,id',
-                'latitude' => 'required|numeric|between:-90,90',
-                'longitude' => 'required|numeric|between:-180,180',
-                'available_from' => 'required',
-                'available_until' => 'required|after:available_from',
-                'available_days' => 'required|array',
-                'available_days.*' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-                'max_daily_meetups' => 'required|integer|min:1|max:50',
-                'is_default' => 'nullable|boolean',
-            ]);
-
-            $user = auth()->user();
-            $meetupLocation = $user->meetupLocations()->create($validated);
-
-            return back()->with('success', 'Meetup location added successfully');
-        } catch (\Exception $e) {
-            Log::error('Error storing meetup location: ' . $e->getMessage());
-            return back()->with('error', 'Failed to add meetup location: ' . $e->getMessage());
-        }
-    }
-
-    public function updateMeetupLocation(Request $request, $id)
-    {
-        try {
-            $validated = $request->validate([
-                'full_name' => 'required|string|max:255',
-                'phone' => 'required|string|max:20',
-                'location_id' => 'required|exists:locations,id',
-                'latitude' => 'required|numeric|between:-90,90',
-                'longitude' => 'required|numeric|between:-180,180',
-                'available_from' => 'required',
-                'available_until' => 'required|after:available_from',
-                'available_days' => 'required|array',
-                'available_days.*' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
-                'max_daily_meetups' => 'required|integer|min:1|max:50',
-                'is_default' => 'nullable|boolean',
-            ]);
-
-            $user = auth()->user();
-            $meetupLocation = $user->meetupLocations()->findOrFail($id);
-            $meetupLocation->update($validated);
-
-            return back()->with('success', 'Meetup location updated successfully');
-        } catch (\Exception $e) {
-            Log::error('Error updating meetup location: ' . $e->getMessage());
-            return back()->with('error', 'Failed to update meetup location: ' . $e->getMessage());
-        }
-    }
-
-    public function deleteMeetupLocation($id)
-    {
-        try {
-            $user = auth()->user();
-            $location = $user->meetupLocations()->findOrFail($id);
-            $wasDefault = $location->is_default;
-
-            $location->delete();
-
-            // If we deleted the default location, make another one default
-            if ($wasDefault) {
-                $newDefault = $user->meetupLocations()->first();
-                if ($newDefault) {
-                    $newDefault->update(['is_default' => true]);
-                }
-            }
-
-            return back()->with('success', 'Meetup location deleted successfully');
-        } catch (\Exception $e) {
-            Log::error('Error deleting meetup location: ' . $e->getMessage());
-            return back()->with('error', 'Error deleting meetup location: ' . $e->getMessage());
-        }
-    }
-
     public function wishlist()
     {
         $user = auth()->user();
@@ -377,8 +298,13 @@ class DashboardController extends Controller
         $user = auth()->user();
         $stats = $this->getDashboardStats($user);
 
-        $orders = Order::where('buyer_id', auth()->id())
-            ->with(['items.product'])
+        $orders = Order::where('buyer_id', $user->id)
+            ->with([
+                'items.product' => function ($query) {
+                    $query->select('id', 'name', 'images', 'price');
+                },
+                'seller:id,first_name,last_name,seller_code'
+            ])
             ->latest()
             ->paginate(10);
 
@@ -387,17 +313,18 @@ class DashboardController extends Controller
             'stats' => $stats,
             'orders' => [
                 'data' => $orders->items(),
-                'first_page_url' => $orders->url(1),
-                'last_page_url' => $orders->url($orders->lastPage()),
-                'prev_page_url' => $orders->previousPageUrl(),
-                'next_page_url' => $orders->nextPageUrl(),
-                'links' => collect($orders->links()->elements[0])->map(function ($url, $page) use ($orders) {
-                    return [
-                        'url' => $url,
-                        'label' => $page,
-                        'active' => $page === $orders->currentPage()
-                    ];
-                })
+                'meta' => [
+                    'total' => $orders->total(),
+                    'per_page' => $orders->perPage(),
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage()
+                ],
+                'links' => [
+                    'first' => $orders->url(1),
+                    'last' => $orders->url($orders->lastPage()),
+                    'prev' => $orders->previousPageUrl(),
+                    'next' => $orders->nextPageUrl()
+                ]
             ]
         ]);
     }

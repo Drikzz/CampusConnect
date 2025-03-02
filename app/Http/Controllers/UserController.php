@@ -120,7 +120,7 @@ class UserController extends Controller
             'is_seller' => true,
             'seller_code' => strtoupper(uniqid())
         ]);
-        return redirect()->route('seller.dashboard')->with('success', 'You are now a verified seller');
+        return redirect()->route('seller.index')->with('success', 'You are now a verified seller');
     }
 
     public function showBecomeSeller()
@@ -146,7 +146,8 @@ class UserController extends Controller
         $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
         $user->save();
 
-        return redirect()->route('dashboard')->with('toast', [
+        // Redirect to main dashboard instead of seller index
+        return redirect()->route('dashboard.profile')->with('toast', [
             'title' => 'Success!',
             'description' => 'Congratulations! You are now registered as a seller.',
             'variant' => 'default'

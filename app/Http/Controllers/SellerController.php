@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wishlist;
 use App\Models\OrderItem;
-
+use Inertia\Inertia;
 
 class SellerController extends Controller
 {
@@ -54,53 +55,36 @@ class SellerController extends Controller
             ->get();
 
         // dd($recentOrders);
-        return view('seller.dashboard', compact('categories', 'totalOrders', 'totalSales', 'activeTrades', 'recentOrders', 'orderCounts'));
+        return view('seller.index', compact('categories', 'totalOrders', 'totalSales', 'activeTrades', 'recentOrders', 'orderCounts'));
     }
 
     // Modify products listing to include option to show deleted
-    public function products(Request $request)
+    public function products()
     {
         $user = auth()->user();
         $sellerCode = $user->seller_code;
+        $stats = $this->getDashboardStats($user);
 
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
-
-        $query = Product::where('seller_code', $sellerCode)
+        $products = Product::where('seller_code', $sellerCode)
             ->with(['category'])
-            ->withTrashed(); // Always include trashed items
+            ->withTrashed()
+            ->latest()
+            ->paginate(10);
 
-        $products = $query->latest()->paginate(10);
-        $categories = Category::all();
-
-        return view('dashboard.seller.products', compact(
-            'products',
-            'categories',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/Products', [
+            'user' => $user,
+            'stats' => $stats,
+            'products' => [
+                'data' => $products->items(),
+                'meta' => [
+                    'total' => $products->total(),
+                    'per_page' => $products->perPage(),
+                    'current_page' => $products->currentPage(),
+                    'last_page' => $products->lastPage()
+                ]
+            ],
+            'categories' => Category::all()
+        ]);
     }
 
     // Add method to fetch single product for editing
@@ -320,7 +304,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -342,17 +326,17 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product successfully archived'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product successfully archived',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Product deletion error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Error archiving product'
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error archiving product',
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -362,7 +346,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -375,15 +359,15 @@ class SellerController extends Controller
 
             $product->forceDelete();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product permanently deleted'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product permanently deleted',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error permanently deleting product: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error deleting product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -393,7 +377,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
@@ -422,9 +406,9 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Product restored successfully with original attributes'
+            return redirect()->route('seller.products')->with([
+                'message' => 'Product restored successfully',
+                'type' => 'success'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -433,10 +417,10 @@ class SellerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error restoring product: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with([
+                'message' => 'Error restoring product: ' . $e->getMessage(),
+                'type' => 'error'
+            ]);
         }
     }
 
@@ -445,85 +429,54 @@ class SellerController extends Controller
     {
         $user = auth()->user();
         $sellerCode = $user->seller_code;
-
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
+        $stats = $this->getDashboardStats($user);
 
         $orders = Order::where('seller_code', $sellerCode)
             ->with(['items.product', 'buyer'])
             ->latest()
             ->paginate(10);
 
-        return view('dashboard.seller.orders', compact(
-            'orders',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/Orders', [
+            'user' => $user,
+            'stats' => $stats,
+            'orders' => [
+                'data' => $orders->items(),
+                'meta' => [
+                    'total' => $orders->total(),
+                    'per_page' => $orders->perPage(),
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage()
+                ]
+            ],
+            'orderCounts' => [
+                'pendingOrders' => Order::where('seller_code', $sellerCode)->pending()->count(),
+                'activeOrders' => Order::where('seller_code', $sellerCode)
+                    ->whereIn('status', ['Accepted', 'Processing', 'Meetup Scheduled'])->count(),
+                'totalOrders' => Order::where('seller_code', $sellerCode)->count(),
+                'totalSales' => Order::where('seller_code', $sellerCode)
+                    ->where('status', 'Completed')
+                    ->sum('sub_total')
+            ]
+        ]);
     }
 
     public function showOrder(Order $order)
     {
         if ($order->seller_code !== auth()->user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            abort(403);
         }
 
         $user = auth()->user();
-        $sellerCode = $user->seller_code;
+        $stats = $this->getDashboardStats($user);
 
-        // Get seller statistics
-        $totalOrders = Order::where('buyer_id', $user->id)->count();
-        $activeOrders = Order::where('buyer_id', $user->id)
-            ->whereNotIn('status', ['Completed', 'Cancelled'])
-            ->count();
-        $wishlistCount = Wishlist::where('user_id', $user->id)->count();
-        $totalSales = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Completed');
-            })
-            ->sum('subtotal');
-
-        $activeProducts = Product::where('seller_code', $sellerCode)
-            ->where('status', 'Active')
-            ->count();
-
-        $pendingOrders = OrderItem::where('seller_code', $sellerCode)
-            ->whereHas('order', function ($query) {
-                $query->where('status', 'Pending');
-            })->count();
-
-        $order->load(['items.product', 'buyer']);
-
-        return view('dashboard.seller.order-details', compact(
-            'order',
-            'totalOrders',
-            'activeOrders',
-            'wishlistCount',
-            'totalSales',
-            'activeProducts',
-            'pendingOrders'
-        ));
+        return Inertia::render('Dashboard/seller/OrderDetails', [
+            'user' => $user,
+            'stats' => $stats,
+            'order' => $order->load(['items.product', 'buyer']),
+            'meetupLocations' => auth()->user()->meetupLocations()
+                ->with('location')
+                ->get()
+        ]);
     }
 
     public function updateOrderStatus(Request $request, Order $order)
@@ -690,5 +643,197 @@ class SellerController extends Controller
             'is_buyable' => in_array($tradeAvailability, ['buy', 'both']),
             'is_tradable' => in_array($tradeAvailability, ['trade', 'both'])
         ];
+    }
+
+    public function meetupLocations()
+    {
+        $user = auth()->user();
+        $stats = $this->getDashboardStats($user);
+
+        return Inertia::render('Dashboard/seller/MeetupLocations', [
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'last_name' => $user->last_name,
+                'phone' => $user->phone,
+                'is_seller' => $user->is_seller,
+                'seller_code' => $user->seller_code,
+            ],
+            'stats' => $stats,
+            'meetupLocations' => $user->meetupLocations()
+                ->with('location')
+                ->orderByDesc('is_default')
+                ->get(),
+            'locations' => Location::select('id', 'name', 'latitude', 'longitude')
+                ->orderBy('name')
+                ->get()
+        ]);
+    }
+
+    private function getDashboardStats($user)
+    {
+        $stats = [
+            'totalOrders' => Order::where('buyer_id', $user->id)->count(),
+            'activeOrders' => Order::where('buyer_id', $user->id)
+                ->whereNotIn('status', ['Completed', 'Cancelled'])
+                ->count(),
+            'wishlistCount' => Wishlist::where('user_id', $user->id)->count(),
+            'totalSales' => 0,
+            'activeProducts' => 0,
+            'pendingOrders' => 0
+        ];
+
+        if ($user->is_seller) {
+            $stats['totalSales'] = OrderItem::where('seller_code', $user->seller_code)
+                ->whereHas('order', function ($query) {
+                    $query->where('status', 'Completed');
+                })
+                ->sum('subtotal');
+
+            $stats['activeProducts'] = Product::where('seller_code', $user->seller_code)
+                ->where('status', 'Active')
+                ->count();
+
+            $stats['pendingOrders'] = OrderItem::where('seller_code', $user->seller_code)
+                ->whereHas('order', function ($query) {
+                    $query->where('status', 'Pending');
+                })->count();
+        }
+
+        return $stats;
+    }
+
+    public function storeMeetupLocation(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'location_id' => 'required|exists:locations,id',
+                'full_name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'description' => 'nullable|string',
+                'available_from' => 'required|date_format:H:i',
+                'available_until' => 'required|date_format:H:i|after:available_from',
+                'available_days' => 'required|array|min:1',
+                'available_days.*' => 'string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'max_daily_meetups' => 'required|integer|min:1|max:50',
+                'is_default' => 'boolean'
+            ]);
+
+            DB::beginTransaction();
+
+            $meetupLocation = auth()->user()->meetupLocations()->create([
+                'location_id' => $validated['location_id'],
+                'full_name' => $validated['full_name'],
+                'phone' => $validated['phone'],
+                'description' => $validated['description'] ?? '',
+                'available_from' => $validated['available_from'],
+                'available_until' => $validated['available_until'],
+                'available_days' => $validated['available_days'],
+                'max_daily_meetups' => $validated['max_daily_meetups'],
+                'latitude' => Location::find($validated['location_id'])->latitude,
+                'longitude' => Location::find($validated['location_id'])->longitude,
+                'is_active' => true,
+                'is_default' => $validated['is_default'] ?? false,
+            ]);
+
+            if (auth()->user()->meetupLocations()->count() === 1 || ($validated['is_default'] ?? false)) {
+                auth()->user()->meetupLocations()
+                    ->where('id', '!=', $meetupLocation->id)
+                    ->update(['is_default' => false]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with(['message' => 'Meetup location added successfully', 'type' => 'success']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to create meetup location: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateMeetupLocation(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'location_id' => 'required|exists:locations,id',
+                'full_name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'description' => 'nullable|string',
+                'available_from' => 'required|date_format:H:i',
+                'available_until' => 'required|date_format:H:i|after:available_from',
+                'available_days' => 'required|array|min:1',
+                'available_days.*' => 'string|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'max_daily_meetups' => 'required|integer|min:1|max:50',
+                'is_default' => 'boolean'
+            ]);
+
+            DB::beginTransaction();
+
+            $meetupLocation = auth()->user()->meetupLocations()->findOrFail($id);
+            $location = Location::findOrFail($validated['location_id']);
+
+            $meetupLocation->update([
+                'location_id' => $validated['location_id'],
+                'full_name' => $validated['full_name'],
+                'phone' => $validated['phone'],
+                'description' => $validated['description'] ?? '',
+                'available_from' => $validated['available_from'],
+                'available_until' => $validated['available_until'],
+                'available_days' => $validated['available_days'],
+                'max_daily_meetups' => $validated['max_daily_meetups'],
+                'latitude' => $location->latitude,
+                'longitude' => $location->longitude,
+                'is_active' => true,
+                'is_default' => $validated['is_default'] ?? false,
+            ]);
+
+            if ($validated['is_default'] ?? false) {
+                auth()->user()->meetupLocations()
+                    ->where('id', '!=', $id)
+                    ->update(['is_default' => false]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with(['message' => 'Meetup location updated successfully', 'type' => 'success']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to update meetup location: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteMeetupLocation($id)
+    {
+        try {
+            $user = auth()->user();
+            $location = $user->meetupLocations()->findOrFail($id);
+
+            DB::beginTransaction();
+
+            $wasDefault = $location->is_default;
+            $location->delete();
+
+            if ($wasDefault) {
+                $newDefault = $user->meetupLocations()->first();
+                if ($newDefault) {
+                    $newDefault->update(['is_default' => true]);
+                }
+            }
+
+            DB::commit();
+
+            // Return Inertia redirect with success message
+            return redirect()->route('seller.meetup-locations.index')->with([
+                'message' => 'Meetup location deleted successfully',
+                'type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error deleting meetup location: ' . $e->getMessage());
+
+            // Redirect back with error message
+            return back()->withErrors([
+                'error' => 'Failed to delete meetup location: ' . $e->getMessage()
+            ]);
+        }
     }
 }

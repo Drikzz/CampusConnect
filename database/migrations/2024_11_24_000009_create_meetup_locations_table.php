@@ -15,7 +15,6 @@ return new class extends Migration
       $table->string('full_name');
       $table->string('phone');
       $table->text('description')->nullable();
-      $table->string('custom_location')->nullable();
       $table->decimal('latitude', 10, 8)->nullable();
       $table->decimal('longitude', 11, 8)->nullable();
       $table->boolean('is_active')->default(true);

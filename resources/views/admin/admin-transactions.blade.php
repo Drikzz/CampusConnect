@@ -1,15 +1,70 @@
 <x-adminLayout2>
     <body class="bg-gray-100 p-6">
-        <div class="max-w-6xl mx-auto">
+        <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow-lg">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-semibold">Transaction Management</h2>
+                <h2 class="text-2xl font-bold">Transaction Management</h2>
             </div>
-            <div class="flex gap-4 mb-4">
-                <input type="text" id="search" placeholder="Search transactions..." class="border p-2 rounded w-full">
-                <button class="border p-2 rounded flex items-center gap-2" onclick="searchTransactions()">
-                    <span>Filters</span>
-                </button>
+
+            <!-- Cards for Transaction Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                    <div class="p-3 rounded-full bg-red-100 text-red-500 mr-4">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold">Total Transactions</h3>
+                        <p class="text-2xl">{{ $totalTransactions }}</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-500 mr-4">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold">Pending</h3>
+                        <p class="text-2xl">{{ $pendingTransactions }}</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-500 mr-4">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold">Processing</h3>
+                        <p class="text-2xl">{{ $processingTransactions }}</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-500 mr-4">
+                        <i class="fas fa-shipping-fast"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold">Shipped</h3>
+                        <p class="text-2xl">{{ $shippedTransactions }}</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-500 mr-4">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold">Delivered</h3>
+                        <p class="text-2xl">{{ $deliveredTransactions }}</p>
+                    </div>
+                </div>
             </div>
+
+            <!-- Search Bar -->
+            <div class="mb-4">
+                <input type="text" id="search" class="w-full p-2 border rounded md:w-1/2" placeholder="Search transactions..." onkeyup="searchTransactions()">
+            </div>
+
+            <!-- Bulk Actions -->
+            <div class="mb-4 flex space-x-2">
+                <button class="bg-red-500 text-white px-4 py-2 rounded border border-red-500" onclick="deleteSelectedTransactions()">Delete Selected</button>
+            </div>
+
+            <!-- Transaction Table -->
             <div class="overflow-x-auto">
                 <table class="min-w-full bg-white border rounded-lg shadow-md">
                     <thead>
@@ -17,14 +72,11 @@
                             <th class="p-3"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
                             <th class="p-3">Order ID</th>
                             <th class="p-3">Buyer</th>
-                            <th class="p-3">Seller Code</th>
-                            <th class="p-3">Address</th>
-                            <th class="p-3">Delivery Estimate</th>
-                            <th class="p-3">Phone</th>
-                            <th class="p-3">Email</th>
+                            <th class="p-3">Seller</th>
+                            <th class="p-3">Product Name</th>
+                            <th class="p-3">Product Quantity</th>
                             <th class="p-3">Sub Total</th>
                             <th class="p-3">Status</th>
-                            <th class="p-3">Payment Method</th>
                             <th class="p-3">Date</th>
                             <th class="p-3">Actions</th>
                         </tr>
@@ -34,27 +86,30 @@
                         <tr class="border-t">
                             <td class="p-3"><input type="checkbox" class="selectTransaction" value="{{ $transaction->id }}"></td>
                             <td class="p-3">{{ $transaction->id }}</td>
-                            <td class="p-3">{{ $transaction->buyer->name ?? 'N/A' }}</td>
-                            <td class="p-3">{{ $transaction->seller->name ?? 'N/A' }}</td>
-                            <td class="p-3">{{ $transaction->address }}</td>
-                            <td class="p-3">{{ $transaction->delivery_estimate }}</td>
-                            <td class="p-3">{{ $transaction->phone }}</td>
-                            <td class="p-3">{{ $transaction->email }}</td>
+                            <td class="p-3">{{ $transaction->buyer->first_name ?? 'N/A' }} {{ $transaction->buyer->last_name ?? '' }}<br>{{ $transaction->buyer->wmsu_email ?? 'N/A' }}</td>
+                            <td class="p-3">{{ $transaction->seller->first_name ?? 'N/A' }} {{ $transaction->seller->last_name ?? '' }}<br>{{ $transaction->seller->wmsu_email ?? 'N/A' }}</td>
+                            <td class="p-3">
+                                @foreach ($transaction->items as $item)
+                                    {{ $item->product->name ?? 'N/A' }}<br>
+                                @endforeach
+                            </td>
+                            <td class="p-3">
+                                @foreach ($transaction->items as $item)
+                                    {{ $item->quantity }}<br>
+                                @endforeach
+                            </td>
                             <td class="p-3">${{ number_format($transaction->sub_total, 2) }}</td>
                             <td class="p-3">{{ $transaction->status }}</td>
-                            <td class="p-3">{{ $transaction->payment_method }}</td>
                             <td class="p-3">{{ $transaction->created_at ? $transaction->created_at->format('F j, Y') : 'N/A' }}</td>
-                            <td class="p-3">
-                                <button class="bg-blue-500 text-white px-2 py-1 rounded" onclick="openViewModal({{ json_encode($transaction) }})">View</button>
-                                <button class="bg-red-500 text-white px-2 py-1 rounded ml-2" onclick="deleteTransaction({{ $transaction->id }})">Delete</button>
+                            <td class="p-3 flex space-x-2">
+                                <button class="bg-red-500 text-white px-2 py-1 rounded border border-red-500" onclick="openViewModal({{ json_encode($transaction) }})">View</button>
+                                <button class="bg-red-500 text-white px-2 py-1 rounded border border-red-500" onclick="deleteTransaction({{ $transaction->id }})">Delete</button>
+                                <button class="bg-red-500 text-white px-2 py-1 rounded border border-red-500" onclick="cancelTransaction({{ $transaction->id }})">Cancel</button>
                             </td>
                         </tr>
                         @endforeach
                     </tbody>
                 </table>
-            </div>
-            <div class="mt-4 p-3 bg-gray-200 rounded">
-                <p id="selected-count">0 transactions selected</p>
             </div>
         </div>
 
@@ -75,20 +130,16 @@
                     <div id="progressBar" class="h-2.5 rounded-full"></div>
                     <div class="absolute inset-0 flex justify-between items-center text-xs text-gray-500">
                         <div class="w-1/4 text-center">
-                            <i class="fas fa-hourglass-start"></i>
-                            <span>Pending</span>
+                            <i class="fas fa-box status-icon"></i> ⏳ Pending
                         </div>
                         <div class="w-1/4 text-center">
-                            <i class="fas fa-cogs"></i>
-                            <span>Processing</span>
+                            <i class="fas fa-box status-icon"></i> 🔄 Processing
                         </div>
                         <div class="w-1/4 text-center">
-                            <i class="fas fa-truck"></i>
-                            <span>Shipped</span>
+                            <i class="fas fa-shipping-fast status-icon"></i> 🚚 Shipped
                         </div>
                         <div class="w-1/4 text-center">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Delivered</span>
+                            <i class="fas fa-box-open status-icon"></i> ✅ Delivered
                         </div>
                     </div>
                 </div>
@@ -136,8 +187,8 @@
             function openViewModal(transaction) {
                 document.getElementById('viewTransactionId').innerText = transaction.id;
                 document.getElementById('viewOrderStatus').innerText = transaction.status;
-                document.getElementById('viewBuyerInfo').innerText = transaction.buyer ? transaction.buyer.name : 'N/A';
-                document.getElementById('viewSellerInfo').innerText = transaction.seller ? transaction.seller.name : 'N/A';
+                document.getElementById('viewBuyerInfo').innerText = transaction.buyer ? `${transaction.buyer.first_name} ${transaction.buyer.last_name}` : 'N/A';
+                document.getElementById('viewSellerInfo').innerText = transaction.seller ? `${transaction.seller.first_name} ${transaction.seller.last_name}` : 'N/A';
                 document.getElementById('viewAddress').innerText = transaction.address;
                 document.getElementById('viewDeliveryEstimate').innerText = transaction.delivery_estimate;
                 document.getElementById('viewPhone').innerText = transaction.phone;
@@ -151,23 +202,23 @@
                 switch (transaction.status) {
                     case 'Pending':
                         progressBar.style.width = '25%';
-                        progressBar.classList.add('bg-yellow-500');
-                        orderStatusIcon.classList.add('fas', 'fa-hourglass-start', 'text-yellow-500');
+                        progressBar.classList.add('bg-red-500');
+                        orderStatusIcon.classList.add('fas', 'fa-box', 'text-red-500');
                         break;
                     case 'Processing':
                         progressBar.style.width = '50%';
-                        progressBar.classList.add('bg-blue-500');
-                        orderStatusIcon.classList.add('fas', 'fa-cogs', 'text-blue-500');
+                        progressBar.classList.add('bg-red-500');
+                        orderStatusIcon.classList.add('fas', 'fa-box', 'text-red-500');
                         break;
                     case 'Shipped':
                         progressBar.style.width = '75%';
-                        progressBar.classList.add('bg-indigo-500');
-                        orderStatusIcon.classList.add('fas', 'fa-truck', 'text-indigo-500');
+                        progressBar.classList.add('bg-red-500');
+                        orderStatusIcon.classList.add('fas', 'fa-shipping-fast', 'text-red-500');
                         break;
                     case 'Delivered':
                         progressBar.style.width = '100%';
-                        progressBar.classList.add('bg-green-500');
-                        orderStatusIcon.classList.add('fas', 'fa-check-circle', 'text-green-500');
+                        progressBar.classList.add('bg-red-500');
+                        orderStatusIcon.classList.add('fas', 'fa-box-open', 'text-red-500');
                         break;
                     default:
                         progressBar.style.width = '0%';
@@ -187,7 +238,7 @@
                     });
                 }
                 document.getElementById('viewOrderSummary').innerHTML = orderSummary;
-                document.getElementById('viewOrderTotal').innerText = transaction.total;
+                document.getElementById('viewOrderTotal').innerText = `$${parseFloat(transaction.sub_total).toFixed(2)}`;
 
                 document.getElementById('viewTransactionModal').classList.remove('hidden');
             }
@@ -210,14 +261,9 @@
                             'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         }
                     })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
+                    .then(response => response.json())
                     .then(data => {
-                        if (data.success) {
+                        if (data.message === 'Transaction deleted successfully') {
                             location.reload();
                         } else {
                             alert('Failed to delete transaction.');
@@ -225,6 +271,61 @@
                     })
                     .catch(error => {
                         console.error('Error deleting transaction:', error);
+                        alert('Failed to delete transaction.');
+                    });
+                }
+            }
+
+            function deleteSelectedTransactions() {
+                const selectedIds = Array.from(document.querySelectorAll('.selectTransaction:checked')).map(cb => cb.value);
+                if (selectedIds.length === 0) {
+                    alert('No transactions selected.');
+                    return;
+                }
+
+                if (confirm('Are you sure you want to delete the selected transactions?')) {
+                    fetch(`/admin/transactions/bulk-delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({ ids: selectedIds })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.message === 'Transactions deleted successfully') {
+                            location.reload();
+                        } else {
+                            alert('Failed to delete transactions.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting transactions:', error);
+                        alert('Failed to delete transactions.');
+                    });
+                }
+            }
+
+            function cancelTransaction(transactionId) {
+                if (confirm('Are you sure you want to cancel this transaction?')) {
+                    fetch(`/admin/transactions/${transactionId}/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.message === 'Transaction cancelled successfully') {
+                            location.reload();
+                        } else {
+                            alert('Failed to cancel transaction.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error cancelling transaction:', error);
+                        alert('Failed to cancel transaction.');
                     });
                 }
             }
@@ -236,23 +337,23 @@
                 rows.forEach(row => {
                     const orderId = row.cells[1].textContent.toLowerCase();
                     const buyer = row.cells[2].textContent.toLowerCase();
-                    const sellerCode = row.cells[3].textContent.toLowerCase();
-                    const address = row.cells[4].textContent.toLowerCase();
-                    const deliveryEstimate = row.cells[5].textContent.toLowerCase();
-                    const phone = row.cells[6].textContent.toLowerCase();
-                    const email = row.cells[7].textContent.toLowerCase();
-                    const subTotal = row.cells[8].textContent.toLowerCase();
-                    const status = row.cells[9].textContent.toLowerCase();
-                    const paymentMethod = row.cells[10].textContent.toLowerCase();
-                    const date = row.cells[11].textContent.toLowerCase();
+                    const seller = row.cells[3].textContent.toLowerCase();
+                    const productName = row.cells[4].textContent.toLowerCase();
+                    const productQuantity = row.cells[5].textContent.toLowerCase();
+                    const subTotal = row.cells[6].textContent.toLowerCase();
+                    const status = row.cells[7].textContent.toLowerCase();
+                    const date = row.cells[8].textContent.toLowerCase();
 
-                    if (orderId.includes(query) || buyer.includes(query) || sellerCode.includes(query) || address.includes(query) || deliveryEstimate.includes(query) || phone.includes(query) || email.includes(query) || subTotal.includes(query) || status.includes(query) || paymentMethod.includes(query) || date.includes(query)) {
+                    if (orderId.includes(query) || buyer.includes(query) || seller.includes(query) || productName.includes(query) || productQuantity.includes(query) || subTotal.includes(query) || status.includes(query) || date.includes(query)) {
                         row.style.display = '';
                     } else {
                         row.style.display = 'none';
                     }
                 });
             }
+
+            // Add event listener for responsive search
+            document.getElementById('search').addEventListener('input', searchTransactions);
         </script>
         <!-- Font Awesome for icons -->
         <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>

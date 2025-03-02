@@ -19,6 +19,11 @@
 @endphp
 
 <x-adminLayout2>
+
+  <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow-md navbar">
+    <h1 class="text-2xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-red-400">DASHBOARD</h1>
+  </div>
+
   <div class="flex gap-4">
     <div class="bg-white p-2 rounded-lg shadow-md transition-all duration-300 relative overflow-hidden hover:transform hover:-translate-y-1 hover:shadow-lg flex-1">
       <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-red-400"></div>
@@ -122,9 +127,9 @@
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->name }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->category->name }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->stock }}</td>
-              <td class="py-2 px-4 border-b border-gray-200">${{ number_format($product->price, 2) }}</td>
+              <td class="py-2 px-4 border-b border-gray-200">₱{{ number_format($product->price, 2) }}</td>
               <td class="py-2 px-4 border-b border-gray-200">{{ $product->discount }}%</td>
-              <td class="py-2 px-4 border-b border-gray-200">${{ number_format($product->discounted_price, 2) }}</td>
+              <td class="py-2 px-4 border-b border-gray-200">₱{{ number_format($product->discounted_price, 2) }}</td>
               <td class="py-2 px-4 border-b border-gray-200">
                 <img src="{{ asset('storage/' . ($product->images[0] ?? 'default-image.jpg')) }}" class="w-16 h-16 object-cover">
               </td>
