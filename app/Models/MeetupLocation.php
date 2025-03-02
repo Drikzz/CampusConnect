@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class MeetupLocation extends Model
 {
+  use HasFactory;
+
   protected $fillable = [
     'user_id',
     'location_id',
@@ -24,14 +27,13 @@ class MeetupLocation extends Model
     'max_daily_meetups'
   ];
 
+  // Cast available_days as an array
   protected $casts = [
+    'available_days' => 'array',
     'is_active' => 'boolean',
     'is_default' => 'boolean',
-    'available_days' => 'json',
     'latitude' => 'decimal:8',
-    'longitude' => 'decimal:8',
-    'available_from' => 'datetime:H:i',
-    'available_until' => 'datetime:H:i'
+    'longitude' => 'decimal:8'
   ];
 
   public static $rules = [
