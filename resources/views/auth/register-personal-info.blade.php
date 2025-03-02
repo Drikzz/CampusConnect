@@ -94,38 +94,7 @@
                             @enderror
                         </div>
 
-                        {{-- Profile Picture Upload --}}
-                        <div class="col-span-2">
-                            <label class="block mb-2 text-sm font-medium text-black">Profile Picture</label>
-                            <div class="flex flex-col justify-center items-center gap-4">
-                                <div class="w-32 h-32">
-                                    <input type="file" name="profile_picture" id="profile_picture"
-                                        accept="image/jpeg,image/png,image/jpg" class="hidden"
-                                        onchange="handleProfilePicture(this)">
-                                    <label for="profile_picture"
-                                        class="block w-full h-full rounded-full cursor-pointer overflow-hidden border-2 border-dashed border-primary-color hover:bg-gray-50 transition-all">
-                                        <div id="profile_upload"
-                                            class="h-full flex flex-col items-center justify-center">
-                                            <i class="fas fa-user-circle text-4xl text-primary-color mb-1"></i>
-                                            <p class="text-xs text-gray-600 text-center px-2">Click to upload</p>
-                                        </div>
-                                        <div id="profile_preview" class="hidden w-full h-full">
-                                            <img class="w-full h-full object-cover" src=""
-                                                alt="Profile preview">
-                                        </div>
-                                    </label>
-                                </div>
-                                <p class="text-xs text-gray-500">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    Accepted formats: JPG, JPEG, PNG<br>
-                                    Maximum size: 2MB
-                                </p>
-                            </div>
-                            @error('profile_picture')
-                                <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-
-                        </div>
+                        {{-- Remove the Profile Picture Upload section that was here --}}
 
                         {{-- Names Section --}}
                         <div class="col-span-2 grid grid-cols-2 gap-6">
@@ -236,7 +205,6 @@
                     'last_name',
                     'middle_name',
                     'phone',
-                    'profile_picture',
                     'user_type_id',
                     'wmsu_dept_id',
                     'grade_level_id'
@@ -292,62 +260,6 @@
                     sessionStorage.setItem(input.name, input.value);
                 });
             });
-        });
-
-        // Profile picture handling
-        function handleProfilePicture(input) {
-            handleImageUpload(input, 'profile_preview', 'profile_upload');
-        }
-
-        // Add this new preview function that can be used by both pages
-        function handleImageUpload(input, previewId, uploadId) {
-            const previewContainer = document.getElementById(previewId);
-            const uploadContainer = document.getElementById(uploadId);
-            const previewImg = previewContainer.querySelector('img');
-
-            if (input.files && input.files[0]) {
-                // Check file size (2MB limit)
-                if (input.files[0].size > 2 * 1024 * 1024) {
-                    alert('File is too large! Please select an image under 2MB.');
-                    input.value = '';
-                    return;
-                }
-
-                // Check file type
-                const fileType = input.files[0].type;
-                if (!['image/jpeg', 'image/png', 'image/jpg'].includes(fileType)) {
-                    alert('Please upload only JPG, JPEG, or PNG files.');
-                    input.value = '';
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImg.src = e.target.result;
-                    uploadContainer.classList.add('hidden');
-                    previewContainer.classList.remove('hidden');
-                }
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        // Add click handler to remove preview
-        function removePreview(inputId, previewId, uploadId) {
-            const input = document.getElementById(inputId);
-            const previewContainer = document.getElementById(previewId);
-            const uploadContainer = document.getElementById(uploadId);
-
-            input.value = '';
-            previewContainer.classList.add('hidden');
-            uploadContainer.classList.remove('hidden');
-        }
-
-        // Remove preview on click
-        document.getElementById('profile_preview').addEventListener('click', function(e) {
-            if (e.target.tagName === 'IMG') {
-                removePreview('profile_picture', 'profile_preview', 'profile_upload');
-                e.stopPropagation();
-            }
         });
 
         // Add user type change handler

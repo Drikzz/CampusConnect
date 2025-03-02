@@ -10,360 +10,264 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class AuthController extends Controller
 {
 
-    // public function register(Request $request)
-    // {
-    //     try {
-    //         // Base validation rules
-    //         $rules = [
-    //             'user_type' => ['required', 'in:highschool,college,employee,alumni,postgraduate'],
-    //             'username' => ['required', 'max:255', 'unique:users'],
-    //             'password' => ['required', 'min:6'],
-    //             'first_name' => ['required', 'max:255'],
-    //             'last_name' => ['required', 'max:255'],
-    //             'profile_picture' => ['nullable', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //         ];
-
-    //         // Add type-specific validation rules
-    //         switch ($request->user_type) {
-    //             case 'highschool':
-    //                 $rules = array_merge($rules, [
-    //                     'wmsu_email' => ['required', 'string', 'regex:/^[a-z]{2}[0-9]{4}[0-9]{5}@wmsu\.edu\.ph$/', 'unique:users'],
-    //                     'grade_level' => ['required', 'string'],
-    //                     'wmsu_id_front' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                     'wmsu_id_back' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                 ]);
-    //                 break;
-
-    //             case 'college':
-    //             case 'postgraduate':
-    //                 $rules = array_merge($rules, [
-    //                     'wmsu_email' => ['required', 'string', 'regex:/^eh[0-9]{9}@wmsu.edu.ph$/', 'unique:users'],
-    //                     'wmsu_dept' => ['required', 'string'],
-    //                     'wmsu_id_front' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                     'wmsu_id_back' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                 ]);
-    //                 break;
-
-    //             case 'employee':
-    //                 $rules = array_merge($rules, [
-    //                     'wmsu_email' => ['required', 'string', 'regex:/^eh[0-9]{9}@wmsu.edu.ph$/', 'unique:users'],
-    //                 ]);
-    //                 break;
-
-    //             case 'alumni':
-    //                 $rules = array_merge($rules, [
-    //                     'wmsu_id_front' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                     'wmsu_id_back' => ['required', 'file', 'mimes:jpeg,png,jpg', 'max:2048'],
-    //                 ]);
-    //                 break;
-    //         }
-
-    //         // Validate request
-    //         $fields = $request->validate($rules);
-
-    //         // Handle file uploads
-    //         $profilePath = null;
-    //         if ($request->hasFile('profile_picture')) {
-    //             $profilePath = Storage::disk('public')->put($request->user_type . '/profile_pictures', $request->profile_picture);
-    //         }
-
-    //         $idFrontPath = null;
-    //         $idBackPath = null;
-    //         if ($request->hasFile('wmsu_id_front')) {
-    //             $idFrontPath = Storage::disk('public')->put($request->user_type . '/id_front', $request->wmsu_id_front);
-    //         }
-    //         if ($request->hasFile('wmsu_id_back')) {
-    //             $idBackPath = Storage::disk('public')->put($request->user_type . '/id_back', $request->wmsu_id_back);
-    //         }
-
-    //         // Get user type
-    //         $userTypeMap = [
-    //             'highschool' => 'HS',
-    //             'college' => 'COL',
-    //             'employee' => 'EMP',
-    //             'alumni' => 'ALM',
-    //             'postgraduate' => 'PG'
-    //         ];
-
-    //         $userType = UserType::where('code', $userTypeMap[$request->user_type])->first()->id;
-
-    //         // Prepare user data
-    //         $userData = [
-    //             'user_type_id' => $userType,
-    //             'username' => $fields['username'],
-    //             'password' => $fields['password'],
-    //             'first_name' => $fields['first_name'],
-    //             'last_name' => $fields['last_name'],
-    //             'profile_picture' => $profilePath,
-    //             'wmsu_id_front' => $idFrontPath,
-    //             'wmsu_id_back' => $idBackPath,
-    //         ];
-
-    //         // Add type-specific data
-    //         if (isset($fields['wmsu_email'])) {
-    //             $userData['wmsu_email'] = $fields['wmsu_email'];
-    //         }
-
-    //         if (isset($fields['wmsu_dept'])) {
-    //             $wmsu_dept_id = Department::where('code', $fields['wmsu_dept'])->first()->id;
-    //             $userData['wmsu_dept_id'] = $wmsu_dept_id;
-    //         }
-
-    //         if (isset($fields['grade_level'])) {
-    //             $grade_level_id = GradeLevel::where('name', $fields['grade_level'])->first()->id;
-    //             $userData['grade_level_id'] = $grade_level_id;
-    //         }
-
-    //         // Create user
-    //         $user = User::create($userData);
-
-    //         // Login and redirect
-    //         Auth::login($user);
-    //         return redirect('/')->with('success', 'Registration completed successfully!');
-    //     } catch (ValidationException $e) {
-    //         return redirect()->back()
-    //             ->withErrors($e->errors())
-    //             ->withInput();
-    //     }
-    // }
-
     // login User
     public function login(Request $request)
     {
-        // First validate required fields
-        $fields = $request->validate([
-            'username' => 'required',
-            'password' => 'required'
-        ]);
-
-        // If WMSU email is provided, validate its format
-        if ($request->filled('wmsu_email')) {
-            $request->validate([
-                'wmsu_email' => 'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/'
+        try {
+            // First validate required fields with custom messages
+            $fields = $request->validate([
+                'username' => 'required|string',
+                'password' => 'required|string'
+            ], [
+                'username.required' => 'Username is required',
+                'password.required' => 'Password is required'
             ]);
-        }
 
-        // Attempt authentication
-        if (Auth::attempt($fields)) {
-            $request->session()->regenerate();
-            return redirect()->intended('/');
-        }
+            // Attempt authentication
+            if (Auth::attempt($fields, $request->remember)) {
+                $request->session()->regenerate();
+                return redirect()->intended(route('dashboard.profile'))
+                    ->with('toast', [
+                        'variant' => '',
+                        'title' => 'Success!',
+                        'description' => 'Login successful.'
+                    ]);
+            }
 
-        return back()->withErrors([
-            'failed' => 'The provided credentials do not match our records.',
-        ])->onlyInput('username', 'wmsu_email');
+            // Invalid credentials
+            return back()->withErrors([
+                'username' => 'The provided credentials do not match our records.',
+            ])->with('toast', [
+                'variant' => 'destructive',
+                'title' => 'Error!',
+                'description' => 'Invalid credentials. Please try again.'
+            ]);
+        } catch (ValidationException $e) {
+            // Validation failed
+            return back()->withErrors($e->errors())
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please fill in all required fields.'
+                ]);
+        }
     }
 
     public function showPersonalInfoForm(Request $request)
     {
-        // Clear all session data
-        $request->session()->invalidate();
-        $request->session()->regenerate();
-
-        // Clear any existing registration data
+        // Only clear registration-related data, not the entire session
         $request->session()->forget([
             'registration_data',
-            'temp_profile_picture',
-            'user_type_id',
-            'grade_level_id',
-            'wmsu_dept_id',
-            'first_name',
-            'middle_name',
-            'last_name',
-            'gender',
-            'date_of_birth',
-            'phone',
-            'profile_picture'
+            'form_data',
+            'step1_completed',
+            'temp_files'
         ]);
 
-        // Force client-side storage clearing
-        $clearLocalStorage = true;
-
-        // Get departments and grade levels for form dropdowns if needed
+        // Get data for form dropdowns
         $departments = Department::orderBy('name')->get();
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $userTypes = UserType::orderBy('name')->get();
 
-        return view('auth.register-personal-info', [
-            'user' => null,
+        return Inertia::render('Auth/RegisterPersonalInfo', [
             'departments' => $departments,
             'gradeLevels' => $gradeLevels,
             'userTypes' => $userTypes,
-            'clearLocalStorage' => $clearLocalStorage
+        ])->with('toast', [
+            'variant' => 'default',
+            'title' => 'Welcome!',
+            'description' => 'Please fill out your personal information.'
         ]);
     }
 
-
     public function processPersonalInfo(Request $request)
     {
-        $validatedData = $request->validate([
-            'user_type_id' => ['required', 'exists:user_types,code'],
-            'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
-            'wmsu_dept_id' => ['nullable', 'exists:departments,id'],
-            'first_name' => ['required', 'string', 'max:255'],
-            'middle_name' => ['nullable', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'gender' => ['required', 'string', 'in:male,female,non-binary,prefer-not-to-say'],
-            'date_of_birth' => ['required', 'date', 'before:today'],
-            'phone' => ['required', 'string', 'regex:/^[0-9]{11}$/'],
-            'profile_picture' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:2048'],
-            // Removed password validation
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'user_type_id' => ['required', 'exists:user_types,code'],
+                'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
+                'wmsu_dept_id' => ['nullable', 'exists:departments,id'],
+                'first_name' => ['required', 'string', 'max:255'],
+                'middle_name' => ['nullable', 'string', 'max:255'],
+                'last_name' => ['required', 'string', 'max:255'],
+                'gender' => ['required', 'string', 'in:male,female,non-binary,prefer-not-to-say'],
+                'date_of_birth' => ['required', 'date', 'before:today'],
+                'phone' => ['required', 'string', 'regex:/^[0-9]{11}$/'],
+            ]);
 
-        // Store profile picture separately if uploaded
-        if ($request->hasFile('profile_picture')) {
-            // Store in temp folder and save the path
-            $tempPath = $request->file('profile_picture')->store('temp/profile_pictures', 'public');
-            // Store the path separately in session
-            $request->session()->put('temp_profile_picture', $tempPath);
-            // Remove profile_picture from validated data to avoid serialization issues
-            unset($validatedData['profile_picture']);
+            $request->session()->put('registration_data', $validatedData);
+
+            return redirect()->route('register.details')
+                ->with('toast', [
+                    'variant' => 'default',
+                    'title' => 'Success!',
+                    'description' => 'Personal information saved successfully.'
+                ]);
+        } catch (ValidationException $e) {
+            return back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please check the form for errors.'
+                ]);
         }
-
-        // Store validated data in the session (without profile_picture)
-        $request->session()->put('registration_data', $validatedData);
-
-        return redirect()->route('register.details');
     }
 
     public function showDetailsForm(Request $request)
     {
         // Check if we have the first step data
         if (!$request->session()->has('registration_data')) {
-            return redirect()->route('register.personal-info');
+            return redirect()->route('register.personal-info')
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please complete the first step of registration.'
+                ]);
         }
 
         $registrationData = $request->session()->get('registration_data');
 
-        // Get departments and grade levels for form dropdowns
-        $departments = Department::orderBy('name')->get();
-        $gradeLevels = GradeLevel::orderBy('level')->get();
-        $userTypes = UserType::orderBy('name')->get();
-
-        return view('auth.register-account-info', [
-            'departments' => $departments,
-            'gradeLevels' => $gradeLevels,
-            'userTypes' => $userTypes,
+        return Inertia::render('Auth/RegisterAccountInfo', [
             'registrationData' => $registrationData
+        ])->with('toast', [
+            'variant' => 'default',
+            'title' => 'Almost there!',
+            'description' => 'Please complete your account details.'
         ]);
     }
 
     public function completeRegistration(Request $request)
     {
-        // Check if we have the first step data
         if (!$request->session()->has('registration_data')) {
-            return redirect()->route('register.personal-info');
+            return redirect()->route('register.personal-info')
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please complete the first step of registration.'
+                ]);
         }
 
         $firstStepData = $request->session()->get('registration_data');
-        $tempProfilePicture = $request->session()->get('temp_profile_picture');
 
         try {
-            // Base validation rules for all user types
             $rules = [
                 'username' => ['required', 'string', 'max:255', 'unique:users'],
                 'password' => [
                     'required',
                     'string',
-                    'min:8',
+                    'min:8',  // Enforce minimum 8 characters
                     'confirmed',
-                    'regex:/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/'
-                ]
+                    function ($attribute, $value, $fail) {
+                        $strength = 0;
+                        if (strlen($value) >= 8) $strength++;
+                        if (preg_match('/[A-Z]/', $value)) $strength++;
+                        if (preg_match('/[a-z]/', $value)) $strength++;
+                        if (preg_match('/[0-9]/', $value)) $strength++;
+                        if (preg_match('/[^A-Za-z0-9]/', $value)) $strength++;
+
+                        // Require at least 4 criteria (Strong password)
+                        if ($strength < 4) {
+                            $fail('Password must meet at least 4 of these criteria: minimum 8 characters, uppercase letter, lowercase letter, number, special character.');
+                        }
+                    }
+                ],
+                'profile_picture' => ['required', 'image', 'mimes:jpeg,png,jpg', 'max:2048']
             ];
 
-            // Add email validation for specific user types
+            // Add email validation based on user type
             if (in_array($firstStepData['user_type_id'], ['HS', 'COL', 'PG', 'EMP'])) {
                 $rules['wmsu_email'] = [
                     'required',
                     'string',
-                    'max:255',
+                    'email',
                     'unique:users,wmsu_email',
-                    'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/' // New simplified email format
+                    'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/'
+                ];
+            } elseif ($firstStepData['user_type_id'] === 'ALM') {
+                $rules['wmsu_email'] = [
+                    'nullable',
+                    'string',
+                    'email',
+                    'unique:users,wmsu_email',
+                    'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/'
                 ];
             }
 
-            // Add ID verification for all except employees
-            if ($firstStepData['user_type_id'] !== 'EMP') {
-                $rules['wmsu_id_front'] = ['required', 'image', 'max:2048', 'mimes:jpeg,png,jpg'];
-                $rules['wmsu_id_back'] = ['required', 'image', 'max:2048', 'mimes:jpeg,png,jpg'];
+            // Add ID verification for required user types
+            if (in_array($firstStepData['user_type_id'], ['HS', 'COL', 'EMP', 'PG', 'ALM'])) {
+                $rules['wmsu_id_front'] = ['required', 'image', 'mimes:jpeg,png,jpg', 'max:2048'];
+                $rules['wmsu_id_back'] = ['required', 'image', 'mimes:jpeg,png,jpg', 'max:2048'];
             }
 
             $validatedData = $request->validate($rules);
 
-            // Merge first and second step data
+            // Merge data and hash password
             $userData = array_merge($firstStepData, $validatedData);
-            // Hash the password before saving
             $userData['password'] = bcrypt($userData['password']);
 
-            // Move profile picture from temp to final location if it exists
-            if ($tempProfilePicture && Storage::disk('public')->exists($tempProfilePicture)) {
-                // Generate the final path
-                $finalPath = str_replace(
-                    'temp/profile_pictures',
-                    $firstStepData['user_type_id'] . '/profile_pictures',
-                    $tempProfilePicture
-                );
+            // Handle file uploads
+            try {
+                // Store profile picture
+                $userData['profile_picture'] = $request->file('profile_picture')
+                    ->store($firstStepData['user_type_id'] . '/profile_pictures', 'public');
 
-                // Move the file
-                Storage::disk('public')->move($tempProfilePicture, $finalPath);
-                $userData['profile_picture'] = $finalPath;
+                // Store ID pictures if provided
+                if ($request->hasFile('wmsu_id_front')) {
+                    $userData['wmsu_id_front'] = $request->file('wmsu_id_front')
+                        ->store($firstStepData['user_type_id'] . '/id_front', 'public');
+                }
+                if ($request->hasFile('wmsu_id_back')) {
+                    $userData['wmsu_id_back'] = $request->file('wmsu_id_back')
+                        ->store($firstStepData['user_type_id'] . '/id_back', 'public');
+                }
+            } catch (\Exception $e) {
+                return back()
+                    ->withInput()
+                    ->with('toast', [
+                        'variant' => 'destructive',
+                        'title' => 'Error!',
+                        'description' => 'Failed to upload files. Please try again.'
+                    ]);
             }
 
-            // Handle ID uploads only (profile picture is already handled in first step)
-            if ($request->hasFile('wmsu_id_front')) {
-                $userData['wmsu_id_front'] = $request->file('wmsu_id_front')
-                    ->store($firstStepData['user_type_id'] . '/id_front', 'public');
-            }
-
-            if ($request->hasFile('wmsu_id_back')) {
-                $userData['wmsu_id_back'] = $request->file('wmsu_id_back')
-                    ->store($firstStepData['user_type_id'] . '/id_back', 'public');
-            }
-
+            // Get proper user type ID
             $userTypeId = UserType::where('code', $firstStepData['user_type_id'])->first()->id;
             $userData['user_type_id'] = $userTypeId;
 
-            // Create the user
+            // Create user and login
             $user = User::create($userData);
-
-            // Clear all session data
-            $request->session()->forget(['registration_data', 'temp_profile_picture']);
-
-            // Clear any leftover form data
-            $request->session()->forget([
-                'user_type_id',
-                'grade_level_id',
-                'wmsu_dept_id',
-                'first_name',
-                'middle_name',
-                'last_name',
-                'gender',
-                'date_of_birth',
-                'phone',
-                'profile_picture'
-            ]);
-
-            // Clear temporary storage if exists
-            if ($tempProfilePicture) {
-                Storage::disk('public')->delete($tempProfilePicture);
-            }
-
-            // Start fresh session
-            $request->session()->regenerate();
-
-            // Log in the user
+            $request->session()->forget('registration_data');
             Auth::login($user);
 
             return redirect()->route('index')
-                ->with('success', 'Registration completed successfully!');
+                ->with('toast', [
+                    'variant' => 'default',
+                    'title' => 'Welcome!',
+                    'description' => 'Registration completed successfully!'
+                ]);
         } catch (ValidationException $e) {
-            return redirect()->back()
+            return back()
                 ->withErrors($e->errors())
-                ->withInput();
+                ->withInput()
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please check the form for errors.'
+                ]);
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'An unexpected error occurred. Please try again.'
+                ]);
         }
     }
 
@@ -380,6 +284,16 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         // Redirect to home
-        return redirect('/');
+        return redirect('/')
+            ->with('toast', [
+                'variant' => 'default',
+                'title' => 'Success!',
+                'description' => 'You have been logged out successfully.'
+            ]);
+    }
+
+    public function showLoginForm()
+    {
+        return Inertia::render('Auth/Login');
     }
 }

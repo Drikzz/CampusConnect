@@ -149,7 +149,7 @@
                     </p>
 
                     <p class="font-Satoshi-bold text-2xl text-red">
-                        -{{ $product->discount }}%
+                        -{{ round($product->discount * 100) }}%
                     </p>
 
                     <p class="font-Satoshi text-xl">
