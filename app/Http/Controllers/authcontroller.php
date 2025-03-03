@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WelcomeMail;
 use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\User;
 use App\Models\UserType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class AuthController extends Controller
@@ -31,6 +34,9 @@ class AuthController extends Controller
             // Attempt authentication
             if (Auth::attempt($fields, $request->remember)) {
                 $request->session()->regenerate();
+
+                // Mail::to('test@wmsu.edu.ph')->send(new WelcomeMail(Auth::user()));
+
                 return redirect()->intended(route('dashboard.profile'))
                     ->with('toast', [
                         'variant' => '',
@@ -240,17 +246,21 @@ class AuthController extends Controller
             $userTypeId = UserType::where('code', $firstStepData['user_type_id'])->first()->id;
             $userData['user_type_id'] = $userTypeId;
 
-            // Create user and login
+            // Create user
             $user = User::create($userData);
-            $request->session()->forget('registration_data');
+
+            // Log the user in AFTER creating the Registered event
             Auth::login($user);
 
-            return redirect()->route('index')
-                ->with('toast', [
-                    'variant' => 'default',
-                    'title' => 'Welcome!',
-                    'description' => 'Registration completed successfully!'
-                ]);
+            // Fire the Registered event - this triggers verification email
+            event(new Registered($user));
+
+            // Clear session data
+            $request->session()->forget('registration_data');
+
+            // Redirect to verification notice page
+            return redirect()->route('verification.notice')
+                ->with('message', 'Registration successful! Please check your email to verify your account.');
         } catch (ValidationException $e) {
             return back()
                 ->withErrors($e->errors())
@@ -269,6 +279,38 @@ class AuthController extends Controller
                     'description' => 'An unexpected error occurred. Please try again.'
                 ]);
         }
+    }
+
+    //send notice
+    public function verifyNotice()
+    {
+        return view('auth.verify-email');
+    }
+
+    //verify email
+    public function verifyEmail(EmailVerificationRequest $request)
+    {
+        $request->fulfill();
+
+        return redirect()->route('dashboard.profile')
+            ->with('toast', [
+                'variant' => 'success',
+                'title' => 'Email Verified!',
+                'description' => 'Your email has been verified successfully.'
+            ]);
+    }
+
+    //resend verification email
+    public function verifyHandler(Request $request)
+    {
+        $request->user()->sendEmailVerificationNotification();
+
+        return back()
+            ->with('toast', [
+                'variant' => 'success',
+                'title' => 'Sent!',
+                'description' => 'A new verification link has been sent to your email.'
+            ]);
     }
 
     //Logout User
