@@ -284,7 +284,9 @@ class AuthController extends Controller
     //send notice
     public function verifyNotice()
     {
-        return view('auth.verify-email');
+        // return view('auth.verify-email');
+
+        return inertia('Auth/VerifyEmailNotice');
     }
 
     //verify email
