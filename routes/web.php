@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use App\Http\Controllers\WishlistController;
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
@@ -97,6 +98,18 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
         ->name('profile.revert');
+
+    Route::post('/wishlist', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+    Route::get('/wishlist/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+});
+
+Route::middleware(['auth', 'web'])->group(function () {
+    // Remove duplicate wishlist routes that were previously defined
+    Route::prefix('wishlist')->group(function () {
+        Route::get('/', [WishlistController::class, 'index'])->name('wishlist.index');
+        Route::post('/', [WishlistController::class, 'store'])->name('wishlist.store');
+        Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+    });
 });
 
 // Admin Authentication Routes
