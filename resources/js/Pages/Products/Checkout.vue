@@ -111,7 +111,11 @@ export default {
     user: {
       type: Object,
       required: true
-    }
+    },
+  meetupLocations: { // Add this prop
+    type: Array,
+    default: () => []
+  }
   },
 
   setup(props) {

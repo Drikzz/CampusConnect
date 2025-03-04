@@ -15,7 +15,7 @@ class CheckoutController extends Controller
     //
     public function summary($id)
     {
-        $product = Product::with(['seller', 'images', 'variants'])
+        $product = Product::with(['seller.meetupLocations', 'images', 'variants'])
             ->findOrFail($id);
     
         if (!$product->is_buyable) {
@@ -24,7 +24,8 @@ class CheckoutController extends Controller
     
         return Inertia::render('Products/Checkout', [
             'product' => $product,
-            'user' => Auth::user()
+            'user' => Auth::user(),
+            'meetupLocations' => $product->seller->meetupLocations()->where('is_active', true)->get()
         ]);
     }
 
