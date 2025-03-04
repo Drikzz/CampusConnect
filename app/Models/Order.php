@@ -24,11 +24,20 @@ class Order extends Model
         'delivery_proof',
         'dispute_reason',
         'dispute_status',
-        'dispute_resolution'
+        'dispute_resolution',
+        'cancelled_at',
+        'cancellation_reason',
+        'cancelled_by'  // Add this to fillable
     ];
 
     protected $casts = [
         'meetup_schedule' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'accepted_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     // Add status constants for better maintainability
@@ -55,9 +64,15 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    public function meetupLocation()
+    public function meetup_location(): BelongsTo
     {
-        return $this->belongsTo(MeetupLocation::class);
+        return $this->belongsTo(MeetupLocation::class, 'meetup_location_id');
+    }
+
+    // Alias method for consistency in naming
+    public function meetupLocation(): BelongsTo
+    {
+        return $this->meetup_location();
     }
 
     // Add status check methods
