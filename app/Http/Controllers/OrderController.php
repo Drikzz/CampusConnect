@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\MeetupLocation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class OrderController extends Controller
 {
@@ -99,40 +102,111 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        // Ensure the seller can only view their own orders
-        if ($order->seller_code !== auth()->user()->seller_code) {
-            abort(403);
-        }
+        try {
+            if (!Auth::user()->can('view', $order)) {
+                abort(403);
+            }
 
-        $order->load(['buyer', 'items.product']);
-        return view('seller.orders.show', compact('order'));
+            $order->load([
+                'items.product',
+                'meetup_location',
+                'buyer',
+                'seller'
+            ]);
+
+            // Transform order data for frontend
+            $orderData = [
+                'id' => $order->id,
+                'status' => $order->status,
+                'created_at' => $order->created_at,
+                'updated_at' => $order->updated_at,
+                'total' => $order->total,
+                'sub_total' => $order->sub_total,
+                'items' => $order->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'quantity' => $item->quantity,
+                        'price' => $item->price,
+                        'product' => [
+                            'id' => $item->product->id,
+                            'name' => $item->product->name,
+                            'image_url' => $item->product->image_url,
+                        ],
+                    ];
+                }),
+                'meetup_location' => $order->meetup_location ? [
+                    'id' => $order->meetup_location->id,
+                    'name' => $order->meetup_location->name,
+                    'full_name' => $order->meetup_location->full_name,
+                    'description' => $order->meetup_location->description,
+                ] : null,
+                'meetup_schedule' => $order->meetup_schedule,
+                'meetup_notes' => $order->meetup_notes,
+                'seller' => [
+                    'id' => $order->seller->id,
+                    'name' => $order->seller->name,
+                    'email' => $order->seller->email,
+                ],
+                'buyer' => [
+                    'id' => $order->buyer->id,
+                    'name' => $order->buyer->name,
+                    'email' => $order->buyer->email,
+                ],
+                'can_edit' => $order->status === 'Pending' && Auth::id() === $order->buyer_id,
+            ];
+
+            return Inertia::render('Dashboard/UserOrderDetails', [
+                'order' => $orderData,
+                'user' => Auth::user(),
+            ]);
+        } catch (\Exception $e) {
+            report($e); // Log the error
+            return back()->with('error', 'Unable to load order details.');
+        }
     }
 
-    public function updateStatus(Request $request, Order $order)
+    public function update(Request $request, Order $order)
     {
+        // Ensure user is the buyer and can update the order
+        if (!Auth::user()->can('update', $order)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Only allow updates if order is pending
+        if ($order->status !== 'Pending') {
+            return back()->with('error', 'Only pending orders can be edited.');
+        }
+
         $validated = $request->validate([
-            'status' => 'required|in:Pending,ProcessingCompleted,Canceled'
+            'address' => 'required|string',
+            'phone' => 'required|string',
+            'meetup_location_id' => 'nullable|exists:meetup_locations,id',
+            'meetup_schedule' => 'nullable|date',
+            'meetup_notes' => 'nullable|string',
         ]);
 
-        if ($order->seller_code !== auth()->user()->seller_code) {
-            abort(403);
-        }
-
         $order->update($validated);
-        return back()->with('success', 'Order status updated successfully');
+        return back()->with('success', 'Order details updated successfully.');
     }
 
-    public function cancelOrder(Order $order)
+    public function cancel(Request $request, Order $order)
     {
-        if ($order->buyer_id !== auth()->id()) {
-            return back()->with('error', 'Unauthorized action');
+        if (!Auth::user()->can('cancel', $order)) {
+            abort(403, 'Unauthorized action.');
         }
 
-        if ($order->status !== 'Pending') {
-            return back()->with('error', 'Only pending orders can be cancelled');
+        if (!in_array($order->status, ['Pending', 'Accepted'])) {
+            return back()->with('error', 'This order cannot be cancelled.');
         }
 
-        $order->update(['status' => 'Cancelled']);
-        return back()->with('success', 'Order cancelled successfully');
+        // Update this part to pass the data to the model's cancel method
+        $validated = $request->validate([
+            'cancellation_reason' => 'required|string|max:500',
+        ]);
+
+        // Use the model's cancel method
+        $order->cancel($validated['cancellation_reason'], Auth::id());
+
+        return back()->with('success', 'Order cancelled successfully.');
     }
 }

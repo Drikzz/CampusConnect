@@ -54,15 +54,38 @@
                     </p>
                   </div>
 
-                  <div class="flex gap-3 justify-between">
+                  <div class="flex gap-3 mt-4">
                     <Link :href="route('products.show', item.product.id)"
-                          class="flex-1 text-center px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">
+                          class="inline-block flex-1 px-4 py-2 bg-black text-white text-center rounded-lg hover:bg-gray-800 transition-colors">
                       View Details
                     </Link>
                     <button @click="removeFromWishlist(item.id)"
                             :disabled="deletingIds.includes(item.id)"
-                            class="px-3 py-2 text-red-500 hover:bg-red-50 rounded disabled:opacity-50 disabled:cursor-not-allowed">
-                      <i class="fas" :class="deletingIds.includes(item.id) ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
+                            class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                      <svg v-if="!deletingIds.includes(item.id)" 
+                           class="w-5 h-5" 
+                           fill="none" 
+                           stroke="currentColor" 
+                           viewBox="0 0 24 24">
+                        <path stroke-linecap="round" 
+                              stroke-linejoin="round" 
+                              stroke-width="2" 
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <svg v-else 
+                           class="w-5 h-5 animate-spin" 
+                           fill="none" 
+                           viewBox="0 0 24 24">
+                        <circle class="opacity-25" 
+                                cx="12" 
+                                cy="12" 
+                                r="10" 
+                                stroke="currentColor" 
+                                stroke-width="4" />
+                        <path class="opacity-75" 
+                              fill="currentColor" 
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
                     </button>
                   </div>
                 </div>

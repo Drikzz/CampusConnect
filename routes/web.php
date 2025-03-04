@@ -21,6 +21,7 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
+Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -101,6 +102,18 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/wishlist', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
     Route::get('/wishlist/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+
+    Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+    Route::get('/orders/{order}/details', [OrderController::class, 'show'])->name('orders.details');
+    Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
+    Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+    
+    // Add this route temporarily for debugging
+    Route::get('/debug/order/{order}', function (App\Models\Order $order) {
+        return response()->json([
+            'order' => $order->load(['items.product', 'meetup_location', 'buyer', 'seller']),
+        ]);
+    })->middleware('auth');
 });
 
 Route::middleware(['auth', 'web'])->group(function () {
