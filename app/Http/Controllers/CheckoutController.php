@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\MeetupLocation;
+use Inertia\Inertia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,14 +15,18 @@ class CheckoutController extends Controller
     //
     public function summary($id)
     {
-        $product = Product::with(['seller', 'images'])
+        $product = Product::with(['seller.meetupLocations', 'images', 'variants'])
             ->findOrFail($id);
-
+    
         if (!$product->is_buyable) {
             return redirect()->back()->with('error', 'This product is not available for purchase.');
         }
-
-        return view('products.order_sum', compact('product'));
+        // return view('products.order_sum', compact('product'));
+        return Inertia::render('Products/Checkout', [
+            'product' => $product,
+            'user' => Auth::user(),
+            'meetupLocations' => $product->seller->meetupLocations()->where('is_active', true)->get()
+        ]);
     }
 
     public function checkout(Request $request)
