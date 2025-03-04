@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-
-// use Filament\Models\Contracts\HasName;
-// use Filament\Panel;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -68,25 +65,38 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the user's display name for Filament.
+     * Get the email address that should be used for verification.
+     *
+     * @return string
      */
-    // public function getFilamentName(): string
-    // {
-    //     return $this->first_name ?? 'Admin'; // Use `first_name` as the display name
-    // }
+    public function getEmailForVerification()
+    {
+        return $this->wmsu_email;
+    }
 
-    // public function getFilamentName(): string
-    // {
-    //     return $this->getAttributeValue('first_name');
-    // }
+    /**
+     * Route notifications for the mail channel.
+     *
+     * @param  \Illuminate\Notifications\Notification  $notification
+     * @return array|string
+     */
+    public function routeNotificationForMail($notification)
+    {
+        // Return the wmsu_email address
+        return $this->wmsu_email;
+    }
 
-    // /**
-    //  * Check if the user can access Filament.
-    //  */
-    // public function canAccessPanel(Panel $panel): bool
-    // {
-    //     return $this->is_admin; // Only allow admin users to access Filament
-    // }
+    /**
+     * Get the email address for the user.
+     * 
+     * @return string
+     */
+    public function getEmailAttribute()
+    {
+        // This creates a virtual 'email' attribute that returns wmsu_email
+        // This helps Laravel's built-in verification to work properly
+        return $this->wmsu_email;
+    }
 
     public function products(): HasMany
     {
