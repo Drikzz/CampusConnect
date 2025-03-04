@@ -17,6 +17,10 @@ onMounted(() => {
         loadingScreen.style.display = 'none';
     }
 });
+
+const handleBuyNow = (productId) => {
+    window.location.href = `/checkout/${productId}`;
+};
 </script>
 
 <template>
@@ -97,7 +101,7 @@ onMounted(() => {
 
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="product in products" :key="product.id" class="flex flex-col h-full">
-          <ProductCard :product="product" :disableWishlistCheck="false" />
+          <ProductCard :product="product" :disableWishlistCheck="false" @buyNow="handleBuyNow" />
         </div>
       </div>
     </section>
@@ -122,7 +126,7 @@ onMounted(() => {
 
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="product in products" :key="product.id" class="flex flex-col h-full">
-          <ProductCard :product="product" :disableWishlistCheck="false" />
+          <ProductCard :product="product" :disableWishlistCheck="false" @buyNow="handleBuyNow" />
         </div>
       </div>
     </section>
