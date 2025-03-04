@@ -264,33 +264,11 @@ class DashboardController extends Controller
         }
     }
 
-    public function wishlist()
+    public function wishlist(Request $request)
     {
-        $user = auth()->user();
-        $stats = $this->getDashboardStats($user);
-
-        $wishlists = Wishlist::where('user_id', auth()->id())
-            ->with('product')
-            ->paginate(10);
-
-        return Inertia::render('Dashboard/Wishlist', [
-            'user' => $user,
-            'stats' => $stats,
-            'wishlists' => $wishlists->items(),
-            'links' => [
-                'first' => $wishlists->url(1),
-                'last' => $wishlists->url($wishlists->lastPage()),
-                'prev' => $wishlists->previousPageUrl(),
-                'next' => $wishlists->nextPageUrl(),
-                'pages' => collect($wishlists->links()->elements[0])->map(function ($url, $page) use ($wishlists) {
-                    return [
-                        'url' => $url,
-                        'label' => $page,
-                        'active' => $page === $wishlists->currentPage()
-                    ];
-                })
-            ]
-        ]);
+        // Use the WishlistController to handle the actual logic
+        $wishlistController = new WishlistController();
+        return $wishlistController->index($request);
     }
 
     public function orders()
@@ -474,7 +452,7 @@ class DashboardController extends Controller
         return $validated;
     }
 
-    private function getDashboardStats($user)
+    public function getDashboardStats($user)
     {
         $stats = [
             'totalOrders' => Order::where('buyer_id', $user->id)->count(),
