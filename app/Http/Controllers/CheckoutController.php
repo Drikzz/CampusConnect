@@ -12,16 +12,15 @@ use Illuminate\Support\Facades\Auth;
 
 class CheckoutController extends Controller
 {
-    //
     public function summary($id)
     {
         $product = Product::with(['seller.meetupLocations', 'images', 'variants'])
             ->findOrFail($id);
-    
+
         if (!$product->is_buyable) {
             return redirect()->back()->with('error', 'This product is not available for purchase.');
         }
-        // return view('products.order_sum', compact('product'));
+
         return Inertia::render('Products/Checkout', [
             'product' => $product,
             'user' => Auth::user(),
