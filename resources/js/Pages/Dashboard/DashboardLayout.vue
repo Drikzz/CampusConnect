@@ -99,28 +99,69 @@
                     <span>Meetup Locations</span>
                   </Link>
                 </li>
+                
                 <li>
-                  <Link :href="route('seller.products')"
+                  <Link :href="route('seller.wallet.index')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': route().current('seller.products') }">
+                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/wallet') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                     </svg>
-                    <span>Products</span>
+                    <span>My Wallet</span>
+                    <span v-if="!hasActivatedWallet" 
+                          class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                      Activation Required
+                    </span>
                   </Link>
                 </li>
+                
                 <li>
-                  <Link :href="route('seller.orders')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': route().current('seller.orders') }">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-                    </svg>
-                    <span>Orders</span>
-                  </Link>
+                  <div class="relative group">
+                    <Link :href="hasActivatedWallet ? route('seller.products') : '#'"
+                          :class="[
+                            'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
+                            hasActivatedWallet 
+                              ? 'text-gray-700 hover:bg-gray-50' 
+                              : 'text-gray-400 cursor-not-allowed'
+                          ]">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                      </svg>
+                      <span>Products</span>
+                    </Link>
+                    <div v-if="!hasActivatedWallet"
+                         class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded 
+                                invisible group-hover:visible whitespace-nowrap">
+                      Activate your wallet to manage products
+                    </div>
+                  </div>
                 </li>
+                
+                <li>
+                  <div class="relative group">
+                    <Link :href="hasActivatedWallet ? route('seller.orders') : '#'"
+                          :class="[
+                            'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
+                            hasActivatedWallet 
+                              ? 'text-gray-700 hover:bg-gray-50' 
+                              : 'text-gray-400 cursor-not-allowed'
+                          ]">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                      </svg>
+                      <span>Orders</span>
+                    </Link>
+                    <div v-if="!hasActivatedWallet"
+                         class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded 
+                                invisible group-hover:visible whitespace-nowrap">
+                      Activate your wallet to manage orders
+                    </div>
+                  </div>
+                </li>
+                
                 <li>
                   <Link :href="route('seller.reviews')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -200,4 +241,9 @@ function formatCurrency(value) {
 function logout() {
   router.post(route('logout'))
 }
+
+// Add computed property for wallet activation status
+const hasActivatedWallet = computed(() => {
+  return props.user?.wallet?.is_activated || false
+})
 </script>
