@@ -15,15 +15,18 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
+use App\Http\Controllers\WishlistController;
+
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
 
-// Route::inertia('/about', 'About', ['user' => 'About Us']);
+// Route::inertia('/about', 'About', ['user' => 'About Us']);   
 
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
+Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -49,6 +52,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/email/verification-notification', [AuthController::class, 'verifyHandler'])->middleware('throttle:6,1')->name('verification.send');
 
+    Route::get('/wishlist/after-login', [WishlistController::class, 'handleAfterLogin'])
+        ->name('wishlist.after-login');
+
     // Protect these routes with verified middleware
     Route::middleware(['verified'])->group(function () {
         // Combined Dashboard and Seller routes
@@ -57,14 +63,27 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
-            Route::get('/wishlist', [DashboardController::class, 'wishlist'])->name('dashboard.wishlist');
+
+            // Fix: Update the wishlist route definition to avoid conflicts
+            Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
+
             Route::get('/meetup-locations', [DashboardController::class, 'address'])->name('dashboard.address');
             Route::get('/reviews', [DashboardController::class, 'reviews'])->name('dashboard.reviews');
 
             // Profile and wishlist routes
             Route::post('/profile/update', [DashboardController::class, 'updateProfile'])->name('profile.update');
-            Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancelOrder'])->name('orders.cancel');
-            Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
+
+            // Fix: Consolidate wishlist routes under proper prefix
+            Route::prefix('wishlist')->group(function () {
+                Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+                Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+                Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+            });
+
+            Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+            Route::get('/orders/{order}/details', [OrderController::class, 'show'])->name('orders.details');
+            Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
+            Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
 
             // Seller registration routes
             Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])->name('dashboard.become-seller');
@@ -114,8 +133,18 @@ Route::middleware('auth')->group(function () {
             });
         });
 
-        //checkout routes
+        // Update wishlist routes
+        Route::prefix('dashboard/wishlist')->group(function () {
+            Route::get('/', [WishlistController::class, 'index'])->name('dashboard.wishlist');
+            Route::post('/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+            Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+            Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+        });
+
+        //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
+        // Add a new route with checkout.show name for backward compatibility
+        Route::get('/checkout/{id}', [CheckoutController::class, 'summary'])->name('checkout.show');
         Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 
         Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
@@ -123,32 +152,18 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-// Add these routes in the appropriate place (e.g., inside a middleware group if needed)
-Route::prefix('tags')->group(function () {
-    Route::get('/', [TagController::class, 'index'])->name('tags.index');
-    Route::post('/', [TagController::class, 'store'])->name('tags.store');
-    Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
-});
+// Route::prefix('tags')->group(function () {
+//     Route::get('/', [TagController::class, 'index'])->name('tags.index');
+//     Route::post('/', [TagController::class, 'store'])->name('tags.store');
+//     Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
 
-// Add a simple test route for debugging (remove in production)
-Route::get('/debug/send-test-email', function () {
-    if (!Auth::check()) {
-        return "Please login first";
-    }
-
-    $user = Auth::user();
-
-    try {
-        \Illuminate\Support\Facades\Mail::raw('Test email from Campus Connect', function ($message) use ($user) {
-            $message->to($user->wmsu_email)
-                ->subject('Test Email');
-        });
-
-        return "Test email sent to {$user->wmsu_email} - Please check your Mailtrap inbox.";
-    } catch (\Exception $e) {
-        return "Error: " . $e->getMessage();
-    }
-})->name('debug.test-email');
+//     // Add this route temporarily for debugging
+//     Route::get('/debug/order/{order}', function (App\Models\Order $order) {
+//         return response()->json([
+//             'order' => $order->load(['items.product', 'meetup_location', 'buyer', 'seller']),
+//         ]);
+//     })->middleware('auth');
+// });
 
 // Admin Authentication Routes
 // Route::get('/admin/login', [AdminController::class, 'showLoginForm'])->name('admin.login');

@@ -97,7 +97,7 @@ onMounted(() => {
 
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="product in products" :key="product.id" class="flex flex-col h-full">
-          <ProductCard :product="product" />
+          <ProductCard :product="product" :disableWishlistCheck="false" />
         </div>
       </div>
     </section>
@@ -122,7 +122,7 @@ onMounted(() => {
 
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         <div v-for="product in products" :key="product.id" class="flex flex-col h-full">
-          <ProductCard :product="product" />
+          <ProductCard :product="product" :disableWishlistCheck="false" />
         </div>
       </div>
     </section>
