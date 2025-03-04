@@ -19,11 +19,12 @@ use Illuminate\Http\Request;
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
 
-// Route::inertia('/about', 'About', ['user' => 'About Us']);
+// Route::inertia('/about', 'About', ['user' => 'About Us']);   
 
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
+Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -114,6 +115,7 @@ Route::middleware('auth')->group(function () {
             });
         });
 
+
         //checkout routes
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
         Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
@@ -122,6 +124,7 @@ Route::middleware('auth')->group(function () {
             ->name('profile.revert');
     });
 });
+
 
 // Add these routes in the appropriate place (e.g., inside a middleware group if needed)
 Route::prefix('tags')->group(function () {
