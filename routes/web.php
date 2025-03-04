@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
+use App\Http\Controllers\WishlistController;
+
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
@@ -125,12 +127,34 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-
-// Add these routes in the appropriate place (e.g., inside a middleware group if needed)
 Route::prefix('tags')->group(function () {
     Route::get('/', [TagController::class, 'index'])->name('tags.index');
     Route::post('/', [TagController::class, 'store'])->name('tags.store');
     Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+
+    Route::post('/wishlist', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+    Route::get('/wishlist/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+
+    Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+    Route::get('/orders/{order}/details', [OrderController::class, 'show'])->name('orders.details');
+    Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
+    Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+    
+    // Add this route temporarily for debugging
+    Route::get('/debug/order/{order}', function (App\Models\Order $order) {
+        return response()->json([
+            'order' => $order->load(['items.product', 'meetup_location', 'buyer', 'seller']),
+        ]);
+    })->middleware('auth');
+});
+
+Route::middleware(['auth', 'web'])->group(function () {
+    // Remove duplicate wishlist routes that were previously defined
+    Route::prefix('wishlist')->group(function () {
+        Route::get('/', [WishlistController::class, 'index'])->name('wishlist.index');
+        Route::post('/', [WishlistController::class, 'store'])->name('wishlist.store');
+        Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+    });
 });
 
 // Add a simple test route for debugging (remove in production)

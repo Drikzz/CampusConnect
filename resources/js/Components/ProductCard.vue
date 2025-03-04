@@ -1,17 +1,59 @@
 <script setup>
+import { ref, onMounted } from 'vue';
+import { Link, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 
-defineProps({
-    product: Object
+const props = defineProps({
+    product: {
+        type: Object,
+        required: true
+    }
 });
+
+const isInWishlist = ref(false);
+
+onMounted(async () => {
+    router.get(`/wishlist/check/${props.product.id}`, {}, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: (page) => {
+            isInWishlist.value = page.props.inWishlist;
+        }
+    });
+});
+
+const handleImageError = (e) => {
+    e.target.src = '/images/placeholder.jpg'; // Fallback image
+};
+
+const toggleWishlist = () => {
+    router.post('/wishlist', {
+        product_id: props.product.id
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: (response) => {
+            isInWishlist.value = response.status === 'added';
+        },
+        onError: (errors) => {
+            console.error('Error toggling wishlist:', errors);
+        }
+    });
+};
 </script>
 
 <template>
     <div class="w-60 h-[30rem] p-4 flex flex-col justify-between items-start gap-4 hover:shadow-lg rounded">
         <div class="relative">
-            <!-- Use Inertia Link component -->
-            <Link :href="route('products.show', product.id)">
-                <img :src="product.images[0]" alt="" class="w-52 h-64 object-cover">
+            <Link :href="route('products.show', product.id)" class="group">
+                <div class="relative aspect-square overflow-hidden rounded-lg">
+                    <img 
+                        :src="product.images?.[0] || '/images/placeholder.jpg'"
+                        :alt="product.name"
+                        class="h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-105"
+                        @error="handleImageError"
+                    />
+                </div>
             </Link>
             <div v-if="product.discount > 0.0" class="absolute bottom-2 right-2 rounded-2xl bg-white px-3 py-1">
                 <p class="font-Satoshi-bold text-sm text-black">
@@ -20,7 +62,10 @@ defineProps({
             </div>
 
             <div class="absolute top-3 right-3 bg-white p-2 rounded-full hover:shadow-md hover:ring-2 hover:ring-black hover:transition-all">
-                <svg class="w-5 h-5 fill-black cursor-pointer bookmarked" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <svg @click="toggleWishlist" 
+                     :class="['w-5 h-5 cursor-pointer', isInWishlist ? 'fill-red-500' : 'fill-black']" 
+                     xmlns="http://www.w3.org/2000/svg" 
+                     viewBox="0 0 24 24">
                     <path d="M2.849,23.55a2.954,2.954,0,0,0,3.266-.644L12,17.053l5.885,5.853a2.956,2.956,0,0,0,2.1.881,3.05,3.05,0,0,0,1.17-.237A2.953,2.953,0,0,0,23,20.779V5a5.006,5.006,0,0,0-5-5H6A5.006,5.006,0,0,0,1,5V20.779A2.953,2.953,0,0,0,2.849,23.55Z" />
                 </svg>
             </div>

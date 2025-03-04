@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import ProductCard from '@/Components/ProductCard.vue';
 import { Button } from "@/Components/ui/button";
@@ -24,25 +24,42 @@ const props = defineProps({
 });
 
 const filters = ref({
-    matchingType: 'any',
-    category: props.filters.category || 'all', // Change default value to 'all'
-    minPrice: props.filters.price?.min || '',
-    maxPrice: props.filters.price?.max || ''
+    matchingType: props.filters?.matchingType || 'any',
+    category: props.filters?.category || 'all',
+    minPrice: props.filters?.price?.min || '',
+    maxPrice: props.filters?.price?.max || ''
 });
 
 const applyFilters = () => {
     router.get('/products', {
-        // Convert 'all' back to empty string when sending to server
+        matchingType: filters.value.matchingType,
         category: filters.value.category === 'all' ? '' : filters.value.category,
         price: {
-            min: filters.value.minPrice,
-            max: filters.value.maxPrice
+            min: filters.value.minPrice || null,
+            max: filters.value.maxPrice || null
         }
     }, {
         preserveState: true,
-        preserveScroll: true
+        preserveScroll: true,
+        replace: true
     });
 };
+
+// Add a watcher to apply filters when they change
+watch(filters.value, () => {
+    applyFilters();
+}, { deep: true });
+
+// Add a computed property to format products with proper image URLs
+const formattedProducts = computed(() => {
+    return props.products.data?.map(product => ({
+        ...product,
+        images: product.images?.map(image => 
+            image.startsWith('http') ? image : `/storage/${image}`
+        ) || []
+    })) || [];
+});
+
 </script>
 
 <template>
@@ -73,12 +90,24 @@ const applyFilters = () => {
                             <p class="font-Satoshi-bold mb-2">Matching Type</p>
                             <div class="flex flex-col gap-2">
                                 <label class="flex items-center gap-2">
-                                    <input type="radio" v-model="filters.matchingType" value="any" class="form-radio">
-                                    <span class="font-Satoshi">Any</span>
+                                    <input 
+                                        type="radio" 
+                                        v-model="filters.matchingType" 
+                                        value="any" 
+                                        class="form-radio"
+                                        @change="applyFilters"
+                                    >
+                                    <span class="font-Satoshi">Any (OR)</span>
                                 </label>
                                 <label class="flex items-center gap-2">
-                                    <input type="radio" v-model="filters.matchingType" value="all" class="form-radio">
-                                    <span class="font-Satoshi">All</span>
+                                    <input 
+                                        type="radio" 
+                                        v-model="filters.matchingType" 
+                                        value="all" 
+                                        class="form-radio"
+                                        @change="applyFilters"
+                                    >
+                                    <span class="font-Satoshi">All (AND)</span>
                                 </label>
                             </div>
                         </div>
@@ -86,7 +115,7 @@ const applyFilters = () => {
                         <!-- Categories -->
                         <div class="mb-6">
                             <p class="font-Satoshi-bold mb-2">Categories</p>
-                            <Select v-model="filters.category">
+                            <Select v-model="filters.category" @update:value="applyFilters">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
@@ -107,8 +136,18 @@ const applyFilters = () => {
                         <div class="mb-6">
                             <p class="font-Satoshi-bold mb-2">Price Range</p>
                             <div class="flex flex-col gap-2">
-                                <Input type="number" v-model="filters.minPrice" placeholder="Min Price" />
-                                <Input type="number" v-model="filters.maxPrice" placeholder="Max Price" />
+                                <Input 
+                                    type="number" 
+                                    v-model="filters.minPrice" 
+                                    placeholder="Min Price" 
+                                    @change="applyFilters"
+                                />
+                                <Input 
+                                    type="number" 
+                                    v-model="filters.maxPrice" 
+                                    placeholder="Max Price"
+                                    @change="applyFilters"
+                                />
                             </div>
                         </div>
 
@@ -121,9 +160,9 @@ const applyFilters = () => {
 
             <!-- Products Grid -->
             <div class="w-3/4">
-                <div v-if="products.data?.length > 0" 
+                <div v-if="formattedProducts.length > 0" 
                      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <ProductCard v-for="product in products.data" 
+                    <ProductCard v-for="product in formattedProducts" 
                                :key="product.id" 
                                :product="product" />
                 </div>
