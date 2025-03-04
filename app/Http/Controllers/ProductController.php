@@ -63,6 +63,8 @@ class ProductController extends Controller
 
     public function trade()
     {
+        // $products = Product::where('is_tradable', true)->latest()->get();
+        // return view('products.trade', ['products' => $products]);
         $products = Product::with(['seller', 'images'])
             ->where('is_tradable', true)
             ->where('status', 'Active')

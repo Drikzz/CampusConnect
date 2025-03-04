@@ -21,7 +21,7 @@ class CheckoutController extends Controller
         if (!$product->is_buyable) {
             return redirect()->back()->with('error', 'This product is not available for purchase.');
         }
-    
+        // return view('products.order_sum', compact('product'));
         return Inertia::render('Products/Checkout', [
             'product' => $product,
             'user' => Auth::user(),
