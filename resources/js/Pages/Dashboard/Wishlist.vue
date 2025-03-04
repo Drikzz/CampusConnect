@@ -3,6 +3,11 @@
     <div class="container mx-auto px-4">
       <h2 class="text-2xl font-bold mb-6">My Wishlist</h2>
 
+      <!-- Show error message if exists -->
+      <div v-if="error" class="text-center py-8 bg-red-50 rounded-lg">
+        <p class="text-red-600">{{ error }}</p>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="text-center py-8">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
@@ -103,47 +108,34 @@
           </svg>
         </button>
       </div>
-
-      <!-- Pagination -->
-      <div v-if="pagination.last_page > 1" class="mt-6 flex justify-center">
-        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-          <button v-for="page in pagination.last_page"
-                  :key="page"
-                  @click="fetchWishlist(page)"
-                  :class="[
-                    'relative inline-flex items-center px-4 py-2 border text-sm font-medium',
-                    page === pagination.current_page
-                      ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
-                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                  ]">
-            {{ page }}
-          </button>
-        </nav>
-      </div>
     </div>
   </DashboardLayout>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3' // Add router import
 import DashboardLayout from './DashboardLayout.vue'
 import { useToast } from '@/Components/ui/toast/use-toast'
 
 const { toast } = useToast()
 
 const props = defineProps({
-  user: Object,
-  stats: Object
-})
+    wishlistItems: {
+        type: Array,
+        required: true,
+        default: () => []
+    },
+    user: Object,
+    stats: Object,
+    error: {
+        type: String,
+        default: null
+    }
+});
 
-const loading = ref(true)
-const wishlistItems = ref([])
-const pagination = ref({
-  current_page: 1,
-  last_page: 1
-})
-const deletingIds = ref([])
+const loading = ref(false);
+const deletingIds = ref([]);
 
 const scrollContainer = ref(null)
 const currentScroll = ref(0)
@@ -157,104 +149,23 @@ function formatPrice(price) {
   })
 }
 
-async function fetchWishlist(page = 1) {
-  try {
-    loading.value = true
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-    
-    const response = await fetch(`/wishlist?page=${page}`, {
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': csrf || '',
-        'Content-Type': 'application/json'
-      },
-      credentials: 'same-origin'
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || 'Failed to fetch wishlist')
-    }
-    
-    const data = await response.json()
-    
-    if (data.status === 'success') {
-      wishlistItems.value = data.wishlists.data
-      pagination.value = {
-        current_page: data.wishlists.current_page,
-        last_page: data.wishlists.last_page
-      }
-    } else {
-      throw new Error('Invalid response format')
-    }
-  } catch (error) {
-    console.error('Error fetching wishlist:', error)
-    toast({
-      title: 'Error',
-      description: `Failed to load wishlist items: ${error.message}. Please try refreshing the page.`,
-      variant: 'destructive'
-    })
-  } finally {
-    loading.value = false
-  }
-}
+// Remove fetchWishlist function since we don't need pagination anymore
 
 async function removeFromWishlist(id) {
   if (!confirm('Are you sure you want to remove this item from your wishlist?')) {
-    return
+    return;
   }
 
   try {
-    deletingIds.value.push(id)
+    deletingIds.value.push(id);
     
-    // Get CSRF token from meta tag
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-    if (!csrf) {
-      throw new Error('CSRF token not found')
-    }
-
-    const response = await fetch(`/wishlist/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': csrf,
-      },
-      credentials: 'include', // Important for cookies
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || 'Failed to remove item')
-    }
+    // Use Inertia to handle the deletion
+    router.delete(`/dashboard/wishlist/${id}`);
     
-    const data = await response.json()
-
-    if (data.status === 'success') {
-      wishlistItems.value = wishlistItems.value.filter(item => item.id !== id)
-      toast({
-        title: 'Success',
-        description: 'Item removed from wishlist successfully',
-        variant: 'default'
-      })
-      
-      // Refresh stats if they exist
-      if (props.stats && typeof props.stats.wishlist_count !== 'undefined') {
-        props.stats.wishlist_count--
-      }
-    } else {
-      throw new Error(data.message || 'Failed to remove item')
-    }
   } catch (error) {
-    console.error('Error removing item:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to remove item from wishlist: ' + error.message,
-      variant: 'destructive'
-    })
+    console.error('Error removing item:', error);
   } finally {
-    deletingIds.value = deletingIds.value.filter(itemId => itemId !== id)
+    deletingIds.value = deletingIds.value.filter(itemId => itemId !== id);
   }
 }
 
@@ -283,7 +194,6 @@ function scroll(direction) {
 }
 
 onMounted(() => {
-  fetchWishlist()
   updateScrollButtons()
   window.addEventListener('resize', updateScrollButtons)
 })

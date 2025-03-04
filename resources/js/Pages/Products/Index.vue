@@ -50,16 +50,37 @@ watch(filters.value, () => {
     applyFilters();
 }, { deep: true });
 
-// Add a computed property to format products with proper image URLs
+// Simplify the formattedProducts computed property
 const formattedProducts = computed(() => {
-    return props.products.data?.map(product => ({
-        ...product,
-        images: product.images?.map(image => 
-            image.startsWith('http') ? image : `/storage/${image}`
-        ) || []
-    })) || [];
+    if (!props.products.data) return [];
+    
+    return props.products.data.map(product => {
+        // Create a shallow copy of the product
+        const formattedProduct = { ...product };
+        
+        // Handle images more simply
+        if (formattedProduct.images) {
+            // If images is a string that looks like JSON, parse it
+            if (typeof formattedProduct.images === 'string' && 
+                (formattedProduct.images.startsWith('[') || formattedProduct.images.startsWith('{'))) {
+                try {
+                    formattedProduct.images = JSON.parse(formattedProduct.images);
+                } catch (e) {
+                    formattedProduct.images = [formattedProduct.images];
+                }
+            }
+            
+            // Ensure images is always an array
+            if (!Array.isArray(formattedProduct.images)) {
+                formattedProduct.images = [formattedProduct.images];
+            }
+        } else {
+            formattedProduct.images = [];
+        }
+        
+        return formattedProduct;
+    });
 });
-
 </script>
 
 <template>
@@ -164,7 +185,8 @@ const formattedProducts = computed(() => {
                      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <ProductCard v-for="product in formattedProducts" 
                                :key="product.id" 
-                               :product="product" />
+                               :product="product"
+                               :disableWishlistCheck="false" />
                 </div>
                 
                 <!-- Pagination -->

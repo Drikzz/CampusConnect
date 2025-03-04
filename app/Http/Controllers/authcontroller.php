@@ -35,7 +35,15 @@ class AuthController extends Controller
             if (Auth::attempt($fields, $request->remember)) {
                 $request->session()->regenerate();
 
-                // Mail::to('test@wmsu.edu.ph')->send(new WelcomeMail(Auth::user()));
+                // Check if there's a pending wishlist action
+                if ($request->session()->has('wishlist_after_login')) {
+                    app(WishlistController::class)->handleAfterLogin($request);
+                }
+
+                // If there's a redirect parameter, use it
+                if ($request->has('redirect')) {
+                    return redirect($request->redirect);
+                }
 
                 return redirect()->intended(route('dashboard.profile'))
                     ->with('toast', [
