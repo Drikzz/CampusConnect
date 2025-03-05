@@ -231,3 +231,4 @@ const closeOrderDetails = () => {
   background-color: white;
 }
 </style>
+
