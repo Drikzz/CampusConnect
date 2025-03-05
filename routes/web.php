@@ -218,6 +218,21 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard.address');
 });
 
-Route::fallback(function () {
-    return Inertia::render('404');
-});
+Route::get('/admin/dashboard', function () {
+    if (!auth()->user()->is_admin) {
+        return redirect()->route('dashboard.profile');
+    }
+    
+    return Inertia::render('admin/admin-dashboard', [
+        'stats' => [
+            'totalUsers' => \App\Models\User::count(),
+            'totalOrders' => \App\Models\Order::count(),
+            'dailyTransactions' => \App\Models\Order::whereDate('created_at', today())->count(),
+            'weeklyTransactions' => \App\Models\Order::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
+            'monthlyTransactions' => \App\Models\Order::whereMonth('created_at', now()->month)->count(),
+            'dailyRegistrations' => \App\Models\User::whereDate('created_at', today())->count(),
+            'weeklyRegistrations' => \App\Models\User::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
+            'monthlyRegistrations' => \App\Models\User::whereMonth('created_at', now()->month)->count(),
+        ]
+    ]);
+})->middleware(['auth'])->name('admin.dashboard');
