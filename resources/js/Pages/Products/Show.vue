@@ -216,13 +216,14 @@ const currentTab = ref('ProductDetails');
 
                 <!-- Action Buttons -->
                 <div class="flex justify-evenly items-center mt-4 w-full">
-                    <Button v-if="product.is_buyable" 
-                            variant="default" 
-                            size="lg" 
-                            :href="`/summary/${product.id}`" 
-                            class="px-20">
+                    <Button 
+                         v-if="product.is_buyable" 
+                        variant="default" 
+                        size="lg" 
+                        :href="route('checkout.show', product.id)" 
+                        class="px-20">
                         Buy Now
-                    </Button>
+                        </Button>
                     <Button v-if="product.is_tradable" 
                             variant="default" 
                             size="lg" 

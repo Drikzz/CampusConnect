@@ -76,8 +76,18 @@ class ProductController extends Controller
 
     public function trade()
     {
-        $products = Product::where('is_tradable', true)->latest()->get();
-        return view('products.trade', ['products' => $products]);
+        // $products = Product::where('is_tradable', true)->latest()->get();
+        // return view('products.trade', ['products' => $products]);
+        $products = Product::with(['seller', 'images'])
+            ->where('is_tradable', true)
+            ->where('status', 'Active')
+            ->where('stock', '>', 0)
+            ->latest()
+            ->get();
+    
+        return Inertia::render('Products/Trade', [
+            'products' => $products
+        ]);
     }
 
     public function welcome()
