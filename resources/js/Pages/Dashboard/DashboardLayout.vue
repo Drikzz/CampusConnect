@@ -1,13 +1,13 @@
 <template>
     <div class="w-full mt-10 mb-28 px-4 md:px-16">
       <!-- Flash Messages -->
-      <div v-if="flash.success" 
+      <div v-if="props.flash?.success" 
            class="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
-        {{ flash.success }}
+        {{ props.flash.success }}
       </div>
-      <div v-if="flash.error"
+      <div v-if="props.flash?.error"
            class="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">
-        {{ flash.error }}
+        {{ props.flash.error }}
       </div>
 
       <!-- Header with Role Badge -->
@@ -103,38 +103,43 @@
                 <li>
                   <Link :href="route('seller.wallet.index')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/wallet') }">
+                    :class="{ 
+                      'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/wallet'),
+                      'cursor-pointer': true // Always allow clicking
+                    }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                     </svg>
                     <span>My Wallet</span>
-                    <span v-if="!hasActivatedWallet" 
+                    <span v-if="needsWalletSetup" 
                           class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                      Activation Required
+                      Setup Required
                     </span>
                   </Link>
                 </li>
                 
                 <li>
                   <div class="relative group">
-                    <Link :href="hasActivatedWallet ? route('seller.products') : '#'"
-                          :class="[
-                            'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
-                            hasActivatedWallet 
-                              ? 'text-gray-700 hover:bg-gray-50' 
-                              : 'text-gray-400 cursor-not-allowed'
-                          ]">
+                    <Link 
+                      :href="!needsWalletSetup ? route('seller.products') : '#'"
+                      :class="[
+                        'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
+                        !needsWalletSetup 
+                          ? 'text-gray-700 hover:bg-gray-50' 
+                          : 'text-gray-400 cursor-not-allowed',
+                        { 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/products') }
+                      ]">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                       </svg>
                       <span>Products</span>
                     </Link>
-                    <div v-if="!hasActivatedWallet"
+                    <div v-if="needsWalletSetup"
                          class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded 
                                 invisible group-hover:visible whitespace-nowrap">
-                      Activate your wallet to manage products
+                      Complete wallet setup to manage products
                     </div>
                   </div>
                 </li>
@@ -146,7 +151,8 @@
                             'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
                             hasActivatedWallet 
                               ? 'text-gray-700 hover:bg-gray-50' 
-                              : 'text-gray-400 cursor-not-allowed'
+                              : 'text-gray-400 cursor-not-allowed',
+                            { 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/orders') }
                           ]">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -225,11 +231,14 @@ import NavSection from './Components/NavSection.vue'
 
 const props = defineProps({
   user: Object,
-  stats: Object
+  stats: Object,
+  flash: {
+    type: Object,
+    default: () => ({})
+  }
 })
 
 const page = usePage()
-const flash = computed(() => page.props.flash || {})
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-PH', {
@@ -242,8 +251,12 @@ function logout() {
   router.post(route('logout'))
 }
 
-// Add computed property for wallet activation status
+// Update the wallet status computed properties
 const hasActivatedWallet = computed(() => {
-  return props.user?.wallet?.is_activated || false
+  return props.user?.is_seller && props.stats?.wallet?.is_activated || false
+})
+
+const needsWalletSetup = computed(() => {
+  return props.user?.is_seller && (!props.stats?.wallet?.is_activated)
 })
 </script>

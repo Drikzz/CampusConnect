@@ -24,7 +24,7 @@ const handleBuyNow = (productId) => {
 </script>
 
 <template>
-    <Head title="| Welcome" />
+    <!-- <Head title="| Welcome" /> -->
     
   <div>
     <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-white">

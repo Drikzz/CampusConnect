@@ -35,6 +35,17 @@ class AuthController extends Controller
             if (Auth::attempt($fields, $request->remember)) {
                 $request->session()->regenerate();
 
+                // Check if user is admin
+                if (Auth::user()->is_admin) {
+                    return redirect()->route('admin.dashboard')
+                        ->with('toast', [
+                            'variant' => '',
+                            'title' => 'Welcome Admin!',
+                            'description' => 'You have been logged in successfully.'
+                        ]);
+                }
+
+                // Regular user login flow continues...
                 // Check if there's a pending wishlist action
                 if ($request->session()->has('wishlist_after_login')) {
                     app(WishlistController::class)->handleAfterLogin($request);
