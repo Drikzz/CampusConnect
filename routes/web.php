@@ -16,6 +16,7 @@ use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\ProductTradeController;
 
 
 // Public routes should be at the top, before any middleware groups
@@ -27,6 +28,11 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
+
+// Trade routes
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
+Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit')->middleware('auth');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
