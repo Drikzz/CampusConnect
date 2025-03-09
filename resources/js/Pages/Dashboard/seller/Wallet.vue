@@ -245,7 +245,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { router, usePage } from '@inertiajs/vue3' // Add usePage import
 import { PlusIcon } from '@heroicons/vue/24/outline'
 import DashboardLayout from '../DashboardLayout.vue'
@@ -257,6 +257,7 @@ import { Button } from '@/Components/ui/button'
 import { Label } from '@/Components/ui/label'
 import { Input } from '@/Components/ui/input'
 import { Checkbox } from '@/Components/ui/checkbox'
+import axios from 'axios'
 
 const props = defineProps({
   user: {
@@ -467,4 +468,66 @@ const handleError = (error) => {
     variant: "destructive"
   })
 }
+
+let pollInterval = null
+const POLL_INTERVAL = 20000 // 30 seconds
+const MAX_RETRIES = 3
+let retryCount = 0
+
+const fetchWalletStatus = async () => {
+    try {
+        if (retryCount >= MAX_RETRIES) {
+            console.error('Max retries reached, stopping polling')
+            clearInterval(pollInterval)
+            return
+        }
+
+        const response = await axios.get(route('seller.wallet.status'))
+        const data = response.data
+
+        // Reset retry count on successful request
+        retryCount = 0
+
+        // Update reactive props
+        if (props.wallet) {
+            props.wallet.balance = data.balance
+            props.wallet.status = data.status
+            props.wallet.is_activated = data.is_activated
+            props.wallet.transactions = data.transactions
+        }
+
+        // Update stats
+        if (props.stats) {
+            Object.assign(props.stats, data.stats)
+        }
+
+    } catch (error) {
+        retryCount++
+        console.error('Failed to fetch wallet status:', error)
+        
+        if (retryCount >= MAX_RETRIES) {
+            clearInterval(pollInterval)
+            toast({
+                title: "Connection Error",
+                description: "Unable to update wallet data. Please refresh the page.",
+                variant: "destructive"
+            })
+        }
+    }
+}
+
+onMounted(() => {
+    // Initial fetch
+    fetchWalletStatus()
+    
+    // Start polling
+    pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL)
+})
+
+onUnmounted(() => {
+    if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+    }
+})
 </script>

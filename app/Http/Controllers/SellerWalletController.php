@@ -166,6 +166,36 @@ class SellerWalletController extends Controller
     }
   }
 
+  public function getWalletStatus()
+  {
+    try {
+      $user = auth()->user();
+      $wallet = SellerWallet::where('user_id', $user->id)
+        ->with(['transactions' => function ($query) {
+          $query->latest()->take(5);
+        }])
+        ->first();
+
+      if (!$wallet) {
+        return response()->json(['error' => 'Wallet not found'], 404);
+      }
+
+      return response()->json([
+        'balance' => $wallet->balance,
+        'status' => $wallet->status,
+        'is_activated' => $wallet->is_activated,
+        'transactions' => $wallet->transactions,
+        'stats' => $this->getWalletStats($wallet)
+      ]);
+    } catch (\Exception $e) {
+      Log::error('Wallet status fetch error:', [
+        'user_id' => auth()->id(),
+        'error' => $e->getMessage()
+      ]);
+      return response()->json(['error' => 'Server error'], 500);
+    }
+  }
+
   private function getWalletStats($wallet)
   {
     if (!$wallet) {
@@ -182,10 +212,10 @@ class SellerWalletController extends Controller
     return [
       'total_transactions' => $transactions->count(),
       'total_credits' => $transactions->where('reference_type', 'refill')
-        ->where('status', 'completed')
+        ->where('status', 'Completed')
         ->sum('amount'),
       'total_debits' => $transactions->whereIn('reference_type', ['withdraw', 'deduction'])
-        ->where('status', 'completed')
+        ->where('status', 'Completed')
         ->sum('amount'),
       'pending_transactions' => $transactions->where('status', 'pending')->count()
     ];
