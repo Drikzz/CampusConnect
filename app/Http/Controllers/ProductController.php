@@ -74,19 +74,64 @@ class ProductController extends Controller
         ]);
     }
 
-    public function trade()
+    public function trade(Request $request)
     {
-        // $products = Product::where('is_tradable', true)->latest()->get();
-        // return view('products.trade', ['products' => $products]);
-        $products = Product::with(['seller', 'images'])
+        $query = Product::query()
             ->where('is_tradable', true)
             ->where('status', 'Active')
-            ->where('stock', '>', 0)
-            ->latest()
-            ->get();
-    
+            ->with(['category', 'images']);
+
+        // Apply category filter
+        if ($request->category) {
+            $query->whereHas('category', function ($q) use ($request) {
+                $q->where('name', $request->category);
+            });
+        }
+
+        // Apply price range filter
+        if ($request->price) {
+            if (!empty($request->price['min'])) {
+                $query->where('price', '>=', $request->price['min']);
+            }
+            if (!empty($request->price['max'])) {
+                $query->where('price', '<=', $request->price['max']);
+            }
+        }
+
+        // Handle matching type (any/all) for other filters if needed
+        $matchingType = $request->input('matchingType', 'any');
+
+        // Get paginated results and transform the data
+        $products = $query->paginate(12)
+            ->through(function ($product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'description' => $product->description,
+                    'price' => (float)$product->price,
+                    'discounted_price' => (float)$product->discounted_price,
+                    'discount' => (float)$product->discount,
+                    'stock' => $product->stock,
+                    'images' => array_map(function ($image) {
+                        return $image; // The full path will be constructed in the frontend
+                    }, $product->images ?? []),
+                    'category' => $product->category ? [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name
+                    ] : null,
+                    'is_buyable' => (bool)$product->is_buyable,
+                    'is_tradable' => (bool)$product->is_tradable,
+                    'status' => $product->status,
+                ];
+            });
+
         return Inertia::render('Products/Trade', [
-            'products' => $products
+            'products' => $products,
+            'filters' => [
+                'category' => $request->category,
+                'price' => $request->price,
+                'matchingType' => $matchingType,
+            ],
         ]);
     }
 
