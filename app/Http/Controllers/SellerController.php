@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wishlist;
 use App\Models\OrderItem;
+use App\Models\SellerWallet;
 use App\Models\Tag;
 use Inertia\Inertia;
 
@@ -806,6 +807,7 @@ class SellerController extends Controller
         ];
 
         if ($user->is_seller) {
+            // Existing seller stats
             $stats['totalSales'] = OrderItem::where('seller_code', $user->seller_code)
                 ->whereHas('order', function ($query) {
                     $query->where('status', 'Completed');
@@ -820,6 +822,46 @@ class SellerController extends Controller
                 ->whereHas('order', function ($query) {
                     $query->where('status', 'Pending');
                 })->count();
+
+            // Add wallet stats
+            $wallet = SellerWallet::where('seller_code', $user->seller_code)
+                ->with(['transactions' => function ($query) {
+                    $query->latest()->take(5);
+                }])
+                ->first();
+
+            if ($wallet) {
+                $stats['wallet'] = [
+                    'id' => $wallet->id,
+                    'balance' => $wallet->balance,
+                    'is_activated' => $wallet->is_activated,
+                    'status' => $wallet->status,
+                    'transactions' => $wallet->transactions,
+                    'total_transactions' => $wallet->transactions()->count(),
+                    'total_credits' => $wallet->transactions()
+                        ->where('reference_type', 'refill')  // Changed from type = credit
+                        ->where('status', 'completed')
+                        ->sum('amount'),
+                    'total_debits' => $wallet->transactions()
+                        ->whereIn('reference_type', ['withdraw', 'deduction'])  // Changed from type = debit
+                        ->where('status', 'completed')
+                        ->sum('amount'),
+                    'pending_transactions' => $wallet->transactions()
+                        ->where('status', 'pending')
+                        ->count()
+                ];
+            } else {
+                $stats['wallet'] = [
+                    'balance' => 0,
+                    'is_activated' => false,
+                    'status' => 'pending',
+                    'transactions' => [],
+                    'total_transactions' => 0,
+                    'total_credits' => 0,
+                    'total_debits' => 0,
+                    'pending_transactions' => 0
+                ];
+            }
         }
 
         return $stats;

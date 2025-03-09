@@ -10,26 +10,28 @@ class SellerWallet extends Model
   use SoftDeletes;
 
   protected $fillable = [
+    'user_id',
     'seller_code',
     'balance',
     'is_activated',
     'status',
-    'activated_at'
+    'activated_at',
+    'id_path'
   ];
 
   protected $casts = [
+    'balance' => 'decimal:2',
     'is_activated' => 'boolean',
-    'activated_at' => 'datetime',
-    'balance' => 'decimal:2'
+    'activated_at' => 'datetime'
   ];
 
-  public function seller()
+  public function user()
   {
-    return $this->belongsTo(User::class, 'seller_code', 'seller_code');
+    return $this->belongsTo(User::class);
   }
 
   public function transactions()
   {
-    return $this->hasMany(WalletTransaction::class, 'seller_code', 'seller_code');
+    return $this->hasMany(WalletTransaction::class, 'user_id', 'user_id');
   }
 }

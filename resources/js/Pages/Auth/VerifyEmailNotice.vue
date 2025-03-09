@@ -42,6 +42,13 @@ watch(() => page.props.flash.message, (message) => {
         });
     }
 }, { immediate: true });
+
+// Add this form for logout
+const logoutForm = useForm({});
+
+const handleLogout = () => {
+    logoutForm.post(route('logout'));
+};
 </script>
 
 <template>
@@ -98,16 +105,15 @@ watch(() => page.props.flash.message, (message) => {
 
                             <!-- Logout Button -->
                             <div class="mt-6 pt-6 border-t border-gray-200">
-                                <form method="POST" action="/logout">
-                                    <input type="hidden" name="_token" :value="$page.props.csrf_token">
-                                    <Button 
-                                        type="submit" 
-                                        variant="outline"
-                                        class="w-full border-gray-300 text-gray-700"
-                                    >
-                                        Log Out
-                                    </Button>
-                                </form>
+                                <Button 
+                                    type="button" 
+                                    variant="outline"
+                                    class="w-full border-gray-300 text-gray-700"
+                                    @click="handleLogout"
+                                    :disabled="logoutForm.processing"
+                                >
+                                    {{ logoutForm.processing ? 'Logging out...' : 'Log Out' }}
+                                </Button>
                             </div>
                         </div>
                     </CardContent>

@@ -81,6 +81,10 @@ const formattedProducts = computed(() => {
         return formattedProduct;
     });
 });
+
+const handleBuyNow = (productId) => {
+    window.location.href = `/checkout/${productId}`;
+};
 </script>
 
 <template>
@@ -186,7 +190,8 @@ const formattedProducts = computed(() => {
                     <ProductCard v-for="product in formattedProducts" 
                                :key="product.id" 
                                :product="product"
-                               :disableWishlistCheck="false" />
+                               :disableWishlistCheck="false"
+                               @buyNow="handleBuyNow" />
                 </div>
                 
                 <!-- Pagination -->
