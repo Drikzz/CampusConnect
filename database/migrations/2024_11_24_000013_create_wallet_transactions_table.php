@@ -10,17 +10,19 @@ return new class extends Migration
   {
     Schema::create('wallet_transactions', function (Blueprint $table) {
       $table->id();
-      $table->string('seller_code');
-      $table->foreign('seller_code')->references('seller_code')->on('users')->onDelete('cascade');
-      $table->string('type'); // credit, debit
+      $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Foreign key user_id
       $table->decimal('amount', 10, 2);
-      $table->decimal('previous_balance', 10, 2);
-      $table->decimal('new_balance', 10, 2);
-      $table->string('reference_type'); // order, withdrawal, refund
-      $table->string('reference_id');
-      $table->string('status')->default('pending'); // pending, completed, failed
-      $table->text('description')->nullable();
+      $table->decimal('previous_balance', 10, 2)->nullable(); // Nullable because no balance yet on first refill
+      $table->decimal('new_balance', 10, 2)->nullable();
+      $table->string('reference_type'); // refill, withdraw, deduction
+      $table->string('reference_id')->nullable(); // Payment Ref Number or Transaction ID
+      $table->string('status')->default('pending'); // pending, completed, rejected
+      $table->text('description')->nullable(); // Remarks for the transaction
+      $table->string('receipt_path')->nullable(); // For uploading ref number screenshot
+      $table->timestamp('processed_at')->nullable();
+      $table->foreignId('processed_by')->nullable()->constrained('users')->onDelete('set null'); // Nullable Admin who processed
       $table->timestamps();
+      $table->softDeletes();
     });
   }
 
