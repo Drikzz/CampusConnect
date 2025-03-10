@@ -101,14 +101,14 @@ Route::middleware('auth')->group(function () {
                 // Dashboard and main routes
                 Route::get('/', [SellerController::class, 'index'])->name('seller.index');
                 Route::get('/products', [SellerController::class, 'products'])->name('seller.products');
-                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders');
+                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders'); // edit this colleen
                 Route::get('/analytics', [SellerController::class, 'analytics'])->name('seller.analytics');
                 Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews');
 
-                // Order management routes
-                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
-                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
-                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
+                // Order management routes // edit this colleen
+                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show'); // edit this colleen
+                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status'); // edit this colleen
+                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup'); // edit this colleen
 
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');

@@ -88,7 +88,6 @@ class SellerWalletController extends Controller
   public function setup(Request $request)
   {
     try {
-      // Log incoming request data
       Log::info('Wallet setup request:', [
         'user_id' => auth()->id(),
         'seller_code' => auth()->user()->seller_code,
@@ -98,46 +97,78 @@ class SellerWalletController extends Controller
 
       $request->validate([
         'id_image' => 'required|image|max:2048',
-        'terms_accepted' => 'required|accepted',
-        'wmsu_email' => 'required|email|ends_with:wmsu.edu.ph'
+        'terms_accepted' => 'required|accepted'
       ]);
 
       DB::beginTransaction();
 
       $user = auth()->user();
 
-      // Create or update wallet
+      // Find existing wallet and rejected verification
+      $wallet = SellerWallet::where('user_id', $user->id)->first();
+      $rejectedVerification = WalletTransaction::where('user_id', $user->id)
+        ->where('reference_type', 'verification')
+        ->where('verification_type', 'seller_activation')
+        ->where('status', 'rejected')
+        ->first(); // Changed from exists() to first() to get the record
+
+      // Store new ID image
+      $idPath = $request->file('id_image')->store('seller-ids', 'public');
+
+      // Update or create wallet 
       $wallet = SellerWallet::updateOrCreate(
         ['user_id' => $user->id],
         [
           'seller_code' => $user->seller_code,
-          'status' => SellerWallet::STATUS_PENDING_APPROVAL
+          'status' => SellerWallet::STATUS_PENDING_APPROVAL,
+          'is_activated' => false
         ]
       );
 
-      $idPath = $request->file('id_image')->store('seller-ids', 'public');
-
-      // Create verification transaction record with explicit string seller_code  
-      $transaction = WalletTransaction::create([
-        'user_id' => $user->id,
-        'seller_code' => strval($user->seller_code), // Convert to string explicitly
-        'type' => 'credit',
-        'amount' => 0,
-        'reference_type' => 'verification',
-        'reference_id' => (string) Str::ulid(),
-        'verification_type' => 'seller_activation',
-        'verification_data' => [
-          'wmsu_email' => $request->wmsu_email,
-          'selfie_with_id' => $idPath,
-          'agreed_to_terms' => true
-        ],
-        'status' => 'pending',
-        'description' => 'Wallet verification request'
-      ]);
+      // Update existing verification or create new one
+      if ($rejectedVerification) {
+        // Update existing verification transaction
+        $transaction = $rejectedVerification;
+        $transaction->update([
+          'verification_data' => [
+            'wmsu_email' => $user->wmsu_email,
+            'selfie_with_id' => $idPath,
+            'agreed_to_terms' => true,
+            'is_resubmission' => true
+          ],
+          'status' => 'pending',
+          'processed_at' => null,
+          'processed_by' => null,
+          'remarks' => null
+        ]);
+      } else {
+        // Create new verification transaction for first-time setup
+        $transaction = WalletTransaction::create([
+          'user_id' => $user->id,
+          'seller_code' => $user->seller_code,
+          'type' => 'credit',
+          'amount' => 0,
+          'reference_type' => 'verification',
+          'reference_id' => (string) Str::ulid(),
+          'verification_type' => 'seller_activation',
+          'verification_data' => [
+            'wmsu_email' => $user->wmsu_email,
+            'selfie_with_id' => $idPath,
+            'agreed_to_terms' => true,
+            'is_resubmission' => false
+          ],
+          'status' => 'pending',
+          'description' => 'Wallet Verification Request'
+        ]);
+      }
 
       DB::commit();
 
-      return back()->with('success', 'Verification request submitted successfully');
+      $message = $rejectedVerification ?
+        'Verification request resubmitted successfully' :
+        'Verification request submitted successfully';
+
+      return back()->with('success', $message);
     } catch (\Exception $e) {
       DB::rollBack();
       Log::error('Wallet setup error:', [

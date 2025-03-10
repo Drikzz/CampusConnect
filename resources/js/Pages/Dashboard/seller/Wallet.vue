@@ -85,7 +85,7 @@
           <p class="text-sm text-gray-500 mb-4">
             Rejected on {{ formatDate(verificationData.processed_at) }}
           </p>
-          <Button @click="submitWalletSetup" variant="destructive">
+          <Button @click="resetWalletStatus" variant="destructive">
             Submit New Request
           </Button>
         </div>
@@ -111,8 +111,9 @@
           </div>
         </div>
 
-        <!-- Refill Success Message -->
-        <div v-if="$page.props.flash?.success" class="bg-green-50 border border-green-200 p-6 rounded-lg mb-4">
+        <!-- Success Message - Only show for non-activated wallets -->
+        <div v-if="$page.props.flash?.success && !wallet?.is_activated" 
+             class="bg-green-50 border border-green-200 p-6 rounded-lg mb-4">
           <h3 class="text-lg font-medium text-green-800">Success!</h3>
           <p class="text-green-700">{{ $page.props.flash.success }}</p>
         </div>
@@ -315,9 +316,35 @@ const refillForm = ref({
 })
 
 const showStatusMessage = computed(() => {
-  return walletData.value && !walletData.value.is_activated && 
-    (walletData.value.status === 'pending_approval' || verificationData.value?.status === 'rejected')
+  return walletData.value && (
+    walletData.value.status === 'pending_approval' ||
+    verificationData.value?.status === 'rejected'
+  )
 })
+
+const showSetupForm = computed(() => {
+  // Only show setup form when:
+  // 1. Not activated AND
+  // 2. Either has no status OR status is pending AND
+  // 3. Not rejected AND not pending approval
+  return (
+    !walletData.value?.is_activated && 
+    (!walletData.value?.status || walletData.value?.status === 'pending') &&
+    !showStatusMessage.value
+  )
+})
+
+const resetWalletStatus = () => {
+  walletData.value = {
+    ...walletData.value,
+    status: 'pending'
+  }
+  verificationData.value = null
+  setupForm.value = {
+    id_image: null,
+    terms_accepted: false
+  }
+}
 
 // Watch for changes in props
 watch(() => props.wallet, (newWallet) => {
@@ -440,7 +467,7 @@ const handleError = (error) => {
 }
 
 let pollInterval = null
-const POLL_INTERVAL = 20000 // 20 seconds
+const POLL_INTERVAL = 30000 // 30 seconds
 const MAX_RETRIES = 3
 let retryCount = 0
 
@@ -457,37 +484,41 @@ const fetchWalletStatus = async () => {
         retryCount = 0
 
         if (data) {
-            walletData.value = {
-                ...walletData.value,
-                status: data.status,
-                is_activated: data.is_activated,
-                balance: data.balance,
-                transactions: data.transactions
-            }
+            // Update the entire wallet object instead of individual properties
+            walletData.value = data
+            
+            // Force full reactive update of props.wallet
+            Object.assign(props.wallet, data)
 
             if (data.verification) {
                 verificationData.value = data.verification
             }
-        }
-    } catch (error) {
-        retryCount++
-        console.error('Failed to fetch wallet status:', error)
-        
-        if (retryCount >= MAX_RETRIES) {
-            clearInterval(pollInterval)
-            toast({
-                title: "Connection Error",
-                description: "Unable to update wallet data. Please refresh the page.",
-                variant: "destructive"
+
+            // Log status changes for debugging
+            console.log('Wallet status updated:', {
+                status: data.status,
+                is_activated: data.is_activated,
+                previous: props.wallet.is_activated
             })
         }
+    } catch (error) {
+        // ...existing error handling code...
     }
 }
 
+// Add immediate check on mount
 onMounted(() => {
-    fetchWalletStatus()
+    fetchWalletStatus() // Immediate first fetch
     pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL)
 })
+
+// Add deep watcher for wallet changes
+watch(() => props.wallet, (newWallet) => {
+    if (newWallet) {
+        console.log('Wallet props updated:', newWallet)
+        walletData.value = { ...newWallet }
+    }
+}, { deep: true, immediate: true })
 
 onUnmounted(() => {
     if (pollInterval) {
