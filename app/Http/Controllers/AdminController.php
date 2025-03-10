@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category; // Import the Category model
 use App\Models\Transaction;
 use App\Models\Order; // Import the Order model
+use App\Models\SellerWallet;
 use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -348,7 +349,7 @@ class AdminController extends Controller
 
             // Update transaction status
             $transaction->update([
-                'status' => 'completed',
+                'status' => 'Completed',
                 'processed_at' => now(),
                 'processed_by' => auth()->id()
             ]);
@@ -378,16 +379,42 @@ class AdminController extends Controller
     public function rejectWalletRequest($id)
     {
         try {
+            DB::beginTransaction();
+
             $transaction = WalletTransaction::findOrFail($id);
+            $wallet = $transaction->wallet;
+
+            // Update transaction status with rejection details
             $transaction->update([
                 'status' => 'rejected',
                 'processed_at' => now(),
-                'processed_by' => auth()->id()
+                'processed_by' => auth()->id(),
+                'remarks' => WalletTransaction::$remarks['verification_rejected']
             ]);
 
-            return back()->with('success', 'Wallet refill request rejected');
+            // Set wallet status back to pending but keep track of rejection
+            if ($transaction->reference_type === 'verification') {
+                $wallet->update([
+                    'status' => 'pending',
+                    'is_activated' => false
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('Wallet request rejected:', [
+                'transaction_id' => $transaction->id,
+                'wallet_id' => $wallet->id,
+                'user_id' => $wallet->user_id
+            ]);
+
+            return back()->with('success', 'Wallet verification request rejected');
         } catch (\Exception $e) {
-            Log::error('Wallet rejection error: ' . $e->getMessage());
+            DB::rollBack();
+            Log::error('Wallet rejection error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return back()->with('error', 'Failed to reject wallet request');
         }
     }

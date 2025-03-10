@@ -12,14 +12,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Illuminate\Support\Str;
 
 class SellerWalletController extends Controller
 {
   public function index()
   {
     $user = auth()->user();
-    $user->load('wallet.transactions');
 
+    // Get wallet with transactions
     $wallet = SellerWallet::where('user_id', $user->id)
       ->with(['transactions' => function ($query) {
         $query->latest()->take(5);
@@ -36,15 +37,22 @@ class SellerWalletController extends Controller
       ]);
     }
 
-    Log::info('Wallet state:', [
-      'wallet_id' => $wallet->id,
-      'status' => $wallet->status,
-      'is_activated' => $wallet->is_activated
-    ]);
+    // Get latest verification transaction
+    $latestVerification = WalletTransaction::where('user_id', $user->id)
+      ->where('reference_type', 'verification')
+      ->latest()
+      ->first();
 
     return Inertia::render('Dashboard/seller/Wallet', [
       'user' => $user,
       'wallet' => $wallet,
+      'verification' => $latestVerification ? [
+        'status' => $latestVerification->status,
+        'remarks' => $latestVerification->remarks,
+        'description' => $latestVerification->description,
+        'processed_at' => $latestVerification->processed_at,
+        'submitted_at' => $latestVerification->created_at
+      ] : null,
       'stats' => array_merge(
         $this->getDashboardStats($user),
         $this->getWalletStats($wallet)
@@ -79,41 +87,98 @@ class SellerWalletController extends Controller
 
   public function setup(Request $request)
   {
-    $request->validate([
-      'id_image' => 'required|image|max:2048',
-      'terms_accepted' => 'required|accepted'
-    ]);
-
     try {
+      Log::info('Wallet setup request:', [
+        'user_id' => auth()->id(),
+        'seller_code' => auth()->user()->seller_code,
+        'request_data' => $request->all(),
+        'has_file' => $request->hasFile('id_image')
+      ]);
+
+      $request->validate([
+        'id_image' => 'required|image|max:2048',
+        'terms_accepted' => 'required|accepted'
+      ]);
+
       DB::beginTransaction();
 
       $user = auth()->user();
-      $wallet = SellerWallet::where('user_id', $user->id)->firstOrFail();
+
+      // Find existing wallet and rejected verification
+      $wallet = SellerWallet::where('user_id', $user->id)->first();
+      $rejectedVerification = WalletTransaction::where('user_id', $user->id)
+        ->where('reference_type', 'verification')
+        ->where('verification_type', 'seller_activation')
+        ->where('status', 'rejected')
+        ->first(); // Changed from exists() to first() to get the record
+
+      // Store new ID image
       $idPath = $request->file('id_image')->store('seller-ids', 'public');
 
-      // Update wallet status to pending_approval
-      $wallet->update([
-        'status' => 'pending_approval'
-      ]);
+      // Update or create wallet 
+      $wallet = SellerWallet::updateOrCreate(
+        ['user_id' => $user->id],
+        [
+          'seller_code' => $user->seller_code,
+          'status' => SellerWallet::STATUS_PENDING_APPROVAL,
+          'is_activated' => false
+        ]
+      );
 
-      // Create verification transaction record
-      WalletTransaction::create([
-        'user_id' => $user->id,
-        'amount' => 0,
-        'reference_type' => 'verification',
-        'reference_id' => 'VERIFY-' . time(),
-        'status' => 'pending',
-        'description' => 'Wallet verification request',
-        'receipt_path' => $idPath
-      ]);
+      // Update existing verification or create new one
+      if ($rejectedVerification) {
+        // Update existing verification transaction
+        $transaction = $rejectedVerification;
+        $transaction->update([
+          'verification_data' => [
+            'wmsu_email' => $user->wmsu_email,
+            'selfie_with_id' => $idPath,
+            'agreed_to_terms' => true,
+            'is_resubmission' => true
+          ],
+          'status' => 'pending',
+          'processed_at' => null,
+          'processed_by' => null,
+          'remarks' => null
+        ]);
+      } else {
+        // Create new verification transaction for first-time setup
+        $transaction = WalletTransaction::create([
+          'user_id' => $user->id,
+          'seller_code' => $user->seller_code,
+          'type' => 'credit',
+          'amount' => 0,
+          'reference_type' => 'verification',
+          'reference_id' => (string) Str::ulid(),
+          'verification_type' => 'seller_activation',
+          'verification_data' => [
+            'wmsu_email' => $user->wmsu_email,
+            'selfie_with_id' => $idPath,
+            'agreed_to_terms' => true,
+            'is_resubmission' => false
+          ],
+          'status' => 'pending',
+          'description' => 'Wallet Verification Request'
+        ]);
+      }
 
       DB::commit();
 
-      return back()->with('success', 'Verification request submitted successfully');
+      $message = $rejectedVerification ?
+        'Verification request resubmitted successfully' :
+        'Verification request submitted successfully';
+
+      return back()->with('success', $message);
     } catch (\Exception $e) {
       DB::rollBack();
-      Log::error('Wallet setup error: ' . $e->getMessage());
-      return back()->with('error', 'Failed to submit verification request');
+      Log::error('Wallet setup error:', [
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString(),
+        'user_id' => auth()->id(),
+        'seller_code' => auth()->user()->seller_code
+      ]);
+
+      return back()->withErrors(['error' => 'Failed to submit verification request: ' . $e->getMessage()]);
     }
   }
 
@@ -166,6 +231,7 @@ class SellerWalletController extends Controller
     }
   }
 
+  // Update the getWalletStatus method
   public function getWalletStatus()
   {
     try {
@@ -176,23 +242,43 @@ class SellerWalletController extends Controller
         }])
         ->first();
 
-      if (!$wallet) {
-        return response()->json(['error' => 'Wallet not found'], 404);
-      }
+      // Get latest verification transaction
+      $latestVerification = WalletTransaction::where('user_id', $user->id)
+        ->where('reference_type', 'verification')
+        ->latest()
+        ->first();
+
+      Log::info('Fetched wallet status:', [
+        'wallet_status' => $wallet?->status,
+        'verification_status' => $latestVerification?->status,
+        'verification_remarks' => $latestVerification?->remarks
+      ]);
 
       return response()->json([
+        'id' => $wallet->id,
         'balance' => $wallet->balance,
-        'status' => $wallet->status,
+        'status' => strtolower($wallet->status),
         'is_activated' => $wallet->is_activated,
+        'created_at' => $wallet->created_at,
         'transactions' => $wallet->transactions,
-        'stats' => $this->getWalletStats($wallet)
+        'verification' => $latestVerification ? [
+          'status' => $latestVerification->status,
+          'remarks' => $latestVerification->remarks,
+          'description' => $latestVerification->description,
+          'processed_at' => $latestVerification->processed_at,
+          'submitted_at' => $latestVerification->created_at
+        ] : null
       ]);
     } catch (\Exception $e) {
       Log::error('Wallet status fetch error:', [
         'user_id' => auth()->id(),
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
       ]);
-      return response()->json(['error' => 'Server error'], 500);
+      return response()->json([
+        'error' => 'Server error',
+        'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+      ], 500);
     }
   }
 
