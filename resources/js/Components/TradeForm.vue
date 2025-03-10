@@ -344,4 +344,5 @@ const submitTradeOffer = () => {
             </form>
         </DialogContent>
     </Dialog>
+    
 </template>
