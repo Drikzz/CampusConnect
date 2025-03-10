@@ -10,17 +10,28 @@ return new class extends Migration
   {
     Schema::create('wallet_transactions', function (Blueprint $table) {
       $table->id();
-      $table->string('seller_code');
-      $table->foreign('seller_code')->references('seller_code')->on('users')->onDelete('cascade');
-      $table->string('type'); // credit, debit
+      $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // Foreign key user_id
+      $table->string('seller_code'); // Remove the foreign key constraint
+      $table->enum('type', ['credit', 'debit'])->nullable(); // credit = refill, debit = deduction
       $table->decimal('amount', 10, 2);
-      $table->decimal('previous_balance', 10, 2);
-      $table->decimal('new_balance', 10, 2);
-      $table->string('reference_type'); // order, withdrawal, refund
-      $table->string('reference_id');
-      $table->string('status')->default('pending'); // pending, completed, failed
-      $table->text('description')->nullable();
+      $table->decimal('previous_balance', 10, 2)->nullable(); // Nullable because no balance yet on first refill
+      $table->decimal('new_balance', 10, 2)->nullable();
+      $table->enum('reference_type', ['verification', 'order', 'withdrawal', 'refund', 'refill']);
+      $table->string('reference_id')->nullable(); // Holds verification request ID, order ID, or payment ref #
+      $table->enum('status', ['pending', 'completed', 'failed', 'rejected'])->default('pending');
+      $table->text('description')->nullable(); // Remarks for the transaction
+
+      // New verification columns
+      $table->string('verification_type')->nullable(); // e.g., 'seller_activation'
+      $table->json('verification_data')->nullable(); // Stores ID selfie, WMSU email, agreement status
+
+      $table->string('receipt_path')->nullable(); // If needed for proof of transactions
+      $table->timestamp('processed_at')->nullable(); // Admin approval time
+      $table->foreignId('processed_by')->nullable()->constrained('users')->onDelete('set null'); // Admin user ID
+      $table->text('remarks')->nullable(); // Admin rejection reasonwho processed
+
       $table->timestamps();
+      $table->softDeletes();
     });
   }
 

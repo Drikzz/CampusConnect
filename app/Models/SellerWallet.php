@@ -10,6 +10,7 @@ class SellerWallet extends Model
   use SoftDeletes;
 
   protected $fillable = [
+    'user_id',
     'seller_code',
     'balance',
     'is_activated',
@@ -18,14 +19,20 @@ class SellerWallet extends Model
   ];
 
   protected $casts = [
+    'balance' => 'decimal:2',
     'is_activated' => 'boolean',
-    'activated_at' => 'datetime',
-    'balance' => 'decimal:2'
+    'activated_at' => 'datetime'
   ];
 
-  public function seller()
+  // Define ENUM statuses for easy reference
+  public const STATUS_PENDING = 'pending';
+  public const STATUS_PENDING_APPROVAL = 'pending_approval';
+  public const STATUS_ACTIVE = 'active';
+  public const STATUS_SUSPENDED = 'suspended';
+
+  public function user()
   {
-    return $this->belongsTo(User::class, 'seller_code', 'seller_code');
+    return $this->belongsTo(User::class, 'user_id');
   }
 
   public function transactions()
