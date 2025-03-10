@@ -135,8 +135,13 @@ Route::middleware('auth')->group(function () {
                 Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
 
                 //wallet routes
-                Route::get('/wallet', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
-                Route::post('/wallet/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
+                Route::prefix('wallet')->group(function () {
+                    Route::get('/', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
+                    Route::post('/setup', [SellerWalletController::class, 'setup'])->name('seller.wallet.setup');
+                    Route::post('/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
+                    Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
+                    Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
+                });
             });
         });
 
@@ -164,86 +169,32 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-// Route::prefix('tags')->group(function () {
-//     Route::get('/', [TagController::class, 'index'])->name('tags.index');
-//     Route::post('/', [TagController::class, 'store'])->name('tags.store');
-//     Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+Route::middleware('auth', 'admin')->group(function () {
+    Route::prefix('admin')->group(function () {
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('admin.wallet-requests');
+        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('admin.wallet-requests.approve');
+        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('admin.wallet-requests.reject');
 
-//     // Add this route temporarily for debugging
-//     Route::get('/debug/order/{order}', function (App\Models\Order $order) {
-//         return response()->json([
-//             'order' => $order->load(['items.product', 'meetup_location', 'buyer', 'seller']),
-//         ]);
-//     })->middleware('auth');
-// });
+        // Add these new routes
+        Route::get('/users', [AdminController::class, 'userManagement'])->name('admin.users');
+        Route::get('/products', [AdminController::class, 'productManagement'])->name('admin.products');
+        Route::get('/orders', [AdminController::class, 'transactions'])->name('admin.orders');
+        Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
+        Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
 
-// Admin Authentication Routes
-// Route::get('/admin/login', [AdminController::class, 'showLoginForm'])->name('admin.login');
-// Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
-
-// Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
-
-// Admin Dashboard Route
-// Route::get('/admin/dashboard', function () {
-//     return view('admin.admin-dashboard');
-// })->name('admin.dashboard');
-
-// Route::get('/admin/dashboard2', [AdminController::class, 'dashboard2'])->name('admin-dashboard2');
-// Route::get('/admin/userManagement', [AdminController::class, 'userManagement'])->name('admin-userManagement');
-// Route::get('/admin/userManagement/create', [AdminController::class, 'create'])->name('admin-userManagement.create');
-// Route::post('/admin/userManagement', [AdminController::class, 'store'])->name('admin-userManagement.store');
-// Route::get('/admin/userManagement/{user}/edit', [AdminController::class, 'edit'])->name('admin-userManagement.edit');
-// Route::put('/admin/userManagement/{user}', [AdminController::class, 'update'])->name('admin-userManagement.update');
-// Route::delete('/admin/userManagement/{user}', [AdminController::class, 'destroy'])->name('admin-userManagement.destroy');
-// Route::get('/admin/userManagement/{user}', [AdminController::class, 'show'])->name('admin-userManagement.show');
-
-// Route::get('/admin/sales', function () {
-//     return view('admin.admin-sales');
-// })->name('admin.sales');
-
-// Route::get('/admin/transactions', function () {
-//     return view('admin.admin-transactions');
-// })->name('admin.transactions');
-
-// Route::get('/admin/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
-
-// Route::get('/admin/users', function () {
-//     return view('admin.admin-userManagement');
-// })->name('admin.users');
-
-// Route::get('/admin/reports', function () {
-//     return view('admin.admin-reportManagement');
-// })->name('admin.reports');
-
-
-// Route::get('/admin/funds', function () {
-//     return view('admin.admin-fundManagement');
-// })->name('admin.funds');
-
-// Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
-
-// PLS DON'T DELETE THIS CODE FOR A WHILE
-// Protected Admin Routes
-// Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-//     // Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-//     // Route::get('/sales', [AdminController::class, 'sales'])->name('admin.sales');
-//     // Route::get('/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
-//     // Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
-//     // Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
-//     Route::get('/products', [AdminController::class, 'products'])->name('admin.products');
-//     Route::get('/funds', [AdminController::class, 'funds'])->name('admin.funds');
-// });
-
-// Route::view('/admin/sales', 'admin.admin-sales')->name('adminsales');
-
-// Route::view('/admin/products', 'admin.admin-productManagement')->name('admin-product-management');
-// Route::view('/admin/userManagement', 'admin.admin-userManagement')->name('admin-userManagement');
-// Route::view('/admin/funds', 'admin.admin-fundManagement')->name('admin-funds');
-
-// Route::view('/Adminside-userprofile', 'admin.adminside-userprofile  ')->name('admin-userManagement');
-// Route::view('/Admin-transactions', 'admin.admin-transactions')->name('admin-transactions');
-
-// Route::view('/Admin-user-approve', 'admin.admin-user-approved')->name('admin-user-approved');
+        // Wallet Management Routes
+        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('admin.wallet'); // Use same controller method
+        Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
+            ->name('admin.wallet-requests.update-fees');
+        Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
+            ->name('admin.wallet-requests.adjust-balance');
+        Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
+            ->name('admin.wallet-requests.approve-refund');
+        Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
+            ->name('admin.wallet-requests.reject-refund');
+    });
+});
 
 Route::fallback(function () {
     return Inertia::render('404');

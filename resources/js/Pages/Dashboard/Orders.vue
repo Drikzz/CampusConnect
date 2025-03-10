@@ -230,5 +230,5 @@ const closeOrderDetails = () => {
 .bg-card {
   background-color: white;
 }
-</style>
 
+</style>

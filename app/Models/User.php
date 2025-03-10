@@ -156,4 +156,9 @@ class User extends Authenticatable implements MustVerifyEmail
             ->where('is_default', true)
             ->first();
     }
+
+    public function wallet()
+    {
+        return $this->hasOne(SellerWallet::class, 'seller_code', 'seller_code');
+    }
 }
