@@ -53,30 +53,38 @@
         </div>
       </div>
 
-      <!-- Wallet Status Messages - Show for pending_approval or denied -->
+      <!-- Wallet Status Messages -->
       <div v-else-if="showStatusMessage" class="max-w-2xl mx-auto mb-6">
         <!-- Verification Pending -->
-        <div v-if="wallet.status === 'pending_approval'" 
+        <div v-if="walletData.status === 'pending_approval'"
              class="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
           <h2 class="text-xl font-semibold text-yellow-800 mb-2">Wallet Verification in Progress</h2>
           <p class="text-yellow-700">
             Your seller wallet verification is under review. This process typically takes 24-48 hours.
           </p>
           <div class="mt-4 flex items-center text-yellow-700">
-            <span>Request submitted on {{ formatDate(wallet.created_at) }}</span>
+            <span>Request submitted on {{ formatDate(verificationData.submitted_at) }}</span>
           </div>
         </div>
 
-        <!-- Verification Denied -->
-        <div v-else-if="wallet.status === 'denied'" 
+        <!-- Verification Rejected -->
+        <div v-else-if="verificationData?.status === 'rejected'"
              class="bg-red-50 border border-red-200 p-6 rounded-lg">
-          <h2 class="text-xl font-semibold text-red-800 mb-2">Verification Request Denied</h2>
-          <p class="text-red-700 mb-4">Your verification request was not approved. Please check:</p>
+          <h2 class="text-xl font-semibold text-red-800 mb-2">Verification Request Rejected</h2>
+          <p v-if="verificationData.remarks" class="text-red-700 mb-4">
+            {{ verificationData.remarks }}
+          </p>
+          <p v-if="verificationData.description" class="text-gray-600 mb-4">
+            {{ verificationData.description }}
+          </p>
           <ul class="list-disc list-inside text-red-700 mb-4 space-y-2">
             <li>Valid ID is clear and readable</li>
             <li>Information matches your profile</li>
             <li>You meet all seller requirements</li>
           </ul>
+          <p class="text-sm text-gray-500 mb-4">
+            Rejected on {{ formatDate(verificationData.processed_at) }}
+          </p>
           <Button @click="submitWalletSetup" variant="destructive">
             Submit New Request
           </Button>
@@ -246,7 +254,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { router, usePage } from '@inertiajs/vue3' // Add usePage import
+import { router, usePage } from '@inertiajs/vue3'
 import { PlusIcon } from '@heroicons/vue/24/outline'
 import DashboardLayout from '../DashboardLayout.vue'
 import StatCard from '../Components/StatCard.vue'
@@ -257,7 +265,10 @@ import { Button } from '@/Components/ui/button'
 import { Label } from '@/Components/ui/label'
 import { Input } from '@/Components/ui/input'
 import { Checkbox } from '@/Components/ui/checkbox'
+import { useToast } from "@/Components/ui/toast/use-toast"
 import axios from 'axios'
+
+const { toast } = useToast()
 
 const props = defineProps({
   user: {
@@ -273,20 +284,29 @@ const props = defineProps({
       transactions: []
     })
   },
+  verification: {
+    type: Object,
+    default: null
+  },
   stats: {
     type: Object,
     required: true
   }
 })
 
-const page = usePage() // Add this line to access page props
-
 // Initialize reactive refs
+const walletData = ref({ ...props.wallet })
+const verificationData = ref({ ...props.verification })
 const showActivationModal = ref(false)
 const showDepositModal = ref(false)
 const showRefillModal = ref(false)
 const isSubmitting = ref(false)
 const pendingRequest = ref(false)
+
+const setupForm = ref({
+  id_image: null,
+  terms_accepted: false
+})
 
 const refillForm = ref({
   amount: 100,
@@ -294,73 +314,23 @@ const refillForm = ref({
   receipt_image: null
 })
 
-const setupForm = ref({
-  id_image: null,
-  terms_accepted: false
-})
-
-// Fix: Properly reference props.wallet in setup state
-const setupPending = computed(() => 
-  props.wallet?.status === 'pending_approval'
-)
-
-// Add computed for verification status messages
-const verificationStatus = computed(() => {
-  if (!props.wallet) return null
-  
-  switch(props.wallet.status) {
-    case 'pending_approval':
-      return {
-        type: 'warning',
-        title: 'Verification Pending',
-        message: 'Your seller verification is under review'
-      }
-    case 'denied':
-      return {
-        type: 'error',
-        title: 'Verification Denied',
-        message: 'Your verification request was not approved'
-      }
-    case 'active':
-      return {
-        type: 'success',
-        title: 'Verified',
-        message: 'Your wallet is active'
-      }
-    default:
-      return null
-  }
-})
-
-const hasPendingTransaction = computed(() => {
-  return props.wallet?.transactions?.some(t => 
-    t.status === 'pending' && t.reference_type === 'refill'
-  ) || false
-})
-
-// Add new computed property to control setup form visibility
-const shouldShowSetupForm = computed(() => {
-  return (!props.wallet?.status || props.wallet?.status === 'pending') && !props.wallet?.is_activated
-})
-
-const showSetupForm = computed(() => {
-  return props.wallet && props.wallet.status === 'pending' && !props.wallet.is_activated
-})
-
 const showStatusMessage = computed(() => {
-  return props.wallet && (props.wallet.status === 'pending_approval' || props.wallet.status === 'denied') && !props.wallet.is_activated
+  return walletData.value && !walletData.value.is_activated && 
+    (walletData.value.status === 'pending_approval' || verificationData.value?.status === 'rejected')
 })
 
-// Add debug watcher to help troubleshoot
+// Watch for changes in props
 watch(() => props.wallet, (newWallet) => {
-  console.log('Wallet data:', {
-    wallet: newWallet,
-    showSetupForm: showSetupForm.value,
-    showStatusMessage: showStatusMessage.value,
-    status: newWallet?.status,
-    is_activated: newWallet?.is_activated
-  })
-}, { immediate: true })
+  if (newWallet) {
+    walletData.value = { ...newWallet }
+  }
+}, { deep: true, immediate: true })
+
+watch(() => props.verification, (newVerification) => {
+  if (newVerification) {
+    verificationData.value = { ...newVerification }
+  }
+}, { deep: true, immediate: true })
 
 const handleActivateWallet = () => {
   router.post(route('seller.wallet.activate'), null, {
@@ -470,7 +440,7 @@ const handleError = (error) => {
 }
 
 let pollInterval = null
-const POLL_INTERVAL = 20000 // 30 seconds
+const POLL_INTERVAL = 20000 // 20 seconds
 const MAX_RETRIES = 3
 let retryCount = 0
 
@@ -484,23 +454,21 @@ const fetchWalletStatus = async () => {
 
         const response = await axios.get(route('seller.wallet.status'))
         const data = response.data
-
-        // Reset retry count on successful request
         retryCount = 0
 
-        // Update reactive props
-        if (props.wallet) {
-            props.wallet.balance = data.balance
-            props.wallet.status = data.status
-            props.wallet.is_activated = data.is_activated
-            props.wallet.transactions = data.transactions
-        }
+        if (data) {
+            walletData.value = {
+                ...walletData.value,
+                status: data.status,
+                is_activated: data.is_activated,
+                balance: data.balance,
+                transactions: data.transactions
+            }
 
-        // Update stats
-        if (props.stats) {
-            Object.assign(props.stats, data.stats)
+            if (data.verification) {
+                verificationData.value = data.verification
+            }
         }
-
     } catch (error) {
         retryCount++
         console.error('Failed to fetch wallet status:', error)
@@ -517,10 +485,7 @@ const fetchWalletStatus = async () => {
 }
 
 onMounted(() => {
-    // Initial fetch
     fetchWalletStatus()
-    
-    // Start polling
     pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL)
 })
 
