@@ -186,4 +186,59 @@ class ProductTradeController extends Controller
             ])->withInput();
         }
     }
+
+    /**
+     * Cancel a trade offer
+     *
+     * @param int $id
+     * @return \Illuminate\Http\Response
+     */
+    public function cancelTrade($id)
+    {
+        try {
+            // Find the trade
+            $trade = TradeTransaction::findOrFail($id);
+            
+            // Check authorization - only the buyer who made the offer can cancel it
+            if ($trade->buyer_id !== Auth::id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not authorized to cancel this trade offer'
+                ], 403);
+            }
+            
+            // Check if the trade is in a cancellable state (only pending trades can be cancelled)
+            if ($trade->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only pending trade offers can be cancelled'
+                ], 400);
+            }
+            
+            // Update the trade status to 'canceled'
+            $trade->status = 'canceled';
+            $trade->save();
+            
+            Log::info('Trade offer cancelled', [
+                'trade_id' => $trade->id,
+                'user_id' => Auth::id()
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Trade offer cancelled successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error cancelling trade offer: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'trade_id' => $id,
+                'user_id' => Auth::id()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel trade offer: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

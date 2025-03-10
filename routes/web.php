@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
+            Route::get('/trades', [DashboardController::class, 'trades'])->name('dashboard.trades');
 
             // Fix: Update the wishlist route definition to avoid conflicts
             Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
@@ -145,6 +146,11 @@ Route::middleware('auth')->group(function () {
             Route::post('/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
             Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+        });
+
+        // Trade related routes
+        Route::prefix('trades')->group(function () {
+            Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
         });
 
         //checkout routes - update to add consistent naming
