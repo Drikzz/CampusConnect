@@ -6,36 +6,36 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\MeetupLocation;
+use Inertia\Inertia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class CheckoutController extends Controller
 {
-    //
     public function summary($id)
     {
-        $product = Product::with(['seller', 'images'])
+        $product = Product::with(['seller.meetupLocations', 'images'])
             ->findOrFail($id);
 
         if (!$product->is_buyable) {
             return redirect()->back()->with('error', 'This product is not available for purchase.');
         }
 
-        return view('products.order_sum', compact('product'));
+        return Inertia::render('Products/Checkout', [
+            'product' => $product,
+            'user' => Auth::user(),
+            'meetupLocations' => $product->seller->meetupLocations()->where('is_active', true)->get()
+        ]);
     }
 
     public function checkout(Request $request)
     {
         $request->validate([
             'product_id' => ['required', 'numeric'],
-            'sub_total' => ['required', 'numeric'], // Fix validation field name
-            'delivery_estimate' => ['required', 'string'],
+            'sub_total' => ['required', 'numeric'],
             'email' => ['nullable', 'email'],
             'phone' => ['required', 'string'],
             'quantity' => ['required', 'numeric'],
-            'address' => 'required|string',
-            'city' => 'required|string',
-            'postal_code' => 'required|string',
             'payment_method' => ['required', 'string', 'in:cash,gcash'],
             'meetup_schedule' => ['required', 'string'], // Format: "locationId_dayNumber"
         ]);
@@ -59,9 +59,7 @@ class CheckoutController extends Controller
         // Create the order
         $order = Order::create([
             'buyer_id' => Auth::user()->id,
-            'seller_code' => $product->seller_code, // Use product's seller_code directly
-            'address' => "{$request->address}, {$request->city}, {$request->postal_code}",
-            'delivery_estimate' => $request->delivery_estimate,
+            'seller_code' => $product->seller_code,
             'phone' => $request->phone,
             'email' => $request->email,
             'sub_total' => $request->sub_total,

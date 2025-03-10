@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wishlist;
 use App\Models\OrderItem;
+use App\Models\SellerWallet;
+use App\Models\Tag;
 use Inertia\Inertia;
 
 class SellerController extends Controller
@@ -65,17 +67,42 @@ class SellerController extends Controller
         $sellerCode = $user->seller_code;
         $stats = $this->getDashboardStats($user);
 
+        // Update the query to include tags and category
         $products = Product::where('seller_code', $sellerCode)
-            ->with(['category'])
+            ->with(['category', 'tags'])  // Ensure tags and category are being loaded
             ->withTrashed()
             ->latest()
             ->paginate(10);
+
+        // Format the products data for the data-table
+        $productsData = $products->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'category' => [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name
+                ],
+                'price' => number_format($product->price, 2),
+                'discounted_price' => $product->discounted_price
+                    ? number_format($product->discounted_price, 2)
+                    : null,
+                'stock' => $product->stock,
+                'status' => $product->status,
+                'is_buyable' => $product->is_buyable,
+                'is_tradable' => $product->is_tradable,
+                'images' => $product->images,
+                'tags' => $product->tags,
+                'deleted_at' => $product->deleted_at,
+                'category_id' => $product->category_id
+            ];
+        });
 
         return Inertia::render('Dashboard/seller/Products', [
             'user' => $user,
             'stats' => $stats,
             'products' => [
-                'data' => $products->items(),
+                'data' => $productsData,
                 'meta' => [
                     'total' => $products->total(),
                     'per_page' => $products->perPage(),
@@ -83,7 +110,8 @@ class SellerController extends Controller
                     'last_page' => $products->lastPage()
                 ]
             ],
-            'categories' => Category::all()
+            'categories' => Category::all(),
+            'availableTags' => Tag::all()
         ]);
     }
 
@@ -96,9 +124,30 @@ class SellerController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Load relationships
-        $product->load('category');
-        return response()->json($product);
+        // Load relationships and format data
+        $product->load(['category', 'tags']);
+
+        // Format the product data to match the form structure
+        $formattedProduct = [
+            'id' => $product->id,
+            'name' => $product->name,
+            'description' => $product->description,
+            'category' => $product->category_id,
+            'price' => $product->price,
+            'discount' => $product->discount * 100, // Convert decimal to percentage
+            'stock' => $product->stock,
+            'trade_availability' => $this->determineTradeAvailability($product),
+            'status' => $product->status,
+            'images' => $product->images,
+            'tags' => $product->tags->map(function ($tag) {
+                return [
+                    'id' => $tag->id,
+                    'name' => $tag->name
+                ];
+            }),
+        ];
+
+        return response()->json($formattedProduct);
     }
 
     public function update(Request $request, $id)
@@ -106,10 +155,7 @@ class SellerController extends Controller
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            if ($request->wantsJson()) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-            return redirect()->back()->with('error', 'Unauthorized action');
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         try {
@@ -123,52 +169,57 @@ class SellerController extends Controller
                 'trade_availability' => 'required|in:buy,trade,both',
                 'status' => 'required|in:Active,Inactive',
                 'main_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                'additional_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+                'additional_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'removed_images' => 'nullable|string',
+                'tags' => 'nullable|string'
             ]);
 
             DB::beginTransaction();
 
-            // If status is being set to Inactive, handle soft delete
-            if ($validated['status'] === 'Inactive') {
-                // Store current state
-                $product->old_attributes = [
-                    'status' => $product->status,
-                    'is_buyable' => $product->is_buyable,
-                    'is_tradable' => $product->is_tradable
-                ];
+            // Handle images
+            $currentImages = $product->images ?? [];
+            $imagePaths = [];
 
-                // Update status and trade options
-                $product->status = 'Inactive';
-                $product->is_buyable = false;
-                $product->is_tradable = false;
-                $product->save();
-
-                // Perform soft delete
-                $product->delete();
-
-                DB::commit();
-
-                if ($request->wantsJson()) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Product has been deactivated and archived'
-                    ]);
+            // Handle removed images
+            $removedImages = json_decode($request->input('removed_images', '[]'), true);
+            if (!empty($removedImages)) {
+                foreach ($removedImages as $path) {
+                    Storage::disk('public')->delete($path);
+                    $currentImages = array_diff($currentImages, [$path]);
                 }
-
-                return redirect()->route('dashboard.seller.products')
-                    ->with('success', 'Product has been deactivated and archived');
             }
 
-            // Continue with normal update for active products
-            $imagePaths = $product->images;
-            if ($request->hasFile('main_image') || $request->hasFile('additional_images')) {
-                $imagePaths = $this->handleProductImages($request, $product);
+            // Handle main image
+            if ($request->hasFile('main_image')) {
+                // Delete old main image if exists
+                if (!empty($currentImages[0])) {
+                    Storage::disk('public')->delete($currentImages[0]);
+                }
+                $imagePaths[] = $request->file('main_image')->store('products', 'public');
+            } elseif (!empty($currentImages[0]) && !in_array($currentImages[0], $removedImages)) {
+                $imagePaths[] = $currentImages[0];
             }
 
+            // Handle additional images
+            if ($request->hasFile('additional_images')) {
+                foreach ($request->file('additional_images') as $image) {
+                    $imagePaths[] = $image->store('products', 'public');
+                }
+            }
+
+            // Add remaining current images
+            foreach ($currentImages as $image) {
+                if (!in_array($image, $imagePaths) && !in_array($image, $removedImages)) {
+                    $imagePaths[] = $image;
+                }
+            }
+
+            // Calculate prices
             $discount = $validated['discount'] ? (float)($validated['discount'] / 100) : 0.0;
             $price = (float)$validated['price'];
             $discountedPrice = $price * (1 - $discount);
 
+            // Update product
             $product->update([
                 'name' => $validated['name'],
                 'description' => $validated['description'],
@@ -177,23 +228,87 @@ class SellerController extends Controller
                 'discount' => $discount,
                 'discounted_price' => round($discountedPrice, 2),
                 'stock' => $validated['stock'],
-                'images' => $imagePaths,
+                'images' => array_values($imagePaths),
                 'status' => $validated['status'],
                 'is_buyable' => in_array($validated['trade_availability'], ['buy', 'both']),
                 'is_tradable' => in_array($validated['trade_availability'], ['trade', 'both'])
             ]);
 
-            DB::commit();
-
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Product updated successfully'
-                ]);
+            // Handle status changes
+            if ($validated['status'] === 'Inactive' && !$product->trashed()) {
+                $product->delete();
+            } elseif ($validated['status'] === 'Active' && $product->trashed()) {
+                $product->restore();
             }
 
-            return redirect()->route('dashboard.seller.products')
-                ->with('success', 'Product updated successfully');
+            // Handle tags - Update this section
+            if ($request->has('tags')) {
+                $tagIds = json_decode($request->input('tags'), true);
+                if (is_array($tagIds)) {
+                    $product->tags()->sync($tagIds);
+                    Log::info('Syncing tags for product update:', [
+                        'product_id' => $product->id,
+                        'tag_ids' => $tagIds
+                    ]);
+                }
+            } else {
+                // If no tags provided, remove all tags
+                $product->tags()->sync([]);
+            }
+
+            DB::commit();
+
+            // Fetch fresh data for the response
+            $updatedProducts = Product::where('seller_code', Auth::user()->seller_code)
+                ->with(['category', 'tags'])
+                ->withTrashed()
+                ->latest()
+                ->paginate(10);
+
+            // Format the products data
+            $productsData = $updatedProducts->map(function ($product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'category' => [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name
+                    ],
+                    'price' => number_format($product->price, 2),
+                    'discounted_price' => $product->discounted_price
+                        ? number_format($product->discounted_price, 2)
+                        : null,
+                    'stock' => $product->stock,
+                    'status' => $product->status,
+                    'is_buyable' => $product->is_buyable,
+                    'is_tradable' => $product->is_tradable,
+                    'images' => $product->images,
+                    'tags' => $product->tags,
+                    'deleted_at' => $product->deleted_at,
+                    'category_id' => $product->category_id
+                ];
+            });
+
+            // Return Inertia response with updated data
+            return Inertia::render('Dashboard/seller/Products', [
+                'user' => Auth::user(),
+                'stats' => $this->getDashboardStats(Auth::user()),
+                'products' => [
+                    'data' => $productsData,
+                    'meta' => [
+                        'total' => $updatedProducts->total(),
+                        'per_page' => $updatedProducts->perPage(),
+                        'current_page' => $updatedProducts->currentPage(),
+                        'last_page' => $updatedProducts->lastPage()
+                    ]
+                ],
+                'categories' => Category::all(),
+                'availableTags' => Tag::all(),
+                'flash' => [
+                    'message' => 'Product updated successfully',
+                    'type' => 'success'
+                ]
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product update error:', [
@@ -201,16 +316,9 @@ class SellerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error updating product: ' . $e->getMessage()
-                ], 500);
-            }
-
-            return redirect()->back()
-                ->with('error', 'Error updating product: ' . $e->getMessage())
-                ->withInput();
+            return response()->json([
+                'message' => 'Error updating product: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -238,6 +346,8 @@ class SellerController extends Controller
         ]);
 
         try {
+            DB::beginTransaction();
+
             // Handle images
             $imagePaths = $this->handleProductImages($request);
 
@@ -250,6 +360,9 @@ class SellerController extends Controller
             // Calculate discounted price using float values
             $price = (float)$validated['price'];
             $discountedPrice = $price * (1 - $discount);
+
+            // Log received tags data for debugging
+            Log::info('Received tags data:', ['tags' => $request->input('tags')]);
 
             // Create product with Active status by default
             $product = Product::create([
@@ -267,6 +380,23 @@ class SellerController extends Controller
                 'status' => 'Active' // Default status
             ]);
 
+            // Handle tags - decode JSON string to array of IDs
+            $tagIds = json_decode($request->input('tags'), true);
+            if (!empty($tagIds)) {
+                // Ensure we're working with an array of integers
+                $tagIds = array_map('intval', $tagIds);
+                $product->tags()->sync($tagIds);
+
+                // Log tag sync operation for debugging
+                Log::info('Syncing tags for product:', [
+                    'product_id' => $product->id,
+                    'tag_ids' => $tagIds
+                ]);
+            }
+
+            // dd($tagIds);
+            DB::commit();
+
             // Check if request wants JSON
             if ($request->wantsJson()) {
                 return response()->json([
@@ -280,8 +410,10 @@ class SellerController extends Controller
             return redirect()->route('dashboard.seller.products')
                 ->with('success', 'Product added successfully');
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Product creation error:', [
                 'message' => $e->getMessage(),
+                'tags_input' => $request->input('tags'),
                 'trace' => $e->getTraceAsString()
             ]);
 
@@ -298,19 +430,18 @@ class SellerController extends Controller
         }
     }
 
-    // Modify destroy method to use soft delete
     public function destroy($id)
     {
-        $product = Product::withTrashed()->findOrFail($id);
+        $product = Product::findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return redirect()->back()->with('error', 'Unauthorized action');
+            return redirect()->route('seller.products')
+                ->with('error', 'Unauthorized action');
         }
 
         try {
             DB::beginTransaction();
 
-            // Store current state before soft delete
             $product->update([
                 'old_attributes' => [
                     'status' => $product->status,
@@ -326,30 +457,29 @@ class SellerController extends Controller
 
             DB::commit();
 
-            return redirect()->route('seller.products')->with([
-                'message' => 'Product successfully archived',
-                'type' => 'success'
-            ]);
+            return redirect()->route('seller.products')
+                ->with('success', 'Product archived successfully');
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Product deletion error: ' . $e->getMessage());
-            return redirect()->back()->with([
-                'message' => 'Error archiving product',
-                'type' => 'error'
-            ]);
+            Log::error('Product deletion error: ' . $e->getMessage());
+
+            return redirect()->route('seller.products')
+                ->with('error', 'Error archiving product: ' . $e->getMessage());
         }
     }
 
-    // Optional: Add method to permanently delete if needed
     public function forceDelete($id)
     {
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return redirect()->back()->with('error', 'Unauthorized action');
+            return redirect()->route('seller.products')
+                ->with('error', 'Unauthorized action');
         }
 
         try {
+            DB::beginTransaction();
+
             // Delete images
             if ($product->images) {
                 foreach ($product->images as $image) {
@@ -357,59 +487,53 @@ class SellerController extends Controller
                 }
             }
 
+            // Delete tags association
+            $product->tags()->detach();
+
             $product->forceDelete();
 
-            return redirect()->route('seller.products')->with([
-                'message' => 'Product permanently deleted',
-                'type' => 'success'
-            ]);
+            DB::commit();
+
+            return redirect()->route('seller.products')
+                ->with('success', 'Product permanently deleted');
         } catch (\Exception $e) {
-            return redirect()->back()->with([
-                'message' => 'Error deleting product: ' . $e->getMessage(),
-                'type' => 'error'
-            ]);
+            DB::rollBack();
+            return redirect()->route('seller.products')
+                ->with('error', 'Error deleting product: ' . $e->getMessage());
         }
     }
 
-    // Optional: Add method to restore deleted products
     public function restore($id)
     {
         $product = Product::withTrashed()->findOrFail($id);
 
         if ($product->seller_code !== Auth::user()->seller_code) {
-            return redirect()->back()->with('error', 'Unauthorized action');
+            return redirect()->route('seller.products')
+                ->with('error', 'Unauthorized action');
         }
 
         try {
             DB::beginTransaction();
 
-            // First restore the product
             $product->restore();
 
-            // Restore the old attributes if they exist, otherwise use defaults
             $oldAttributes = $product->old_attributes ?? [
                 'status' => 'Active',
                 'is_buyable' => false,
                 'is_tradable' => false
             ];
 
-            // Update with the stored attributes
             $product->update([
                 'status' => $oldAttributes['status'],
                 'is_buyable' => $oldAttributes['is_buyable'],
-                'is_tradable' => $oldAttributes['is_tradable']
+                'is_tradable' => $oldAttributes['is_tradable'],
+                'old_attributes' => null
             ]);
-
-            // Clear the stored old attributes
-            $product->old_attributes = null;
-            $product->save();
 
             DB::commit();
 
-            return redirect()->route('seller.products')->with([
-                'message' => 'Product restored successfully',
-                'type' => 'success'
-            ]);
+            return redirect()->route('seller.products')
+                ->with('success', 'Product restored successfully');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product restore error:', [
@@ -417,10 +541,8 @@ class SellerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->back()->with([
-                'message' => 'Error restoring product: ' . $e->getMessage(),
-                'type' => 'error'
-            ]);
+            return redirect()->route('seller.products')
+                ->with('error', 'Error restoring product: ' . $e->getMessage());
         }
     }
 
@@ -685,6 +807,7 @@ class SellerController extends Controller
         ];
 
         if ($user->is_seller) {
+            // Existing seller stats
             $stats['totalSales'] = OrderItem::where('seller_code', $user->seller_code)
                 ->whereHas('order', function ($query) {
                     $query->where('status', 'Completed');
@@ -699,6 +822,46 @@ class SellerController extends Controller
                 ->whereHas('order', function ($query) {
                     $query->where('status', 'Pending');
                 })->count();
+
+            // Add wallet stats
+            $wallet = SellerWallet::where('seller_code', $user->seller_code)
+                ->with(['transactions' => function ($query) {
+                    $query->latest()->take(5);
+                }])
+                ->first();
+
+            if ($wallet) {
+                $stats['wallet'] = [
+                    'id' => $wallet->id,
+                    'balance' => $wallet->balance,
+                    'is_activated' => $wallet->is_activated,
+                    'status' => $wallet->status,
+                    'transactions' => $wallet->transactions,
+                    'total_transactions' => $wallet->transactions()->count(),
+                    'total_credits' => $wallet->transactions()
+                        ->where('reference_type', 'refill')  // Changed from type = credit
+                        ->where('status', 'completed')
+                        ->sum('amount'),
+                    'total_debits' => $wallet->transactions()
+                        ->whereIn('reference_type', ['withdraw', 'deduction'])  // Changed from type = debit
+                        ->where('status', 'completed')
+                        ->sum('amount'),
+                    'pending_transactions' => $wallet->transactions()
+                        ->where('status', 'pending')
+                        ->count()
+                ];
+            } else {
+                $stats['wallet'] = [
+                    'balance' => 0,
+                    'is_activated' => false,
+                    'status' => 'pending',
+                    'transactions' => [],
+                    'total_transactions' => 0,
+                    'total_credits' => 0,
+                    'total_debits' => 0,
+                    'pending_transactions' => 0
+                ];
+            }
         }
 
         return $stats;
@@ -835,5 +998,240 @@ class SellerController extends Controller
                 'error' => 'Failed to delete meetup location: ' . $e->getMessage()
             ]);
         }
+    }
+
+    // Add this helper method for edit function
+    private function determineTradeAvailability($product)
+    {
+        if ($product->is_buyable && $product->is_tradable) {
+            return 'both';
+        } elseif ($product->is_buyable) {
+            return 'buy';
+        } elseif ($product->is_tradable) {
+            return 'trade';
+        }
+        return 'buy'; // default value
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:products,id'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $products = Product::whereIn('id', $validated['ids'])
+                ->where('seller_code', Auth::user()->seller_code)
+                ->get();
+
+            if ($products->isEmpty()) {
+                throw new \Exception('No products found to archive');
+            }
+
+            foreach ($products as $product) {
+                $product->update([
+                    'old_attributes' => [
+                        'status' => $product->status,
+                        'is_buyable' => $product->is_buyable,
+                        'is_tradable' => $product->is_tradable
+                    ],
+                    'status' => 'Inactive',
+                    'is_buyable' => false,
+                    'is_tradable' => false
+                ]);
+                $product->delete();
+            }
+
+            DB::commit();
+
+            return $this->returnFormattedResponse('Products archived successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->returnFormattedResponse($e->getMessage(), false);
+        }
+    }
+
+    public function bulkRestore(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:products,id'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $products = Product::withTrashed()
+                ->whereIn('id', $validated['ids'])
+                ->where('seller_code', Auth::user()->seller_code)
+                ->get();
+
+            if ($products->isEmpty()) {
+                throw new \Exception('No products found to restore');
+            }
+
+            foreach ($products as $product) {
+                $oldAttributes = $product->old_attributes ?? [
+                    'status' => 'Active',
+                    'is_buyable' => false,
+                    'is_tradable' => false
+                ];
+
+                $product->restore();
+                $product->update([
+                    'status' => $oldAttributes['status'],
+                    'is_buyable' => $oldAttributes['is_buyable'],
+                    'is_tradable' => $oldAttributes['is_tradable'],
+                    'old_attributes' => null
+                ]);
+            }
+
+            DB::commit();
+
+            return $this->returnFormattedResponse('Products restored successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->returnFormattedResponse($e->getMessage(), false);
+        }
+    }
+
+    public function bulkForceDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:products,id'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $products = Product::withTrashed()
+                ->whereIn('id', $validated['ids'])
+                ->where('seller_code', Auth::user()->seller_code)
+                ->get();
+
+            if ($products->isEmpty()) {
+                throw new \Exception('No products found to delete');
+            }
+
+            foreach ($products as $product) {
+                if ($product->images) {
+                    foreach ($product->images as $image) {
+                        Storage::disk('public')->delete($image);
+                    }
+                }
+                $product->tags()->detach();
+                $product->forceDelete();
+            }
+
+            DB::commit();
+
+            return $this->returnFormattedResponse('Products permanently deleted');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->returnFormattedResponse($e->getMessage(), false);
+        }
+    }
+
+    // Add helper method to get formatted products
+    private function getFormattedProducts()
+    {
+        $products = Product::where('seller_code', Auth::user()->seller_code)
+            ->with(['category', 'tags'])
+            ->withTrashed()
+            ->latest()
+            ->paginate(10);
+
+        return [
+            'data' => $products->map(function ($product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'category' => [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name
+                    ],
+                    'price' => number_format($product->price, 2),
+                    'discounted_price' => $product->discounted_price
+                        ? number_format($product->discounted_price, 2)
+                        : null,
+                    'stock' => $product->stock,
+                    'status' => $product->status,
+                    'is_buyable' => $product->is_buyable,
+                    'is_tradable' => $product->is_tradable,
+                    'images' => $product->images,
+                    'tags' => $product->tags,
+                    'deleted_at' => $product->deleted_at,
+                    'category_id' => $product->category_id
+                ];
+            }),
+            'meta' => [
+                'total' => $products->total(),
+                'per_page' => $products->perPage(),
+                'current_page' => $products->currentPage(),
+                'last_page' => $products->lastPage()
+            ]
+        ];
+    }
+
+    // Add this new helper method
+    private function returnFormattedResponse($message, $success = true)
+    {
+        $user = Auth::user();
+        $products = Product::where('seller_code', $user->seller_code)
+            ->with(['category', 'tags'])
+            ->withTrashed()
+            ->latest()
+            ->paginate(10);
+
+        return Inertia::render('Dashboard/seller/Products', [
+            'user' => $user,
+            'stats' => $this->getDashboardStats($user),
+            'products' => [
+                'data' => $this->formatProductsData($products),
+                'meta' => [
+                    'total' => $products->total(),
+                    'per_page' => $products->perPage(),
+                    'current_page' => $products->currentPage(),
+                    'last_page' => $products->lastPage()
+                ]
+            ],
+            'categories' => Category::all(),
+            'availableTags' => Tag::all(),
+            'flash' => [
+                'message' => $message,
+                'type' => $success ? 'success' : 'error'
+            ]
+        ]);
+    }
+
+    private function formatProductsData($products)
+    {
+        return $products->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'category' => [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name
+                ],
+                'price' => number_format($product->price, 2),
+                'discounted_price' => $product->discounted_price
+                    ? number_format($product->discounted_price, 2)
+                    : null,
+                'stock' => $product->stock,
+                'status' => $product->status,
+                'is_buyable' => $product->is_buyable,
+                'is_tradable' => $product->is_tradable,
+                'images' => $product->images,
+                'tags' => $product->tags,
+                'deleted_at' => $product->deleted_at,
+                'category_id' => $product->category_id,
+                'description' => $product->description
+            ];
+        });
     }
 }

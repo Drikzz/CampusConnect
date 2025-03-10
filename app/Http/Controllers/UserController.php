@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SellerWallet;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
@@ -141,17 +144,40 @@ class UserController extends Controller
             'acceptTerms' => 'required|accepted'
         ]);
 
-        $user = auth()->user();
-        $user->is_seller = true;
-        $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
-        $user->save();
+        try {
+            DB::beginTransaction();
 
-        // Redirect to main dashboard instead of seller index
-        return redirect()->route('dashboard.profile')->with('toast', [
-            'title' => 'Success!',
-            'description' => 'Congratulations! You are now registered as a seller.',
-            'variant' => 'default'
-        ]);
+            $user = auth()->user();
+            $user->is_seller = true;
+            $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
+            $user->save();
+
+            // Create inactive wallet automatically
+            SellerWallet::create([
+                'user_id' => $user->id,
+                'seller_code' => $user->seller_code,
+                'balance' => 0.00,
+                'is_activated' => false,
+                'status' => 'pending'
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('dashboard.profile')->with('toast', [
+                'title' => 'Success!',
+                'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
+                'variant' => 'default'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating seller account: ' . $e->getMessage());
+
+            return back()->with('toast', [
+                'title' => 'Error',
+                'description' => 'Failed to create seller account. Please try again.',
+                'variant' => 'destructive'
+            ]);
+        }
     }
 
     private function uploadImage($request, $user, $userType, $validated)
