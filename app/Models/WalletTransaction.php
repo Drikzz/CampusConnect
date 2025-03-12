@@ -39,6 +39,7 @@ class WalletTransaction extends Model
 
   public static $remarks = [
     'verification_rejected' => "ID is not clear, re-upload required.",
+    'refill_rejected' => "Reference number mismatch, check the reference.",
     'withdrawal_rejected' => "Bank details incorrect.",
     'transaction_failed' => "Payment failed due to insufficient funds.",
   ];
