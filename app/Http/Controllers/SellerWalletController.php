@@ -204,13 +204,15 @@ class SellerWalletController extends Controller
 
       // Get or create wallet
       $wallet = SellerWallet::firstOrCreate(
-        ['seller_code' => auth()->user()->seller_code],
+        ['user_id' => auth()->id()],
         ['balance' => 0.00]
       );
 
       // Create pending transaction
       $transaction = WalletTransaction::create([
-        'user_id' => auth()->id(), // Add user_id instead of seller_code
+        'user_id' => auth()->id(),
+        'seller_code' => auth()->user()->seller_code,
+        'type' => 'credit',
         'amount' => $request->amount,
         'previous_balance' => $wallet->balance,
         'new_balance' => $wallet->balance + $request->amount,
@@ -228,6 +230,63 @@ class SellerWalletController extends Controller
       DB::rollBack();
       Log::error('Wallet refill error: ' . $e->getMessage());
       return back()->with('error', 'Failed to submit refill request');
+    }
+  }
+
+  public function withdraw(Request $request)
+  {
+    $request->validate([
+      'amount' => 'required|numeric|min:100', // Minimum withdrawal
+      'phone_number' => 'required|regex:/^(09|\+639)\d{9}$/', // GCash phone number
+      'account_name' => 'nullable|string|max:255', // Optional account name
+    ]);
+
+    $user = auth()->user();
+    $wallet = SellerWallet::where('user_id', $user->id)->first();
+
+    if (!$wallet || $wallet->status !== 'active') {
+      return back()->with('error', 'Wallet not active');
+    }
+
+    if ($wallet->balance < $request->amount) {
+      return back()->with('error', 'Insufficient balance');
+    }
+
+    try {
+      DB::beginTransaction();
+
+      // Get current balance
+      $previousBalance = $wallet->balance;
+      $newBalance = $previousBalance - $request->amount;
+
+      // Create payment details string
+      $payoutDetails = "GCash: {$request->phone_number}";
+      if ($request->account_name) {
+        $payoutDetails .= " | Account Name: {$request->account_name}";
+      }
+
+      // Deduct amount as pending transaction
+      WalletTransaction::create([
+        'user_id' => $user->id,
+        'seller_code' => $user->seller_code,
+        'type' => 'debit',
+        'amount' => $request->amount,
+        'previous_balance' => $previousBalance,
+        'new_balance' => $newBalance,
+        'reference_type' => 'withdrawal',
+        'reference_id' => uniqid('WD-'), // Unique withdrawal request ID
+        'status' => 'pending',
+        'description' => 'GCash withdrawal request',
+        'remarks' => $payoutDetails, // Store GCash details
+      ]);
+
+      DB::commit();
+
+      return back()->with('success', 'Withdrawal request submitted for approval');
+    } catch (\Exception $e) {
+      DB::rollBack();
+      Log::error('Wallet withdrawal error: ' . $e->getMessage());
+      return back()->with('error', 'Failed to submit withdrawal request');
     }
   }
 
