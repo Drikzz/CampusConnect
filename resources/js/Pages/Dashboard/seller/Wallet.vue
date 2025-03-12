@@ -121,40 +121,63 @@
         <!-- Wallet Stats with Refill Button -->
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-2xl font-bold">Wallet Details</h2>
-          <Button @click="showRefillModal = true" variant="default">
-            <PlusIcon class="w-4 h-4 mr-2" />
-            Add Funds
-          </Button>
+          <div class="flex gap-3">
+            <Button @click="showWithdrawModal = true" variant="outline" class="flex items-center">
+              <ArrowUpTrayIcon class="w-4 h-4 mr-2" />
+              Withdraw
+            </Button>
+            <Button @click="showRefillModal = true" variant="default" class="flex items-center">
+              <PlusIcon class="w-4 h-4 mr-2" />
+              Add Funds
+            </Button>
+          </div>
+        </div>
+
+        <!-- GCash Support Note -->
+        <div class="bg-blue-50 rounded-lg p-3 mb-4 text-sm text-blue-700 flex items-start">
+          <svg class="w-5 h-5 mr-2 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p>
+            <strong>Note:</strong> We currently only support GCash transactions for wallet funding and withdrawals.
+          </p>
         </div>
 
         <!-- Wallet Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard
-            title="Current Balance"
-            :value="wallet?.balance || 0"
-            type="money"
-            icon="wallet"
-          />
-          <StatCard
-            title="Total Earnings"
-            :value="stats.total_credits || 0"
-            type="money"
-            icon="trending-up"
-          />
-          <StatCard
-            title="Pending Transactions"
-            :value="stats.pending_transactions || 0"
-            icon="clock"
-          />
+          <div class="bg-white p-6 rounded-lg shadow-md border border-primary-color/20">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm font-medium text-gray-500">Current Balance</h3>
+              <WalletIcon class="w-6 h-6 text-primary-color" />
+            </div>
+            <div class="text-2xl font-bold text-primary-color">₱{{ formatNumber(wallet?.balance || 0) }}</div>
+            <div class="mt-2 text-xs text-gray-500">Available for withdrawal or purchases</div>
+          </div>
+          <div class="bg-white p-6 rounded-lg shadow-md border border-green-200">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm font-medium text-gray-500">Total Earnings</h3>
+              <ArrowTrendingUpIcon class="w-6 h-6 text-green-500" />
+            </div>
+            <div class="text-2xl font-bold text-green-600">₱{{ formatNumber(stats.total_credits || 0) }}</div>
+            <div class="mt-2 text-xs text-gray-500">Lifetime earnings from sales</div>
+          </div>
+          <div class="bg-white p-6 rounded-lg shadow-md border border-blue-200">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm font-medium text-gray-500">Pending Transactions</h3>
+              <ClockIcon class="w-6 h-6 text-blue-500" />
+            </div>
+            <div class="text-2xl font-bold text-blue-600">{{ stats.pending_transactions || 0 }}</div>
+            <div class="mt-2 text-xs text-gray-500">Transactions awaiting processing</div>
+          </div>
         </div>
 
         <!-- Show refill CTA if balance is 0 -->
         <div v-if="wallet?.balance === 0" 
-             class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+             class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6 text-center mt-6">
           <h3 class="text-lg font-medium text-yellow-800 mb-2">Initialize Your Seller Wallet</h3>
           <p class="text-yellow-600 mb-4">You need to add funds to your wallet to start selling products.</p>
           <button @click="showRefillModal = true"
-                  class="bg-primary-color text-white px-6 py-2 rounded-lg hover:bg-primary-color/90">
+                  class="bg-primary-color text-white px-6 py-2 rounded-lg hover:bg-primary-color/90 transition-all shadow-md hover:shadow-lg">
             Refill Wallet
           </button>
         </div>
@@ -235,6 +258,63 @@
       </DialogContent>
     </Dialog>
 
+    <!-- Add the new withdraw modal -->
+    <Dialog :open="showWithdrawModal" @close="closeWithdrawModal">
+      <DialogContent class="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Withdraw Funds</DialogTitle>
+          <DialogDescription>
+            Request to withdraw funds from your wallet to your GCash account.
+          </DialogDescription>
+        </DialogHeader>
+        <form @submit.prevent="submitWithdraw">
+          <div class="grid gap-4 py-4">
+            <div class="grid gap-2">
+              <Label for="withdraw-amount">Amount (₱)</Label>
+              <Input 
+                id="withdraw-amount"
+                type="number" 
+                v-model="withdrawForm.amount" 
+                placeholder="Minimum ₱100"
+                :max="wallet?.balance || 0"
+                required 
+                min="100"
+              />
+              <p class="text-xs text-gray-500">Available balance: ₱{{ formatNumber(wallet?.balance || 0) }}</p>
+            </div>
+            <div class="grid gap-2">
+              <Label for="phone-number">GCash Phone Number</Label>
+              <Input 
+                id="phone-number"
+                type="tel" 
+                v-model="withdrawForm.phone_number" 
+                placeholder="09XXXXXXXXX"
+                required
+                pattern="^(09|\+639)\d{9}$"
+              />
+              <p class="text-xs text-gray-500">Enter the GCash phone number where you want to receive funds</p>
+            </div>
+            <div class="grid gap-2">
+              <Label for="payout-details">Account Name (Optional)</Label>
+              <Input 
+                id="account-name"
+                v-model="withdrawForm.account_name" 
+                placeholder="Name registered with your GCash account"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" @click="closeWithdrawModal">
+              Cancel
+            </Button>
+            <Button type="submit" :disabled="isSubmitting || withdrawForm.amount > (wallet?.balance || 0)">
+              {{ isSubmitting ? 'Processing...' : 'Request Withdrawal' }}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+
     <!-- Alert when request is pending -->
     <AlertDialog :open="!!pendingRequest" @close="closePendingAlert">
       <AlertDialogContent>
@@ -256,7 +336,13 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
-import { PlusIcon } from '@heroicons/vue/24/outline'
+import { 
+  PlusIcon, 
+  ArrowUpTrayIcon, // Changed from ArrowDownTrayIcon
+  WalletIcon,
+  ArrowTrendingUpIcon, // Changed from TrendingUpIcon
+  ClockIcon
+} from '@heroicons/vue/24/outline'
 import DashboardLayout from '../DashboardLayout.vue'
 import StatCard from '../Components/StatCard.vue'
 import TransactionItem from '../Components/TransactionItem.vue'
@@ -268,6 +354,8 @@ import { Input } from '@/Components/ui/input'
 import { Checkbox } from '@/Components/ui/checkbox'
 import { useToast } from "@/Components/ui/toast/use-toast"
 import axios from 'axios'
+import { Textarea } from '@/Components/ui/textarea'
+import { Select } from '@/Components/ui/select'
 
 const { toast } = useToast()
 
@@ -303,6 +391,7 @@ const showDepositModal = ref(false)
 const showRefillModal = ref(false)
 const isSubmitting = ref(false)
 const pendingRequest = ref(false)
+const showWithdrawModal = ref(false)
 
 const setupForm = ref({
   id_image: null,
@@ -313,6 +402,19 @@ const refillForm = ref({
   amount: 100,
   reference_number: '',
   receipt_image: null
+})
+
+const withdrawForm = ref({
+  amount: 100,
+  phone_number: '',
+  account_name: ''
+})
+
+// Add the missing hasPendingTransaction computed property
+const hasPendingTransaction = computed(() => {
+  return walletData.value?.transactions?.some(
+    transaction => transaction.status === 'pending' && transaction.reference_type === 'refill'
+  ) || false
 })
 
 const showStatusMessage = computed(() => {
@@ -390,6 +492,11 @@ const closeRefillModal = () => {
   refillForm.value = { amount: 100, reference_number: '', receipt_image: null }
 }
 
+const closeWithdrawModal = () => {
+  showWithdrawModal.value = false
+  withdrawForm.value = { amount: 100, phone_number: '', account_name: '' }
+}
+
 const closePendingAlert = () => {
   pendingRequest.value = false
 }
@@ -412,6 +519,52 @@ const submitRefill = () => {
     },
     onError: () => {
       isSubmitting.value = false
+    }
+  })
+}
+
+const submitWithdraw = () => {
+  if (withdrawForm.value.amount > (wallet?.balance || 0)) {
+    toast({
+      title: "Insufficient Balance",
+      description: "You cannot withdraw more than your available balance",
+      variant: "destructive"
+    })
+    return
+  }
+
+  // Validate phone number format
+  const phoneRegex = /^(09|\+639)\d{9}$/;
+  if (!phoneRegex.test(withdrawForm.value.phone_number)) {
+    toast({
+      title: "Invalid Phone Number",
+      description: "Please enter a valid GCash phone number (e.g., 09XXXXXXXXX)",
+      variant: "destructive"
+    })
+    return
+  }
+
+  isSubmitting.value = true
+  
+  router.post(route('seller.wallet.withdraw'), withdrawForm.value, {
+    preserveScroll: true,
+    onSuccess: () => {
+      showWithdrawModal.value = false
+      isSubmitting.value = false
+      withdrawForm.value = { amount: 100, phone_number: '', account_name: '' }
+      toast({
+        title: "Success",
+        description: "Withdrawal request submitted for approval",
+      })
+    },
+    onError: (errors) => {
+      isSubmitting.value = false
+      const errorMessage = Object.values(errors)[0] || "An error occurred"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
     }
   })
 }
@@ -455,6 +608,13 @@ const formatDate = (dateString) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const formatNumber = (value) => {
+  return new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
 }
 
 const handleError = (error) => {
