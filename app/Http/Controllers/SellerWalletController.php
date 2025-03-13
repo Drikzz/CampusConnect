@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SellerWalletController extends Controller
 {
@@ -202,12 +203,6 @@ class SellerWalletController extends Controller
       // Store receipt image
       $path = $request->file('receipt_image')->store('receipts', 'public');
 
-      // Get or create wallet
-      $wallet = SellerWallet::firstOrCreate(
-        ['user_id' => auth()->id()],
-        ['balance' => 0.00]
-      );
-
       // Create pending transaction
       $transaction = WalletTransaction::create([
         'user_id' => auth()->id(),
@@ -236,9 +231,9 @@ class SellerWalletController extends Controller
   public function withdraw(Request $request)
   {
     $request->validate([
-      'amount' => 'required|numeric|min:100', // Minimum withdrawal
-      'phone_number' => 'required|regex:/^(09|\+639)\d{9}$/', // GCash phone number
-      'account_name' => 'nullable|string|max:255', // Optional account name
+      'amount' => 'required|numeric|min:100',
+      'phone_number' => 'required|regex:/^(09|\+639)\d{9}$/',
+      'account_name' => 'nullable|string|max:255'
     ]);
 
     $user = auth()->user();
@@ -255,18 +250,16 @@ class SellerWalletController extends Controller
     try {
       DB::beginTransaction();
 
-      // Get current balance
       $previousBalance = $wallet->balance;
       $newBalance = $previousBalance - $request->amount;
 
-      // Create payment details string
       $payoutDetails = "GCash: {$request->phone_number}";
       if ($request->account_name) {
         $payoutDetails .= " | Account Name: {$request->account_name}";
       }
 
       // Deduct amount as pending transaction
-      WalletTransaction::create([
+      $transaction = WalletTransaction::create([
         'user_id' => $user->id,
         'seller_code' => $user->seller_code,
         'type' => 'debit',
@@ -274,10 +267,10 @@ class SellerWalletController extends Controller
         'previous_balance' => $previousBalance,
         'new_balance' => $newBalance,
         'reference_type' => 'withdrawal',
-        'reference_id' => uniqid('WD-'), // Unique withdrawal request ID
+        'reference_id' => uniqid('WD-'),
         'status' => 'pending',
         'description' => 'GCash withdrawal request',
-        'remarks' => $payoutDetails, // Store GCash details
+        'remarks' => $payoutDetails
       ]);
 
       DB::commit();
@@ -289,6 +282,7 @@ class SellerWalletController extends Controller
       return back()->with('error', 'Failed to submit withdrawal request');
     }
   }
+
 
   // Update the getWalletStatus method
   public function getWalletStatus()
@@ -338,6 +332,33 @@ class SellerWalletController extends Controller
         'error' => 'Server error',
         'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
       ], 500);
+    }
+  }
+
+  /**
+   * Generate and download a PDF receipt for a transaction
+   */
+  public function downloadReceipt($id)
+  {
+    try {
+      $transaction = WalletTransaction::where('id', $id)
+        ->where('user_id', auth()->id()) // Ensure the user owns the transaction
+        ->firstOrFail();
+
+      // Generate PDF
+      $pdf = Pdf::loadView('pdf.receipt', compact('transaction'));
+
+      // Set filename based on transaction type
+      $filename = "CampusConnect_" . ucfirst($transaction->reference_type) . "_Receipt_" . $id . ".pdf";
+
+      return $pdf->download($filename);
+    } catch (\Exception $e) {
+      Log::error('Receipt download error: ' . $e->getMessage(), [
+        'transaction_id' => $id,
+        'user_id' => auth()->id()
+      ]);
+
+      return back()->with('error', 'Failed to generate receipt. Please try again.');
     }
   }
 
