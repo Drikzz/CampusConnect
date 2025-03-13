@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SellerRegistrationConfirmation;
 use App\Models\Department;
 use App\Models\GradeLevel;
-use App\Models\Location;
-use App\Models\MeetupLocation;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\UserType;
 use App\Models\Product;
 use App\Models\Wishlist;
 use App\Models\SellerWallet;
@@ -16,13 +14,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
     public function index()
     {
+
         $user = auth()->user();
+        // Mail::to($user->wmsu_email)->send(new SellerRegistrationConfirmation($user));
 
         // Check if user is admin and redirect to admin dashboard
         if ($user->is_admin) {

@@ -1,5 +1,6 @@
 <template>
-  <div class="p-4 hover:bg-gray-50 transition-colors">
+  <!-- Don't display the item at all if it's a verification transaction -->
+  <div v-if="transaction.reference_type !== 'verification'" class="p-4 hover:bg-gray-50 transition-colors">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <!-- Left side with icon and description -->
       <div class="flex items-center space-x-3">
@@ -15,11 +16,11 @@
         </div>
       </div>
       
-      <!-- Right side with amount, status and action button -->
+      <!-- Right side with amount, status and view button -->
       <div class="flex items-center gap-4 ml-11 sm:ml-0">
         <!-- Amount and Status -->
         <div class="text-right">
-          <p v-if="transaction.reference_type !== 'verification'" 
+          <p v-if="displayableAmount" 
              :class="[
                'font-medium',
                transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
@@ -31,13 +32,14 @@
           </p>
         </div>
         
-        <!-- View Details Button for Rejected Transactions -->
-        <button 
-          v-if="showDetailsButton" 
-          @click="openDetailsModal"
-          class="text-xs text-white bg-primary-color px-2 py-1 rounded hover:bg-primary-color/90">
-          View Details
-        </button>
+        <!-- Only View Button -->
+        <div>
+          <button 
+            @click="openDetailsModal"
+            class="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 transition">
+            View
+          </button>
+        </div>
       </div>
     </div>
 
@@ -46,7 +48,7 @@
       <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {{ transaction.reference_type === 'refill' ? 'Refill' : 'Withdrawal' }} Request Details
+            {{ getTransactionTypeLabel }} Transaction Details
           </DialogTitle>
           <DialogDescription v-if="transaction.status === 'rejected'">
             This request was rejected by the administrator.
@@ -60,7 +62,7 @@
               <p class="text-sm text-gray-500">Status</p>
               <p class="font-medium" :class="statusColor">{{ transaction.status }}</p>
             </div>
-            <div>
+            <div v-if="displayableAmount">
               <p class="text-sm text-gray-500">Amount</p>
               <p class="font-medium">₱{{ transaction.amount }}</p>
             </div>
@@ -96,16 +98,25 @@
             <p class="text-sm">{{ transaction.description }}</p>
           </div>
 
-          <!-- Receipt Image -->
+          <!-- Receipt Image (if available) - Add responsive sizing for portrait images -->
           <div v-if="transaction.receipt_path" class="border-t pt-3">
             <p class="text-sm text-gray-500 mb-1">Receipt</p>
-            <div class="max-h-[40vh] overflow-auto">
+            <div class="flex justify-center">
               <img 
                 :src="'/storage/' + transaction.receipt_path" 
                 alt="Transaction Receipt" 
-                class="w-full h-auto rounded-md border"
+                class="rounded-md border max-h-[50vh] object-contain"
               />
             </div>
+          </div>
+          
+          <!-- Download Receipt Button - Only show if status is not pending -->
+          <div v-if="canDownloadReceipt && transaction.status.toLowerCase() !== 'pending'" class="flex justify-center pt-3">
+            <button 
+              @click="downloadReceipt"
+              class="bg-primary-color text-white px-4 py-2 rounded-md hover:bg-primary-color/90">
+              Download Receipt as PDF
+            </button>
           </div>
         </div>
 
@@ -138,58 +149,112 @@ const props = defineProps({
 // Modal state
 const showDetailsModal = ref(false)
 
-// Determine if we should show the details button
-const showDetailsButton = computed(() => {
-  return (props.transaction.reference_type === 'refill' || 
-          props.transaction.reference_type === 'withdrawal') &&
-         (props.transaction.status === 'rejected' || props.transaction.status === 'failed')
-})
+// Determine if amount should be displayed
+const displayableAmount = computed(() => {
+  return props.transaction.reference_type !== 'verification' && 
+         parseFloat(props.transaction.amount) > 0;
+});
+
+// Get user-friendly transaction type label
+const getTransactionTypeLabel = computed(() => {
+  if (!props.transaction.reference_type) {
+    return 'Wallet Activation';
+  }
+  
+  switch(props.transaction.reference_type) {
+    case 'verification': return 'Verification';
+    case 'refill': return 'Refill';
+    case 'withdrawal': return 'Withdrawal';
+    default: return ucfirst(props.transaction.reference_type);
+  }
+});
+
+// Helper function to capitalize first letter
+const ucfirst = (str) => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+// Determine if we can show the receipt download button - updated to exclude pending status
+const canDownloadReceipt = computed(() => {
+  return (
+    ['completed', 'approved'].includes(props.transaction.status.toLowerCase()) ||
+    (props.transaction.reference_type === 'refill' && 
+     props.transaction.receipt_path && 
+     props.transaction.status.toLowerCase() !== 'pending')
+  );
+});
 
 const openDetailsModal = () => {
-  showDetailsModal.value = true
-}
+  showDetailsModal.value = true;
+};
+
+const downloadReceipt = () => {
+  window.open(route('seller.wallet.receipt', props.transaction.id), '_blank');
+};
 
 // Determine icon based on transaction type
 const transactionIcon = computed(() => {
+  if (!props.transaction.reference_type) {
+    return ShieldCheckIcon; // Use shield icon for wallet activation
+  }
+  
   switch(props.transaction.reference_type) {
     case 'verification':
-      return ShieldCheckIcon
+      return ShieldCheckIcon;
     case 'refill':
-      return BanknotesIcon
+      return BanknotesIcon;
     case 'withdrawal':
-      return ArrowDownCircleIcon
+      return ArrowDownCircleIcon;
     default:
-      return props.transaction.type === 'credit' ? ArrowUpCircleIcon : ArrowDownCircleIcon
+      return props.transaction.type === 'credit' ? ArrowUpCircleIcon : ArrowDownCircleIcon;
   }
-})
+});
 
 // Get icon background color based on transaction type
 const getIconBackgroundColor = computed(() => {
+  // Handle empty reference_type (wallet activation)
+  if (!props.transaction.reference_type) {
+    return {
+      'bg-blue-100': props.transaction.status.toLowerCase() === 'pending',
+      'bg-green-100': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
+      'bg-red-100': props.transaction.status.toLowerCase() === 'rejected'
+    };
+  }
+  
   switch(props.transaction.reference_type) {
     case 'verification':
       return {
-        'bg-blue-100': props.transaction.status === 'pending',
-        'bg-green-100': props.transaction.status === 'approved',
-        'bg-red-100': props.transaction.status === 'denied'
-      }
+        'bg-blue-100': props.transaction.status.toLowerCase() === 'pending',
+        'bg-green-100': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
+        'bg-red-100': props.transaction.status.toLowerCase() === 'rejected'
+      };
     default:
-      return props.transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
+      return props.transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100';
   }
-})
+});
 
 // Get icon color based on transaction type
 const getIconColor = computed(() => {
+  // Handle empty reference_type (wallet activation)
+  if (!props.transaction.reference_type) {
+    return {
+      'text-blue-600': props.transaction.status.toLowerCase() === 'pending',
+      'text-green-600': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
+      'text-red-600': props.transaction.status.toLowerCase() === 'rejected'
+    };
+  }
+  
   switch(props.transaction.reference_type) {
     case 'verification':
       return {
-        'text-blue-600': props.transaction.status === 'pending',
-        'text-green-600': props.transaction.status === 'approved',
-        'text-red-600': props.transaction.status === 'denied'
-      }
+        'text-blue-600': props.transaction.status.toLowerCase() === 'pending',
+        'text-green-600': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
+        'text-red-600': props.transaction.status.toLowerCase() === 'rejected'
+      };
     default:
-      return props.transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+      return props.transaction.type === 'credit' ? 'text-green-600' : 'text-red-600';
   }
-})
+});
 
 const statusColor = computed(() => {
   const colors = {
@@ -199,9 +264,9 @@ const statusColor = computed(() => {
     denied: 'text-red-600',
     rejected: 'text-red-600',
     failed: 'text-red-600'
-  }
-  return colors[props.transaction.status] || 'text-gray-600'
-})
+  };
+  return colors[props.transaction.status.toLowerCase()] || 'text-gray-600';
+});
 
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString('en-PH', {
@@ -210,6 +275,6 @@ const formatDate = (date) => {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit'
-  })
-}
+  });
+};
 </script>
