@@ -140,6 +140,7 @@ Route::middleware('auth')->group(function () {
                     Route::post('/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
                     Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
                     Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
+                    Route::get('/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])->name('seller.wallet.receipt');
                 });
             });
         });
