@@ -111,7 +111,7 @@
 
     <!-- Receipt Preview Dialog -->
     <Dialog :open="!!selectedTransaction" @close="selectedTransaction = null">
-      <DialogContent class="sm:max-w-md">
+      <DialogContent class="sm:max-w-md lg:max-w-sm">
         <DialogHeader>
           <DialogTitle>Payment Receipt</DialogTitle>
           <DialogDescription>
@@ -119,6 +119,31 @@
           </DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
+          <!-- Transaction details -->
+          <div class="bg-gray-50 p-4 rounded-md space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="font-medium text-gray-500">Amount:</span>
+              <span class="font-bold">₱{{ selectedTransaction?.amount }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="font-medium text-gray-500">Reference #:</span>
+              <span>{{ selectedTransaction?.reference_id }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="font-medium text-gray-500">Status:</span>
+              <span :class="{
+                'text-yellow-600': selectedTransaction?.status === 'pending',
+                'text-green-600': selectedTransaction?.status === 'completed',
+                'text-red-600': selectedTransaction?.status === 'rejected'
+              }">{{ selectedTransaction?.status }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="font-medium text-gray-500">Type:</span>
+              <span>{{ selectedTransaction?.reference_type }}</span>
+            </div>
+          </div>
+          
+          <!-- Receipt image -->
           <img 
             v-if="selectedTransaction"
             :src="selectedTransaction.receipt_url" 
@@ -138,7 +163,7 @@
 import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
-import { Button } from '@/Components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/Components/ui/dialog'
 
 const props = defineProps({

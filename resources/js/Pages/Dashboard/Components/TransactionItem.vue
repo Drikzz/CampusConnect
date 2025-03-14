@@ -4,9 +4,12 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <!-- Left side with icon and description -->
       <div class="flex items-center space-x-3">
+        <!-- Ensure both refill and withdrawal have the same styling structure -->
         <div :class="[
           'p-2 rounded-full',
-          getIconBackgroundColor
+          typeof getIconBackgroundColor === 'string' 
+            ? getIconBackgroundColor 
+            : Object.entries(getIconBackgroundColor).find(([k, v]) => v)[0]
         ]">
           <component :is="transactionIcon" class="w-5 h-5" :class="getIconColor" />
         </div>
@@ -28,7 +31,7 @@
             {{ transaction.type === 'credit' ? '+' : '-' }}₱{{ transaction.amount }}
           </p>
           <p class="text-sm" :class="statusColor">
-            {{ transaction.status }}
+            {{ capitalizeFirstLetter(transaction.status) }}
           </p>
         </div>
         
@@ -60,7 +63,7 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-gray-500">Status</p>
-              <p class="font-medium" :class="statusColor">{{ transaction.status }}</p>
+              <p class="font-medium" :class="statusColor">{{ capitalizeFirstLetter(transaction.status) }}</p>
             </div>
             <div v-if="displayableAmount">
               <p class="text-sm text-gray-500">Amount</p>
@@ -88,7 +91,7 @@
 
           <!-- Reference Info -->
           <div v-if="transaction.reference_id" class="border-t pt-3">
-            <p class="text-sm text-gray-500 mb-1">Reference ID</p>
+            <p class="text-sm text-gray-500 mb-1">GCash Reference ID</p>
             <p class="text-sm break-all">{{ transaction.reference_id }}</p>
           </div>
 
@@ -132,9 +135,10 @@
 import { computed, ref } from 'vue'
 import { 
   ArrowUpCircleIcon, 
-  ArrowDownCircleIcon,
+  ArrowDownTrayIcon,
   BanknotesIcon,
-  ShieldCheckIcon 
+  ShieldCheckIcon, 
+  CurrencyDollarIcon  // Added coin/currency icon for refill
 } from '@heroicons/vue/24/solid'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/Components/ui/dialog'
 import { Button } from '@/Components/ui/button'
@@ -174,6 +178,11 @@ const ucfirst = (str) => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
+// Add this new function to capitalize status text
+const capitalizeFirstLetter = (str) => {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
+
 // Determine if we can show the receipt download button - updated to exclude pending status
 const canDownloadReceipt = computed(() => {
   return (
@@ -202,15 +211,15 @@ const transactionIcon = computed(() => {
     case 'verification':
       return ShieldCheckIcon;
     case 'refill':
-      return BanknotesIcon;
+      return CurrencyDollarIcon; // Changed to CurrencyDollarIcon for coin/money visual
     case 'withdrawal':
-      return ArrowDownCircleIcon;
+      return BanknotesIcon;
     default:
-      return props.transaction.type === 'credit' ? ArrowUpCircleIcon : ArrowDownCircleIcon;
+      return props.transaction.type === 'credit' ? ArrowUpCircleIcon : ArrowDownTrayIcon;
   }
 });
 
-// Get icon background color based on transaction type
+// Fix the issue with getIconBackgroundColor - ensure consistent styling
 const getIconBackgroundColor = computed(() => {
   // Handle empty reference_type (wallet activation)
   if (!props.transaction.reference_type) {
@@ -228,12 +237,16 @@ const getIconBackgroundColor = computed(() => {
         'bg-green-100': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
         'bg-red-100': props.transaction.status.toLowerCase() === 'rejected'
       };
+    case 'refill':
+      return 'bg-green-100'; // Background for refill
+    case 'withdrawal':
+      return 'bg-red-100'; // Background for withdrawal - explicitly defined
     default:
       return props.transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100';
   }
 });
 
-// Get icon color based on transaction type
+// Ensure consistent icon styling between refill and withdrawal
 const getIconColor = computed(() => {
   // Handle empty reference_type (wallet activation)
   if (!props.transaction.reference_type) {
@@ -251,6 +264,10 @@ const getIconColor = computed(() => {
         'text-green-600': ['completed', 'approved'].includes(props.transaction.status.toLowerCase()),
         'text-red-600': props.transaction.status.toLowerCase() === 'rejected'
       };
+    case 'refill':
+      return 'text-green-600'; // Green color for refill
+    case 'withdrawal':
+      return 'text-red-600'; // Red color for withdrawal
     default:
       return props.transaction.type === 'credit' ? 'text-green-600' : 'text-red-600';
   }

@@ -26,7 +26,9 @@ class WalletTransaction extends Model
     'receipt_path',
     'processed_at',
     'processed_by',
-    'remarks'
+    'remarks',
+    'phone_number',
+    'account_name'
   ];
 
   protected $casts = [
