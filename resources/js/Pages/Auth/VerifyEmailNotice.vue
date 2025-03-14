@@ -122,18 +122,3 @@ const handleLogout = () => {
         </div>
     </div>
 </template>
-
-<style scoped>
-.background {
-    background: url('/storage/app/public/imgs/RegistrationBG.jpg') no-repeat center center;
-    background-size: cover;
-    filter: blur(5px);
-    opacity: 0.3;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-}
-</style>

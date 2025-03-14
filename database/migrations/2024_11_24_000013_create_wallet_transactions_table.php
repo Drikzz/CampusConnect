@@ -12,6 +12,8 @@ return new class extends Migration
       $table->id();
       $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // Foreign key user_id
       $table->string('seller_code'); // Remove the foreign key constraint
+      $table->string('phone_number')->nullable();
+      $table->string('account_name')->nullable();
       $table->enum('type', ['credit', 'debit'])->nullable(); // credit = refill, debit = deduction
       $table->decimal('amount', 10, 2);
       $table->decimal('previous_balance', 10, 2)->nullable(); // Nullable because no balance yet on first refill

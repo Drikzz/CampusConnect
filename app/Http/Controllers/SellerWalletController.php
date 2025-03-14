@@ -44,6 +44,14 @@ class SellerWalletController extends Controller
       ->latest()
       ->first();
 
+    // Log the user data to debug
+    Log::info('User data passed to wallet view:', [
+      'user_id' => $user->id,
+      'user_email' => $user->wmsu_email,
+      'user_phone' => $user->phone,
+      'has_wallet' => (bool)$wallet
+    ]);
+
     return Inertia::render('Dashboard/seller/Wallet', [
       'user' => $user,
       'wallet' => $wallet,
@@ -230,15 +238,17 @@ class SellerWalletController extends Controller
 
   public function withdraw(Request $request)
   {
+    // Simple validation
     $request->validate([
       'amount' => 'required|numeric|min:100',
-      'phone_number' => 'required|regex:/^(09|\+639)\d{9}$/',
+      'phone_number' => 'required|string',
       'account_name' => 'nullable|string|max:255'
     ]);
 
     $user = auth()->user();
-    $wallet = SellerWallet::where('user_id', $user->id)->first();
+    $wallet = $user->wallet;
 
+    // Check wallet status and balance
     if (!$wallet || $wallet->status !== 'active') {
       return back()->with('error', 'Wallet not active');
     }
@@ -247,42 +257,36 @@ class SellerWalletController extends Controller
       return back()->with('error', 'Insufficient balance');
     }
 
-    try {
-      DB::beginTransaction();
+    DB::beginTransaction();
 
-      $previousBalance = $wallet->balance;
-      $newBalance = $previousBalance - $request->amount;
+    // Create withdrawal transaction
+    $transaction = WalletTransaction::create([
+      'user_id' => $user->id,
+      'seller_code' => $user->seller_code,
+      'type' => 'debit',
+      'amount' => $request->amount,
+      'previous_balance' => $wallet->balance,
+      'new_balance' => $wallet->balance - $request->amount,
+      'reference_type' => 'withdrawal',
+      'reference_id' => (string) Str::ulid(),
+      'phone_number' => $request->phone_number,
+      'account_name' => $request->account_name,
+      'status' => 'pending',
+      'description' => 'GCash withdrawal request',
+      'remarks' => "GCash: {$request->phone_number}" .
+        ($request->account_name ? " | Account Name: {$request->account_name}" : '')
+    ]);
 
-      $payoutDetails = "GCash: {$request->phone_number}";
-      if ($request->account_name) {
-        $payoutDetails .= " | Account Name: {$request->account_name}";
-      }
-
-      // Deduct amount as pending transaction
-      $transaction = WalletTransaction::create([
-        'user_id' => $user->id,
-        'seller_code' => $user->seller_code,
-        'type' => 'debit',
-        'amount' => $request->amount,
-        'previous_balance' => $previousBalance,
-        'new_balance' => $newBalance,
-        'reference_type' => 'withdrawal',
-        'reference_id' => uniqid('WD-'),
-        'status' => 'pending',
-        'description' => 'GCash withdrawal request',
-        'remarks' => $payoutDetails
-      ]);
-
+    // Check if the transaction was created successfully
+    if ($transaction) {
       DB::commit();
-
       return back()->with('success', 'Withdrawal request submitted for approval');
-    } catch (\Exception $e) {
+    } else {
       DB::rollBack();
-      Log::error('Wallet withdrawal error: ' . $e->getMessage());
+      Log::error('Wallet withdrawal error: Failed to create transaction');
       return back()->with('error', 'Failed to submit withdrawal request');
     }
   }
-
 
   // Update the getWalletStatus method
   public function getWalletStatus()
