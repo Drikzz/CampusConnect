@@ -140,10 +140,15 @@ Route::middleware('auth')->group(function () {
                     Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
                     Route::post('/withdraw', [SellerWalletController::class, 'withdraw'])->name('seller.wallet.withdraw'); // Add this missing route
                     Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
-                    Route::get('/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])->name('seller.wallet.receipt');
+                    // Route::get('/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])->name('seller.wallet.receipt');
                 });
             });
         });
+
+        // Add or update the receipt download route
+        Route::get('/dashboard/seller/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])
+            ->middleware(['auth', 'verified'])
+            ->name('seller.wallet.receipt');
 
         // Update wishlist routes
         Route::prefix('dashboard/wishlist')->group(function () {

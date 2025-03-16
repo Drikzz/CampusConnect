@@ -7,9 +7,9 @@
         <!-- Ensure both refill and withdrawal have the same styling structure -->
         <div :class="[
           'p-2 rounded-full',
-          typeof getIconBackgroundColor === 'string' 
-            ? getIconBackgroundColor 
-            : Object.entries(getIconBackgroundColor).find(([k, v]) => v)[0]
+          typeof getIconBackgroundColor === 'function'
+            ? getIconBackgroundColor(transaction)
+            : getIconBackgroundColor
         ]">
           <component :is="transactionIcon" class="w-5 h-5" :class="getIconColor" />
         </div>
@@ -18,27 +18,28 @@
           <p class="text-sm text-gray-500">{{ formatDate(transaction.created_at) }}</p>
         </div>
       </div>
-      
+
       <!-- Right side with amount, status and view button -->
       <div class="flex items-center gap-4 ml-11 sm:ml-0">
         <!-- Amount and Status -->
         <div class="text-right">
-          <p v-if="displayableAmount" 
-             :class="[
-               'font-medium',
-               transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
-             ]">
-            {{ transaction.type === 'credit' ? '+' : '-' }}₱{{ transaction.amount }}
+          <p v-if="displayableAmount" :class="[
+            'font-medium',
+            transaction.type === 'credit' || transaction.reference_type === 'refill'
+              ? 'text-green-600'
+              : 'text-red-600'
+          ]">
+            {{ transaction.type === 'credit' || transaction.reference_type === 'refill' ? '+' : '-' }}₱{{
+              formatAmount(transaction.amount) }}
           </p>
           <p class="text-sm" :class="statusColor">
-            {{ capitalizeFirstLetter(transaction.status) }}
+            {{ formatStatus(transaction.status) }}
           </p>
         </div>
-        
+
         <!-- Only View Button -->
         <div>
-          <button 
-            @click="openDetailsModal"
+          <button @click="openDetailsModal"
             class="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 transition">
             View
           </button>
@@ -56,7 +57,8 @@
           <DialogDescription v-if="transaction.status === 'rejected'">
             This request was rejected by the administrator.
           </DialogDescription>
-          <DialogDescription v-else-if="transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'">
+          <DialogDescription
+            v-else-if="transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'">
             Your withdrawal is being processed and will be sent within 24-48 hours.
           </DialogDescription>
         </DialogHeader>
@@ -85,7 +87,7 @@
               <p class="font-medium">{{ formatDate(transaction.processed_at) }}</p>
             </div>
           </div>
-          
+
           <!-- Rejection Reason -->
           <div v-if="transaction.status === 'rejected'" class="bg-red-50 p-3 rounded-md">
             <h4 class="font-medium text-red-800 mb-1">Rejection Reason</h4>
@@ -95,9 +97,9 @@
           <!-- Reference Info - Updated to support GCash reference for completed withdrawals -->
           <div v-if="transaction.reference_id" class="border-t pt-3">
             <p class="text-sm text-gray-500 mb-1">
-              {{ transaction.reference_type === 'withdrawal' && transaction.status === 'completed' 
-                ? 'GCash Reference Number' 
-                : 'Reference ID' 
+              {{ transaction.reference_type === 'withdrawal' && transaction.status === 'completed'
+                ? 'GCash Reference Number'
+                : 'Reference ID'
               }}
             </p>
             <p class="text-sm break-all">{{ transaction.reference_id }}</p>
@@ -113,18 +115,15 @@
           <div v-if="transaction.receipt_path" class="border-t pt-3">
             <p class="text-sm text-gray-500 mb-1">Receipt</p>
             <div class="flex justify-center">
-              <img 
-                :src="'/storage/' + transaction.receipt_path" 
-                alt="Transaction Receipt" 
-                class="rounded-md border max-h-[50vh] object-contain"
-              />
+              <img :src="'/storage/' + transaction.receipt_path" alt="Transaction Receipt"
+                class="rounded-md border max-h-[50vh] object-contain" />
             </div>
           </div>
-          
+
           <!-- Download Receipt Button - Only show if status is not pending -->
-          <div v-if="canDownloadReceipt && transaction.status.toLowerCase() !== 'pending'" class="flex justify-center pt-3">
-            <button 
-              @click="downloadReceipt"
+          <div v-if="canDownloadReceipt && transaction.status.toLowerCase() !== 'pending'"
+            class="flex justify-center pt-3">
+            <button @click="downloadReceipt"
               class="bg-primary-color text-white px-4 py-2 rounded-md hover:bg-primary-color/90">
               Download Receipt as PDF
             </button>
@@ -141,11 +140,11 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { 
-  ArrowUpCircleIcon, 
+import {
+  ArrowUpCircleIcon,
   ArrowDownTrayIcon,
   BanknotesIcon,
-  ShieldCheckIcon, 
+  ShieldCheckIcon,
   CurrencyDollarIcon  // Added coin/currency icon for refill
 } from '@heroicons/vue/24/solid'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/Components/ui/dialog'
@@ -163,8 +162,8 @@ const showDetailsModal = ref(false)
 
 // Determine if amount should be displayed
 const displayableAmount = computed(() => {
-  return props.transaction.reference_type !== 'verification' && 
-         parseFloat(props.transaction.amount) > 0;
+  return props.transaction.reference_type !== 'verification' &&
+    parseFloat(props.transaction.amount) > 0;
 });
 
 // Get user-friendly transaction type label
@@ -172,8 +171,8 @@ const getTransactionTypeLabel = computed(() => {
   if (!props.transaction.reference_type) {
     return 'Wallet Activation';
   }
-  
-  switch(props.transaction.reference_type) {
+
+  switch (props.transaction.reference_type) {
     case 'verification': return 'Verification';
     case 'refill': return 'Refill';
     case 'withdrawal': return 'Withdrawal';
@@ -195,9 +194,9 @@ const capitalizeFirstLetter = (str) => {
 const canDownloadReceipt = computed(() => {
   return (
     ['completed', 'approved'].includes(props.transaction.status.toLowerCase()) ||
-    (props.transaction.reference_type === 'refill' && 
-     props.transaction.receipt_path && 
-     props.transaction.status.toLowerCase() !== 'pending')
+    (props.transaction.reference_type === 'refill' &&
+      props.transaction.receipt_path &&
+      props.transaction.status.toLowerCase() !== 'pending')
   );
 });
 
@@ -214,8 +213,8 @@ const transactionIcon = computed(() => {
   if (!props.transaction.reference_type) {
     return ShieldCheckIcon; // Use shield icon for wallet activation
   }
-  
-  switch(props.transaction.reference_type) {
+
+  switch (props.transaction.reference_type) {
     case 'verification':
       return ShieldCheckIcon;
     case 'refill':
@@ -237,8 +236,8 @@ const getIconBackgroundColor = computed(() => {
       'bg-red-100': props.transaction.status.toLowerCase() === 'rejected'
     };
   }
-  
-  switch(props.transaction.reference_type) {
+
+  switch (props.transaction.reference_type) {
     case 'verification':
       return {
         'bg-blue-100': props.transaction.status.toLowerCase() === 'pending',
@@ -264,8 +263,8 @@ const getIconColor = computed(() => {
       'text-red-600': props.transaction.status.toLowerCase() === 'rejected'
     };
   }
-  
-  switch(props.transaction.reference_type) {
+
+  switch (props.transaction.reference_type) {
     case 'verification':
       return {
         'text-blue-600': props.transaction.status.toLowerCase() === 'pending',
@@ -306,13 +305,30 @@ const statusColor = computed(() => {
   return colors[props.transaction.status.toLowerCase()] || 'text-gray-600';
 });
 
+// Fix formatDate function for compact formatting
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  });
+  if (!date) return '';
+
+  const d = new Date(date);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  return `${months[d.getMonth()]} ${d.getDate()}, ${String(d.getFullYear()).substr(2)} ${formatTime(d)}`;
+};
+
+// Helper function to format time in 12-hour format
+const formatTime = (date) => {
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+
+  return `${hours}:${minutes < 10 ? '0' + minutes : minutes} ${ampm}`;
+};
+
+// Format amount with 2 decimal places
+const formatAmount = (value) => {
+  return parseFloat(value).toFixed(2);
 };
 </script>
