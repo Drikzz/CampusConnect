@@ -26,7 +26,9 @@ class WalletTransaction extends Model
     'receipt_path',
     'processed_at',
     'processed_by',
-    'remarks'
+    'remarks',
+    'phone_number',
+    'account_name'
   ];
 
   protected $casts = [
@@ -39,7 +41,8 @@ class WalletTransaction extends Model
 
   public static $remarks = [
     'verification_rejected' => "ID is not clear, re-upload required.",
-    'withdrawal_rejected' => "Bank details incorrect.",
+    'refill_rejected' => "GCash reference number or payment details could not be verified. Please check your transaction details and submit again with a clearer screenshot of payment confirmation.",
+    'withdrawal_rejected' => "Unable to process withdrawal to the provided GCash account. Please check your information and try again.",
     'transaction_failed' => "Payment failed due to insufficient funds.",
   ];
 

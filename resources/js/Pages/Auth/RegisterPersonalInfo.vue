@@ -4,7 +4,7 @@ import { ref, watch, computed, onMounted } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
 import { CalendarIcon, Check, ChevronsUpDown } from "lucide-vue-next";
-import { format } from "date-fns";
+import { format, subYears } from "date-fns"; // Add subYears import
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/Components/ui/command";
 import { ScrollArea } from "@/Components/ui/scroll-area";
@@ -85,6 +85,35 @@ watch(() => form.date_of_birth, (newValue) => {
     }
 }, { immediate: true });
 
+// Calculate minimum date for 12 years old
+const minAge = 12;
+const maxDate = computed(() => {
+    return subYears(new Date(), minAge);
+});
+
+// Add this for better year navigation - calculate minimum year (e.g., 80 years ago)
+const minDate = computed(() => {
+    return subYears(new Date(), 80); // Allow up to 80 years back
+});
+
+// Function to check if user is at least minAge years old
+const isOldEnough = (birthDate) => {
+    if (!birthDate) return false;
+    
+    const birthDateObj = new Date(birthDate);
+    const today = new Date();
+    
+    let age = today.getFullYear() - birthDateObj.getFullYear();
+    const monthDiff = today.getMonth() - birthDateObj.getMonth();
+    
+    // Adjust age if birthday hasn't occurred yet this year
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDateObj.getDate())) {
+        age--;
+    }
+    
+    return age >= minAge;
+};
+
 const submit = () => {
     // Basic validation before submission
     let hasErrors = false;
@@ -104,6 +133,12 @@ const submit = () => {
             hasErrors = true;
         }
     });
+
+    // Check age requirement
+    if (form.date_of_birth && !isOldEnough(form.date_of_birth)) {
+        form.errors.date_of_birth = `You must be at least ${minAge} years old to register`;
+        hasErrors = true;
+    }
 
     // Additional validation for conditional fields
     if (showDepartment.value && !form.wmsu_dept_id) {
@@ -491,10 +526,15 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                             v-model="date"
                                             mode="single"
                                             class="rounded-md border"
+                                            :fromDate="minDate"
+                                            :toDate="maxDate"
                                             @update:model-value="(newDate) => {
                                                 form.date_of_birth = format(new Date(newDate.toString()), 'yyyy-MM-dd');
                                             }"
                                         />
+                                        <div class="px-4 py-2 text-xs text-gray-500">
+                                            You must be at least {{ minAge }} years old to register.
+                                        </div>
                                     </PopoverContent>
                                 </Popover>
                                 <div v-if="form.errors.date_of_birth" class="text-red-500 text-sm mt-1">

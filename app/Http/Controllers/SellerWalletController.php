@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SellerWalletController extends Controller
 {
@@ -43,6 +44,14 @@ class SellerWalletController extends Controller
       ->latest()
       ->first();
 
+    // Log the user data to debug
+    Log::info('User data passed to wallet view:', [
+      'user_id' => $user->id,
+      'user_email' => $user->wmsu_email,
+      'user_phone' => $user->phone,
+      'has_wallet' => (bool)$wallet
+    ]);
+
     return Inertia::render('Dashboard/seller/Wallet', [
       'user' => $user,
       'wallet' => $wallet,
@@ -58,31 +67,6 @@ class SellerWalletController extends Controller
         $this->getWalletStats($wallet)
       )
     ]);
-  }
-
-  public function activate(Request $request)
-  {
-    try {
-      DB::beginTransaction();
-
-      // Get the wallet by user ID instead of seller code
-      $wallet = SellerWallet::where('user_id', auth()->id())->firstOrFail();
-
-      // Update wallet activation
-      $wallet->update([
-        'is_activated' => true,
-        'status' => 'active',
-        'activated_at' => now()
-      ]);
-
-      DB::commit();
-
-      return back()->with('success', 'Wallet activated successfully');
-    } catch (\Exception $e) {
-      DB::rollBack();
-      Log::error('Wallet activation error: ' . $e->getMessage());
-      return back()->with('error', 'Failed to activate wallet');
-    }
   }
 
   public function setup(Request $request)
@@ -202,15 +186,11 @@ class SellerWalletController extends Controller
       // Store receipt image
       $path = $request->file('receipt_image')->store('receipts', 'public');
 
-      // Get or create wallet
-      $wallet = SellerWallet::firstOrCreate(
-        ['seller_code' => auth()->user()->seller_code],
-        ['balance' => 0.00]
-      );
-
       // Create pending transaction
       $transaction = WalletTransaction::create([
-        'user_id' => auth()->id(), // Add user_id instead of seller_code
+        'user_id' => auth()->id(),
+        'seller_code' => auth()->user()->seller_code,
+        'type' => 'credit',
         'amount' => $request->amount,
         'previous_balance' => $wallet->balance,
         'new_balance' => $wallet->balance + $request->amount,
@@ -228,6 +208,58 @@ class SellerWalletController extends Controller
       DB::rollBack();
       Log::error('Wallet refill error: ' . $e->getMessage());
       return back()->with('error', 'Failed to submit refill request');
+    }
+  }
+
+  public function withdraw(Request $request)
+  {
+    // Simple validation
+    $request->validate([
+      'amount' => 'required|numeric|min:100',
+      'phone_number' => 'required|string',
+      'account_name' => 'nullable|string|max:255'
+    ]);
+
+    $user = auth()->user();
+    $wallet = $user->wallet;
+
+    // Check wallet status and balance
+    if (!$wallet || $wallet->status !== 'active') {
+      return back()->with('error', 'Wallet not active');
+    }
+
+    if ($wallet->balance < $request->amount) {
+      return back()->with('error', 'Insufficient balance');
+    }
+
+    DB::beginTransaction();
+
+    // Create withdrawal transaction
+    $transaction = WalletTransaction::create([
+      'user_id' => $user->id,
+      'seller_code' => $user->seller_code,
+      'type' => 'debit',
+      'amount' => $request->amount,
+      'previous_balance' => $wallet->balance,
+      'new_balance' => $wallet->balance - $request->amount,
+      'reference_type' => 'withdrawal',
+      'reference_id' => (string) Str::ulid(),
+      'phone_number' => $request->phone_number,
+      'account_name' => $request->account_name,
+      'status' => 'pending',
+      'description' => 'GCash withdrawal request',
+      'remarks' => "GCash: {$request->phone_number}" .
+        ($request->account_name ? " | Account Name: {$request->account_name}" : '')
+    ]);
+
+    // Check if the transaction was created successfully
+    if ($transaction) {
+      DB::commit();
+      return back()->with('success', 'Withdrawal request submitted for approval');
+    } else {
+      DB::rollBack();
+      Log::error('Wallet withdrawal error: Failed to create transaction');
+      return back()->with('error', 'Failed to submit withdrawal request');
     }
   }
 
@@ -279,6 +311,33 @@ class SellerWalletController extends Controller
         'error' => 'Server error',
         'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
       ], 500);
+    }
+  }
+
+  /**
+   * Generate and download a PDF receipt for a transaction
+   */
+  public function downloadReceipt($id)
+  {
+    try {
+      $transaction = WalletTransaction::where('id', $id)
+        ->where('user_id', auth()->id()) // Ensure the user owns the transaction
+        ->firstOrFail();
+
+      // Generate PDF
+      $pdf = Pdf::loadView('pdf.receipt', compact('transaction'));
+
+      // Set filename based on transaction type
+      $filename = "CampusConnect_" . ucfirst($transaction->reference_type) . "_Receipt_" . $id . ".pdf";
+
+      return $pdf->download($filename);
+    } catch (\Exception $e) {
+      Log::error('Receipt download error: ' . $e->getMessage(), [
+        'transaction_id' => $id,
+        'user_id' => auth()->id()
+      ]);
+
+      return back()->with('error', 'Failed to generate receipt. Please try again.');
     }
   }
 

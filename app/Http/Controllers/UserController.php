@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\SellerRegistrationConfirmation;
 
 class UserController extends Controller
 {
@@ -144,40 +146,29 @@ class UserController extends Controller
             'acceptTerms' => 'required|accepted'
         ]);
 
-        try {
-            DB::beginTransaction();
+        // Remove the try-catch blocks and perform operations directly
+        $user = auth()->user();
+        $user->is_seller = true;
+        $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
+        $user->save();
 
-            $user = auth()->user();
-            $user->is_seller = true;
-            $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
-            $user->save();
+        // Create inactive wallet automatically
+        SellerWallet::create([
+            'user_id' => $user->id,
+            'seller_code' => $user->seller_code,
+            'balance' => 0.00,
+            'is_activated' => false,
+            'status' => 'pending'
+        ]);
 
-            // Create inactive wallet automatically
-            SellerWallet::create([
-                'user_id' => $user->id,
-                'seller_code' => $user->seller_code,
-                'balance' => 0.00,
-                'is_activated' => false,
-                'status' => 'pending'
-            ]);
+        // Send email directly without try-catch
+        Mail::to($user->wmsu_email)->send(new SellerRegistrationConfirmation($user));
 
-            DB::commit();
-
-            return redirect()->route('dashboard.profile')->with('toast', [
-                'title' => 'Success!',
-                'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
-                'variant' => 'default'
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error creating seller account: ' . $e->getMessage());
-
-            return back()->with('toast', [
-                'title' => 'Error',
-                'description' => 'Failed to create seller account. Please try again.',
-                'variant' => 'destructive'
-            ]);
-        }
+        return redirect()->route('dashboard.profile')->with('toast', [
+            'title' => 'Success!',
+            'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
+            'variant' => 'default'
+        ]);
     }
 
     private function uploadImage($request, $user, $userType, $validated)

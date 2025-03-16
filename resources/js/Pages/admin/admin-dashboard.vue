@@ -1,7 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import AdminLayout from '@/Pages/admin/AdminLayout.vue';
-import ApexCharts from 'apexcharts';
 
 const props = defineProps({
     stats: {
@@ -21,76 +20,7 @@ const toggleDropdown = (id) => {
 };
 
 onMounted(() => {
-  const lineChart = new ApexCharts(document.querySelector("#line-chart"), {
-    series: [{
-      name: "Transactions",
-      data: [props.stats.dailyTransactions, props.stats.weeklyTransactions, props.stats.monthlyTransactions],
-    }],
-    chart: {
-      type: "line",
-      height: 240,
-      toolbar: { show: false },
-    },
-    title: { show: false },
-    dataLabels: { enabled: false },
-    colors: ["#e54646"],
-    stroke: { lineCap: "round", curve: "smooth" },
-    markers: { size: 0 },
-    xaxis: {
-      categories: ["Daily", "Weekly", "Monthly"],
-      axisTicks: { show: false },
-      axisBorder: { show: false },
-      labels: { style: { colors: "#616161", fontSize: "12px" } },
-    },
-    yaxis: {
-      labels: { style: { colors: "#616161", fontSize: "12px" } },
-    },
-    grid: {
-      show: true,
-      borderColor: "#dddddd",
-      strokeDashArray: 5,
-      xaxis: { lines: { show: true } },
-      padding: { top: 5, right: 20 },
-    },
-    fill: { opacity: 0.8 },
-    tooltip: { theme: "dark" },
-  });
-  lineChart.render();
-
-  const barChart = new ApexCharts(document.querySelector("#bar-chart"), {
-    series: [{
-      name: "User Registrations",
-      data: [props.stats.dailyRegistrations, props.stats.weeklyRegistrations, props.stats.monthlyRegistrations],
-    }],
-    chart: {
-      type: "bar",
-      height: 240,
-      toolbar: { show: false },
-    },
-    title: { show: false },
-    dataLabels: { enabled: false },
-    colors: ["#e54646"],
-    plotOptions: { bar: { columnWidth: "40%", borderRadius: 2 } },
-    xaxis: {
-      categories: ["Daily", "Weekly", "Monthly"],
-      axisTicks: { show: false },
-      axisBorder: { show: false },
-      labels: { style: { colors: "#616161", fontSize: "12px" } },
-    },
-    yaxis: {
-      labels: { style: { colors: "#616161", fontSize: "12px" } },
-    },
-    grid: {
-      show: true,
-      borderColor: "#dddddd",
-      strokeDashArray: 5,
-      xaxis: { lines: { show: true } },
-      padding: { top: 5, right: 20 },
-    },
-    fill: { opacity: 0.8 },
-    tooltip: { theme: "dark" },
-  });
-  barChart.render();
+  // You can replace this with another charting library or simpler HTML/CSS elements
 });
 </script>
 
