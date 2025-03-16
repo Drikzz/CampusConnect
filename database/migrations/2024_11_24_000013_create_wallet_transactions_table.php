@@ -20,7 +20,7 @@ return new class extends Migration
       $table->decimal('new_balance', 10, 2)->nullable();
       $table->enum('reference_type', ['verification', 'order', 'withdrawal', 'refund', 'refill']);
       $table->string('reference_id')->nullable(); // Holds verification request ID, order ID, or payment ref #
-      $table->enum('status', ['pending', 'completed', 'failed', 'rejected'])->default('pending');
+      $table->enum('status', ['pending', 'in_process', 'completed', 'rejected', 'failed'])->default('pending');
       $table->text('description')->nullable(); // Remarks for the transaction
 
       // New verification columns

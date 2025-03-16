@@ -6,17 +6,18 @@ use App\Http\Middleware\Verification;
 use App\Mail\SellerRegistrationConfirmation;
 use App\Mail\WalletTransactionApproved;
 use App\Mail\WalletTransactionRejected;
+use App\Mail\WalletTransactionCompleted;
 use App\Models\User;
 use App\Models\Product;
-use App\Models\Category; // Import the Category model
+use App\Models\Category;
 use App\Models\Transaction;
-use App\Models\Order; // Import the Order model
+use App\Models\Order;
 use App\Models\SellerWallet;
 use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log; // Import the Log facade
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
@@ -91,7 +92,6 @@ class AdminController extends Controller
             ->latest()
             ->get();
 
-        // dd($transactions->user_id->first_name);
         return Inertia::render('Admin/WalletRequests', [
             'transactions' => $transactions->map(function ($transaction) {
                 return [
@@ -153,38 +153,46 @@ class AdminController extends Controller
             }
             Log::info('User found', ['user_id' => $user->id, 'email' => $user->wmsu_email]);
 
-            // 4. Update transaction status
-            $transaction->update([
-                'status' => 'completed',
-                'processed_at' => now(),
-                'processed_by' => auth()->id()
-            ]);
-            Log::info('Transaction status updated to completed');
+            // 4. Process transaction based on type
+            // Special handling for withdrawal transactions
+            if ($transaction->reference_type === 'withdrawal') {
+                // Set to in_process status but DON'T deduct balance yet
+                $transaction->update([
+                    'status' => 'in_process',
+                    'processed_at' => now(),
+                    'processed_by' => auth()->id(),
+                    'remarks' => 'Your withdrawal request has been approved and is now being processed. Funds will be transferred to your GCash account within 24-48 hours.'
+                ]);
 
-            // 5. Update wallet based on transaction type
-            if ($transaction->reference_type === 'verification') {
-                $wallet->update([
-                    'is_activated' => true,
-                    'status' => 'active',
-                    'activated_at' => now()
+                Log::info('Withdrawal transaction set to in_process', [
+                    'transaction_id' => $transaction->id,
+                    'amount' => $transaction->amount,
+                    'wallet_balance' => $wallet->balance
                 ]);
-                Log::info('Wallet activated successfully');
-            } elseif ($transaction->reference_type === 'refill') {
-                // Handle regular refill transaction
-                $wallet->increment('balance', $transaction->amount);
-                Log::info('Wallet balance updated', ['new_balance' => $wallet->balance]);
-            } elseif ($transaction->reference_type === 'withdrawal') {
-                // Handle withdrawal transaction - Deduct balance when approved
-                $wallet->decrement('balance', $transaction->amount);
-                Log::info('Wallet withdrawal processed', [
-                    'deducted_amount' => $transaction->amount,
-                    'new_balance' => $wallet->balance,
-                    'phone_number' => $transaction->phone_number,
-                    'account_name' => $transaction->account_name
+            } else {
+                // Regular processing for non-withdrawal transactions
+                $transaction->update([
+                    'status' => 'completed',
+                    'processed_at' => now(),
+                    'processed_by' => auth()->id()
                 ]);
+
+                // Update wallet for verification or refill
+                if ($transaction->reference_type === 'verification') {
+                    $wallet->update([
+                        'is_activated' => true,
+                        'status' => 'active',
+                        'activated_at' => now()
+                    ]);
+                    Log::info('Wallet activated successfully');
+                } elseif ($transaction->reference_type === 'refill') {
+                    // Handle regular refill transaction
+                    $wallet->increment('balance', $transaction->amount);
+                    Log::info('Wallet balance updated', ['new_balance' => $wallet->balance]);
+                }
             }
 
-            // 6. Attempt to send email with detailed error handling
+            // 5. Send email notification
             try {
                 $email = $user->wmsu_email;
                 Log::info('Attempting to send email to', ['email' => $email]);
@@ -201,7 +209,11 @@ class AdminController extends Controller
             DB::commit();
             Log::info('Transaction approval completed successfully');
 
-            return back()->with('success', 'Wallet request approved successfully');
+            $successMessage = $transaction->reference_type === 'withdrawal'
+                ? 'Withdrawal request marked as in process'
+                : 'Wallet request approved successfully';
+
+            return back()->with('success', $successMessage);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Wallet approval error', [
@@ -212,90 +224,166 @@ class AdminController extends Controller
         }
     }
 
+    // New method to mark withdrawal completed
+    public function markWithdrawalCompleted(Request $request, $id)
+    {
+        $request->validate([
+            'gcash_reference' => 'required|string|min:5|max:50'
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            // 1. Find transaction and verify it's a withdrawal in process
+            $transaction = WalletTransaction::with(['wallet.user'])->findOrFail($id);
+
+            if ($transaction->reference_type !== 'withdrawal' || $transaction->status !== 'in_process') {
+                DB::rollBack();
+                return back()->with('error', 'Invalid transaction type or status');
+            }
+
+            // Get the wallet and amount
+            $wallet = $transaction->wallet;
+            $amount = $transaction->amount;
+
+            // 2. Deduct from wallet balance at completion time
+            $wallet->decrement('balance', $amount);
+
+            Log::info('Processing withdrawal and deducting from wallet', [
+                'transaction_id' => $transaction->id,
+                'amount' => $amount,
+                'previous_balance' => $wallet->balance + $amount,
+                'new_balance' => $wallet->balance
+            ]);
+
+            // 3. Update transaction with GCash reference and complete it
+            $transaction->update([
+                'status' => 'completed',
+                'reference_id' => $request->gcash_reference,
+                'remarks' => 'Your withdrawal has been completed. GCash Reference: ' . $request->gcash_reference,
+                'processed_at' => now()
+            ]);
+
+            // 3. Send email notification
+            $user = $transaction->wallet->user;
+            if ($user && $user->wmsu_email) {
+                try {
+                    // Use the withdrawal-completed email template instead of the generic approved template
+                    Mail::to($user->wmsu_email)->send(new WalletTransactionCompleted($transaction));
+                    Log::info('Withdrawal completion email sent successfully');
+                } catch (\Exception $emailError) {
+                    Log::error('Withdrawal completion email sending failed', [
+                        'error' => $emailError->getMessage()
+                    ]);
+                    // Continue despite email error
+                }
+            }
+
+            DB::commit();
+            return back()->with('success', 'Withdrawal marked as completed with GCash reference: ' . $request->gcash_reference);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Mark withdrawal completed error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Failed to mark withdrawal as completed: ' . $e->getMessage());
+        }
+    }
+
     public function rejectWalletRequest($id)
     {
         // Start database transaction
         DB::beginTransaction();
 
-        // 1. Find and log the transaction data for debugging
-        $transaction = WalletTransaction::with(['wallet.user'])->findOrFail($id);
-        Log::info('Rejecting transaction', ['id' => $transaction->id, 'reference_type' => $transaction->reference_type]);
-
-        // 2. Verify wallet relationship
-        $wallet = $transaction->wallet;
-        if (!$wallet) {
-            DB::rollBack();
-            Log::error('Wallet not found for transaction', ['transaction_id' => $id]);
-            return back()->with('error', 'Failed to find wallet for this transaction');
-        }
-        Log::info('Wallet found', ['wallet_id' => $wallet->id]);
-
-        // 3. Verify user relationship and email
-        $user = $wallet->user;
-        if (!$user || !$user->wmsu_email) {
-            DB::rollBack();
-            Log::error('User or email not found', [
-                'transaction_id' => $id,
-                'user_exists' => (bool)$user,
-                'email_exists' => $user ? (bool)$user->wmsu_email : false
-            ]);
-            return back()->with('error', 'User email not available');
-        }
-        Log::info('User found', ['user_id' => $user->id, 'email' => $user->wmsu_email]);
-
-        // 4. Update transaction status with rejection details
-        $transaction->update([
-            'status' => 'rejected',
-            'processed_at' => now(),
-            'processed_by' => auth()->id(),
-            'remarks' => 'Your request was rejected by the admin.'
-        ]);
-        Log::info('Transaction status updated to rejected');
-
-        // 5. Handle wallet deactivation if this is a verification transaction
-        if ($transaction->reference_type === 'verification' && $transaction->verification_type === 'seller_activation') {
-            $wallet->update([
-                'is_activated' => false,
-                'status' => SellerWallet::STATUS_SUSPENDED, // Use the constant from the model
-                'activated_at' => null
-            ]);
-            Log::info('Wallet deactivated successfully');
-        }
-
-        // 6. Add appropriate rejection remarks based on transaction type
-        $rejectReason = 'Request rejected by admin.';
-        if ($transaction->reference_type === 'verification') {
-            $rejectReason = WalletTransaction::$remarks['verification_rejected'] ?? 'Verification rejected by admin.';
-        } elseif ($transaction->reference_type === 'refill') {
-            $rejectReason = WalletTransaction::$remarks['refill_rejected'] ?? 'Refill request rejected by admin.';
-        } elseif ($transaction->reference_type === 'withdrawal') {
-            $rejectReason = WalletTransaction::$remarks['withdrawal_rejected'] ?? 'Withdrawal request rejected by admin.';
-        }
-
-        // Update with specific reason
-        $transaction->update(['remarks' => $rejectReason]);
-        Log::info('Added rejection reason', ['reason' => $rejectReason]);
-
-        // 7. Send email notification - SKIP ON FAILURE
-        $email = $user->wmsu_email;
-        Log::info('Attempting to send rejection email to', ['email' => $email]);
-
         try {
-            Mail::to($email)->send(new WalletTransactionRejected($transaction));
-            Log::info('Rejection email sent successfully');
-        } catch (\Exception $emailError) {
-            Log::error('Rejection email sending failed', [
-                'error' => $emailError->getMessage(),
-                'trace' => $emailError->getTraceAsString()
+            // 1. Find and log the transaction data for debugging
+            $transaction = WalletTransaction::with(['wallet.user'])->findOrFail($id);
+            Log::info('Rejecting transaction', ['id' => $transaction->id, 'reference_type' => $transaction->reference_type]);
+
+            // 2. Verify wallet relationship
+            $wallet = $transaction->wallet;
+            if (!$wallet) {
+                DB::rollBack();
+                Log::error('Wallet not found for transaction', ['transaction_id' => $id]);
+                return back()->with('error', 'Failed to find wallet for this transaction');
+            }
+            Log::info('Wallet found', ['wallet_id' => $wallet->id]);
+
+            // 3. Verify user relationship and email
+            $user = $wallet->user;
+            if (!$user || !$user->wmsu_email) {
+                DB::rollBack();
+                Log::error('User or email not found', [
+                    'transaction_id' => $id,
+                    'user_exists' => (bool)$user,
+                    'email_exists' => $user ? (bool)$user->wmsu_email : false
+                ]);
+                return back()->with('error', 'User email not available');
+            }
+            Log::info('User found', ['user_id' => $user->id, 'email' => $user->wmsu_email]);
+
+            // 4. Update transaction status with rejection details
+            $transaction->update([
+                'status' => 'rejected',
+                'processed_at' => now(),
+                'processed_by' => auth()->id(),
+                'remarks' => 'Your request was rejected by the admin.'
             ]);
-            // Continue execution despite email error
+            Log::info('Transaction status updated to rejected');
+
+            // 5. Handle wallet deactivation if this is a verification transaction
+            if ($transaction->reference_type === 'verification' && $transaction->verification_type === 'seller_activation') {
+                $wallet->update([
+                    'is_activated' => false,
+                    'status' => SellerWallet::STATUS_SUSPENDED, // Use the constant from the model
+                    'activated_at' => null
+                ]);
+                Log::info('Wallet deactivated successfully');
+            }
+
+            // 6. Add appropriate rejection remarks based on transaction type
+            $rejectReason = 'Request rejected by admin.';
+            if ($transaction->reference_type === 'verification') {
+                $rejectReason = WalletTransaction::$remarks['verification_rejected'] ?? 'Verification rejected by admin.';
+            } elseif ($transaction->reference_type === 'refill') {
+                $rejectReason = WalletTransaction::$remarks['refill_rejected'] ?? 'Refill request rejected by admin.';
+            } elseif ($transaction->reference_type === 'withdrawal') {
+                $rejectReason = WalletTransaction::$remarks['withdrawal_rejected'] ?? 'Withdrawal request rejected by admin.';
+            }
+
+            // Update with specific reason
+            $transaction->update(['remarks' => $rejectReason]);
+            Log::info('Added rejection reason', ['reason' => $rejectReason]);
+
+            // 7. Send email notification - SKIP ON FAILURE
+            $email = $user->wmsu_email;
+            Log::info('Attempting to send rejection email to', ['email' => $email]);
+
+            try {
+                Mail::to($email)->send(new WalletTransactionRejected($transaction));
+                Log::info('Rejection email sent successfully');
+            } catch (\Exception $emailError) {
+                Log::error('Rejection email sending failed', [
+                    'error' => $emailError->getMessage(),
+                    'trace' => $emailError->getTraceAsString()
+                ]);
+                // Continue execution despite email error
+            }
+
+            // Commit database changes
+            DB::commit();
+            Log::info('Transaction rejection completed successfully');
+
+            return back()->with('success', 'Wallet request rejected successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Transaction rejection failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Failed to reject transaction: ' . $e->getMessage());
         }
-
-        // Commit database changes
-        DB::commit();
-        Log::info('Transaction rejection completed successfully');
-
-        return back()->with('success', 'Wallet request rejected successfully');
     }
 
     public function wallet()

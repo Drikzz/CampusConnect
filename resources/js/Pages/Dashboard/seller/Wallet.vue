@@ -111,6 +111,24 @@
           </div>
         </div>
 
+        <!-- After the Fund Addition Status Message, add a Withdrawal In Process Message -->
+        <div v-if="hasInProcessWithdrawal" 
+             class="bg-blue-50 border border-blue-200 p-6 rounded-lg mb-6">
+          <div class="flex items-start">
+            <div class="flex-shrink-0">
+              <svg class="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-18c4.411 0 8 3.589 8 8s-3.589 8-8 8-8-3.589-8-8 3.589-8 8-8zM11 7h2v2h-2zm0 4h2v6h-2z"/>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-lg font-medium text-blue-800">Withdrawal in Progress</h3>
+              <p class="mt-1 text-blue-700">
+                Your withdrawal request is being processed. Funds will be sent to your GCash account within 24-48 hours.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Success Message - Only show for non-activated wallets -->
         <div v-if="$page.props.flash?.success && !wallet?.is_activated" 
              class="bg-green-50 border border-green-200 p-6 rounded-lg mb-4">
@@ -435,10 +453,18 @@ const withdrawForm = ref({
   account_name: ''
 })
 
-// Add the missing hasPendingTransaction computed property
+// Update the hasPendingTransaction computed property to check for both refill and withdrawal requests
 const hasPendingTransaction = computed(() => {
   return walletData.value?.transactions?.some(
-    transaction => transaction.status === 'pending' && transaction.reference_type === 'refill'
+    transaction => transaction.status === 'pending' && 
+                  (transaction.reference_type === 'refill' || transaction.reference_type === 'withdrawal')
+  ) || false
+})
+
+// Add a computed property to detect in-process withdrawals specifically for UI indicators
+const hasInProcessWithdrawal = computed(() => {
+  return walletData.value?.transactions?.some(
+    transaction => transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'
   ) || false
 })
 
@@ -542,14 +568,12 @@ const closePendingAlert = () => {
   pendingRequest.value = false
 }
 
-// Fix the submitRefill function which has syntax errors
 const submitRefill = () => {
   isSubmitting.value = true
   const formData = new FormData()
   formData.append('amount', refillForm.value.amount)
   formData.append('reference_number', refillForm.value.reference_number)
   formData.append('receipt_image', refillForm.value.receipt_image)
-
   router.post(route('seller.wallet.refill'), formData, {
     preserveScroll: true,
     onSuccess: () => {
@@ -564,7 +588,6 @@ const submitRefill = () => {
   })
 }
 
-// Fix the submitWithdraw function to use the correct route name
 const submitWithdraw = () => {
   if (withdrawForm.value.amount > (props.wallet?.balance || 0)) {
     toast({
@@ -585,37 +608,33 @@ const submitWithdraw = () => {
     return
   }
 
-  console.log('Submitting withdrawal request:', withdrawForm.value);
   isSubmitting.value = true
-  
-  // This is the important fix - use the proper route name for withdrawal
   router.post(route('seller.wallet.withdraw'), withdrawForm.value, {
     preserveScroll: true,
     onSuccess: (page) => {
-      console.log('Withdrawal success response:', page);
-      showWithdrawModal.value = false;
-      isSubmitting.value = false;
+      showWithdrawModal.value = false
+      isSubmitting.value = false
       withdrawForm.value = { 
         amount: 100, 
         phone_number: props.user?.phone || '', 
         account_name: '' 
-      };
+      }
       toast({
         title: "Success",
         description: "Withdrawal request submitted for approval",
-      });
+        variant: "success"
+      })
     },
     onError: (errors) => {
-      console.error('Withdrawal errors:', errors);
-      isSubmitting.value = false;
-      const errorMessage = Object.values(errors)[0] || "An error occurred";
+      isSubmitting.value = false
+      const errorMessage = Object.values(errors)[0] || "An error occurred"
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive"
-      });
+      })
     }
-  });
+  })
 }
 
 const submitWalletSetup = async () => {
@@ -643,8 +662,12 @@ const submitWalletSetup = async () => {
       }
     })
   } catch (error) {
-    handleError(error)
     isSubmitting.value = false
+    toast({
+      title: "Error",
+      description: error.message || "An error occurred",
+      variant: "destructive"
+    })
   }
 }
 
@@ -676,63 +699,95 @@ const handleError = (error) => {
 }
 
 let pollInterval = null
-const POLL_INTERVAL = 30000 // 30 seconds
+const POLL_INTERVAL = 20000 // 30 seconds
 const MAX_RETRIES = 3
 let retryCount = 0
 
-const fetchWalletStatus = async () => {
-    try {
-        if (retryCount >= MAX_RETRIES) {
-            console.error('Max retries reached, stopping polling')
-            clearInterval(pollInterval)
-            return
-        }
-
-        const response = await axios.get(route('seller.wallet.status'))
-        const data = response.data
-        retryCount = 0
-
-        if (data) {
-            // Update the entire wallet object instead of individual properties
-            walletData.value = data
-
-            // Force full reactive update of props.wallet
-            Object.assign(props.wallet, data)
-
-            if (data.verification) {
-                verificationData.value = data.verification
-            }
-
-            // Log status changes for debugging
-            console.log('Wallet status updated:', {
-                status: data.status,
-                is_activated: data.is_activated,
-                previous: props.wallet.is_activated
-            })
-        }
-    } catch (error) {
-        // ...existing error handling code...
-    }
-}
-
-// Add immediate check on mount
-onMounted(() => {
-    fetchWalletStatus() // Immediate first fetch
-    pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL)
+const shouldPoll = computed(() => {
+  // Only poll for status updates when:
+  // 1. Wallet is pending approval, or
+  // 2. Has transactions in process (like withdrawals being processed), or
+  // 3. Has pending transactions (via hasPendingTransaction)
+  if (!walletData.value) return false
+  
+  return (
+    walletData.value.status === 'pending_approval' || 
+    walletData.value?.transactions?.some(t => t.status === 'in_process') ||
+    hasPendingTransaction.value
+  )
 })
 
-// Add deep watcher for wallet changes
-watch(() => props.wallet, (newWallet) => {
-  if (newWallet) {
-    console.log('Wallet props updated:', newWallet);
-    walletData.value = { ...newWallet };
+const fetchWalletStatus = async () => {
+  if (retryCount >= MAX_RETRIES) {
+    console.log('Max retries reached, stopping polling');
+    clearInterval(pollInterval);
+    return;
   }
-}, { deep: true, immediate: true });
+
+  try {
+    const response = await axios.get(route('seller.wallet.status'));
+    const data = response.data;
+    retryCount = 0;
+
+    if (data) {
+      // Update the entire wallet object instead of individual properties
+      walletData.value = data;
+
+      // Force full reactive update of props.wallet
+      Object.assign(props.wallet, data);
+
+      if (data.verification) {
+        verificationData.value = data.verification;
+      }
+
+      // Log status changes for debugging
+      console.log('Wallet status updated:', {
+        status: data.status,
+        is_activated: data.is_activated,
+        previous: props.wallet.is_activated
+      });
+    }
+  } catch (error) {
+    retryCount++;
+    console.error('Error fetching wallet status:', error);
+  }
+};
+
+// Update the polling management to use the shouldPoll computed property
+onMounted(() => {
+  // Always fetch wallet status once on mount
+  fetchWalletStatus();
+  
+  // Set up polling interval if needed
+  setupPolling();
+});
+
+// Create a new function to handle polling setup/teardown
+const setupPolling = () => {
+  // Clear any existing interval
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+  
+  // Only set up polling if needed
+  if (shouldPoll.value) {
+    pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL);
+    console.log('Wallet status polling started');
+  }
+};
+
+// Watch for changes in the shouldPoll value to start/stop polling
+watch(shouldPoll, (newValue) => {
+  console.log('Should poll changed:', newValue);
+  setupPolling();
+}, { immediate: true });
 
 onUnmounted(() => {
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
+    console.log('Wallet status polling stopped');
   }
 });
 </script>
