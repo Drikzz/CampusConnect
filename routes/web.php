@@ -137,7 +137,6 @@ Route::middleware('auth')->group(function () {
                 Route::prefix('wallet')->group(function () {
                     Route::get('/', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
                     Route::post('/setup', [SellerWalletController::class, 'setup'])->name('seller.wallet.setup');
-                    Route::post('/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
                     Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
                     Route::post('/withdraw', [SellerWalletController::class, 'withdraw'])->name('seller.wallet.withdraw'); // Add this missing route
                     Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
@@ -166,29 +165,33 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware('auth', 'admin')->group(function () {
-    Route::prefix('admin')->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('admin.wallet-requests');
-        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('admin.wallet-requests.approve');
-        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('admin.wallet-requests.reject');
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
+        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
+
+        // Ensure this route is properly defined
+        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
+            ->name('wallet-requests.complete-withdrawal');
 
         // Add these new routes
-        Route::get('/users', [AdminController::class, 'userManagement'])->name('admin.users');
-        Route::get('/products', [AdminController::class, 'productManagement'])->name('admin.products');
-        Route::get('/orders', [AdminController::class, 'transactions'])->name('admin.orders');
-        Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
-        Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
+        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
+        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
+        Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
 
         // Wallet Management Routes
-        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('admin.wallet'); // Use same controller method
+        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
         Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
-            ->name('admin.wallet-requests.update-fees');
+            ->name('wallet-requests.update-fees');
         Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
-            ->name('admin.wallet-requests.adjust-balance');
+            ->name('wallet-requests.adjust-balance');
         Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('admin.wallet-requests.approve-refund');
+            ->name('wallet-requests.approve-refund');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('admin.wallet-requests.reject-refund');
+            ->name('wallet-requests.reject-refund');
     });
 });
 

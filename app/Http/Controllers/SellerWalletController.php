@@ -69,31 +69,6 @@ class SellerWalletController extends Controller
     ]);
   }
 
-  public function activate(Request $request)
-  {
-    try {
-      DB::beginTransaction();
-
-      // Get the wallet by user ID instead of seller code
-      $wallet = SellerWallet::where('user_id', auth()->id())->firstOrFail();
-
-      // Update wallet activation
-      $wallet->update([
-        'is_activated' => true,
-        'status' => 'active',
-        'activated_at' => now()
-      ]);
-
-      DB::commit();
-
-      return back()->with('success', 'Wallet activated successfully');
-    } catch (\Exception $e) {
-      DB::rollBack();
-      Log::error('Wallet activation error: ' . $e->getMessage());
-      return back()->with('error', 'Failed to activate wallet');
-    }
-  }
-
   public function setup(Request $request)
   {
     try {

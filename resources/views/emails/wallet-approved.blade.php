@@ -58,6 +58,12 @@
             <p>Your wallet verification request has been approved! Your Campus Connect wallet is now active and ready to
                 use.</p>
             <p>You can now add funds to your wallet and start selling on our platform.</p>
+        @elseif ($transaction->reference_type === 'withdrawal')
+            <p>Your withdrawal request of <strong>₱{{ number_format($transaction->amount, 2) }}</strong> has been
+                approved and is now being processed.</p>
+            <p>The funds will be transferred to your GCash account within 24-48 hours. We'll notify you once the
+                transfer is complete.</p>
+            <p>Please note that your wallet balance will be updated once the transfer has been completed.</p>
         @else
             <p>Your wallet {{ $transaction->reference_type }} request of
                 <strong>₱{{ number_format($transaction->amount, 2) }}</strong> has been approved.

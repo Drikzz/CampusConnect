@@ -41,8 +41,8 @@ class WalletTransaction extends Model
 
   public static $remarks = [
     'verification_rejected' => "ID is not clear, re-upload required.",
-    'refill_rejected' => "Reference number mismatch, check the reference.",
-    'withdrawal_rejected' => "Bank details incorrect.",
+    'refill_rejected' => "GCash reference number or payment details could not be verified. Please check your transaction details and submit again with a clearer screenshot of payment confirmation.",
+    'withdrawal_rejected' => "Unable to process withdrawal to the provided GCash account. Please check your information and try again.",
     'transaction_failed' => "Payment failed due to insufficient funds.",
   ];
 

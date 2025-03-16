@@ -56,6 +56,9 @@
           <DialogDescription v-if="transaction.status === 'rejected'">
             This request was rejected by the administrator.
           </DialogDescription>
+          <DialogDescription v-else-if="transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'">
+            Your withdrawal is being processed and will be sent within 24-48 hours.
+          </DialogDescription>
         </DialogHeader>
 
         <div class="space-y-4">
@@ -63,7 +66,7 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-gray-500">Status</p>
-              <p class="font-medium" :class="statusColor">{{ capitalizeFirstLetter(transaction.status) }}</p>
+              <p class="font-medium" :class="statusColor">{{ formatStatus(transaction.status) }}</p>
             </div>
             <div v-if="displayableAmount">
               <p class="text-sm text-gray-500">Amount</p>
@@ -89,9 +92,14 @@
             <p class="text-red-700 text-sm">{{ transaction.remarks || 'No reason provided' }}</p>
           </div>
 
-          <!-- Reference Info -->
+          <!-- Reference Info - Updated to support GCash reference for completed withdrawals -->
           <div v-if="transaction.reference_id" class="border-t pt-3">
-            <p class="text-sm text-gray-500 mb-1">GCash Reference ID</p>
+            <p class="text-sm text-gray-500 mb-1">
+              {{ transaction.reference_type === 'withdrawal' && transaction.status === 'completed' 
+                ? 'GCash Reference Number' 
+                : 'Reference ID' 
+              }}
+            </p>
             <p class="text-sm break-all">{{ transaction.reference_id }}</p>
           </div>
 
@@ -273,9 +281,22 @@ const getIconColor = computed(() => {
   }
 });
 
+// Format transaction status for display
+const formatStatus = (status) => {
+  const statusMap = {
+    'pending': 'Pending',
+    'in_process': 'In Process',
+    'completed': 'Completed',
+    'rejected': 'Rejected'
+  }
+  return statusMap[status] || capitalizeFirstLetter(status)
+}
+
+// Update status color to include in_process
 const statusColor = computed(() => {
   const colors = {
     pending: 'text-yellow-600',
+    in_process: 'text-blue-600', // Add blue color for in_process status
     completed: 'text-green-600',
     approved: 'text-green-600',
     denied: 'text-red-600',

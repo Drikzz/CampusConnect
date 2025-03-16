@@ -65,7 +65,6 @@
 
         <p>Congratulations! You are now registered as a seller on Campus Connect. Your seller account has been
             successfully created with the following details:</p>
-
         <ul>
             <li><strong>Seller Code:</strong> {{ $user->seller_code }}</li>
             <li><strong>WMSU Email:</strong> {{ $user->wmsu_email }}</li>
@@ -74,9 +73,9 @@
         <div class="next-steps">
             <h3>Next Steps:</h3>
             <ol>
-                <li>Set up your seller wallet to start selling</li>
-                <li>Add your products to your inventory</li>
-                <li>Set up your meetup locations for in-person exchanges</li>
+                <li>Set up your seller wallet to start selling.</li>
+                <li>Add your products to your inventory.</li>
+                <li>Set up your meetup locations for in-person exchanges.</li>
             </ol>
         </div>
 
