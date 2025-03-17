@@ -43,6 +43,8 @@ Route::middleware('guest')->group(function () {
         Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
         Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
         Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
+        Route::post('/register/details', [AuthController::class, 'processAccountInfo'])->name('register.account-info');
+        Route::get('/register/profile-picture', [AuthController::class, 'showProfilePicturePage'])->name('register.profile-picture');
         Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
     });
 });
