@@ -1,5 +1,5 @@
 <script setup>
-import { useForm, usePage } from '@inertiajs/vue3';
+import { useForm, usePage, router } from '@inertiajs/vue3';
 import { ref, watch, computed, onMounted } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
@@ -51,6 +51,24 @@ onMounted(() => {
         if (value) {
             form[field] = value;
         }
+    });
+
+    // Add a direct event listener to clear data when navigating away
+    const registrationRoutes = ['/register', '/register/details', '/register/personal-info'];
+    
+    router.on('navigate', (event) => {
+        const targetPath = new URL(event.detail.page.url, window.location.origin).pathname;
+        const isRegistrationRoute = registrationRoutes.some(route => targetPath.startsWith(route));
+        
+        if (!isRegistrationRoute) {
+            console.log("RegisterPersonalInfo: Navigating away from registration - clearing data");
+            clearFormData();
+        }
+    });
+
+    // Also listen for page unload events
+    window.addEventListener('beforeunload', () => {
+        clearFormData();
     });
 });
 
@@ -166,8 +184,12 @@ const submit = () => {
         return;
     }
 
+    // Use standard form submission with preserveState: false to ensure a fresh page load
     form.post(route('register.step1'), {
-        preserveScroll: true,
+        // Don't use manual redirection - let the controller handle the redirect
+        onError: (errors) => {
+            console.error("Form submission errors:", errors);
+        }
     });
 };
 
@@ -237,6 +259,35 @@ watch(() => page.props.flash.toast, (flashToast) => {
         });
     }
 }, { immediate: true });
+
+// Function to clear registration form data with explicit force parameter
+function clearFormData(force = false) {
+    console.log("Clearing form data from RegisterPersonalInfo");
+    const formFields = [
+        'user_type_id', 
+        'grade_level_id', 
+        'wmsu_dept_id', 
+        'first_name', 
+        'middle_name', 
+        'last_name', 
+        'gender', 
+        'date_of_birth', 
+        'phone',
+        'username',
+        'wmsu_email',
+        'from_account_info',
+        'registration_in_progress'
+    ];
+    
+    formFields.forEach(field => {
+        sessionStorage.removeItem(field);
+    });
+    
+    // If forced, also reset the form
+    if (force) {
+        form.reset();
+    }
+}
 </script>
 
 <template>
@@ -291,6 +342,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                                     <CommandItem
                                                         v-for="type in userTypeOptions"
                                                         :key="type.value"
+                                                        :value="type.value"
                                                         @click="() => {
                                                             form.user_type_id = type.value;
                                                             userTypeOpen = false;
@@ -339,6 +391,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                                     <CommandItem
                                                         v-for="level in gradeLevelOptions"
                                                         :key="level.value"
+                                                        :value="level.value"
                                                         @click="() => {
                                                             form.grade_level_id = level.value;
                                                             gradeLevelOpen = false;
@@ -386,6 +439,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                                     <CommandItem
                                                         v-for="dept in departmentOptions"
                                                         :key="dept.value"
+                                                        :value="dept.value"
                                                         @click="() => {
                                                             form.wmsu_dept_id = dept.value;
                                                             departmentOpen = false;
@@ -458,6 +512,8 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                 </div>
                             </div>
 
+                            <!-- Replace the corrupted gender dropdown section with this fixed version -->
+
                             <div>
                                 <label class="block mb-2 text-sm font-medium text-black">Gender*</label>
                                 <Popover v-model:open="genderOpen">
@@ -482,8 +538,9 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                                     <CommandItem
                                                         v-for="option in genderOptions"
                                                         :key="option.value"
+                                                        :value="option.value"
                                                         @click="() => {
-                                                            form.gender = option.value; // Use lowercase value
+                                                            form.gender = option.value;
                                                             genderOpen = false;
                                                         }"
                                                     >
@@ -511,7 +568,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                     <PopoverTrigger as-child>
                                         <Button 
                                             variant="outline" 
-                                            :disabled="form.processing"
+                                            :disabled="form.processing" 
                                             :class="cn(
                                                 'w-full p-2.5 justify-start text-left font-normal bg-white border border-primary-color text-black rounded-lg focus:ring-primary-color focus:border-primary-color',
                                                 !date && 'text-muted-foreground'

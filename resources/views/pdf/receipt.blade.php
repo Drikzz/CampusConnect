@@ -1,205 +1,203 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet Transaction Receipt</title>
+    <meta charset="utf-8">
+    <title>Transaction Receipt</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            line-height: 1.4;
             color: #333;
+            margin: 0;
+            padding: 0;
+            font-size: 12px;
         }
 
         .container {
-            width: 100%;
-            max-width: 800px;
+            max-width: 100%;
             margin: 0 auto;
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 20px;
+            padding: 15px;
         }
 
         .header {
-            font-size: 24px;
-            font-weight: bold;
             text-align: center;
-            margin-bottom: 30px;
-            color: #8D0A0A;
+            margin-bottom: 20px;
+            border-bottom: 2px solid {{ $primary_color ?? '#20509e' }};
+            padding-bottom: 10px;
         }
 
-        .receipt-box {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-
-        .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .detail-item {
-            margin-bottom: 15px;
-        }
-
-        .label {
-            font-weight: bold;
-            color: #666;
-            margin-bottom: 5px;
-            font-size: 12px;
-        }
-
-        .value {
-            font-size: 14px;
-        }
-
-        .big-value {
+        .header h1 {
+            color: {{ $primary_color ?? '#20509e' }};
+            margin: 0;
             font-size: 20px;
+        }
+
+        .receipt-details {
+            margin-bottom: 20px;
+        }
+
+        .receipt-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .receipt-details table td {
+            padding: 5px 8px;
+            vertical-align: top;
+            border-bottom: 1px solid #eee;
+        }
+
+        .receipt-details table td:first-child {
             font-weight: bold;
-            color: #8D0A0A;
+            width: 40%;
+            color: {{ $primary_color ?? '#20509e' }};
         }
 
         .footer {
-            margin-top: 30px;
-            font-size: 12px;
-            color: gray;
+            margin-top: 20px;
             text-align: center;
-        }
-
-        .divider {
-            border-top: 1px dashed #ddd;
-            margin: 20px 0;
-        }
-
-        .status {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
         }
 
         .status-completed {
-            background-color: #d1fae5;
-            color: #047857;
+            color: #22c55e;
+            font-weight: bold;
         }
 
         .status-pending {
-            background-color: #fef3c7;
-            color: #92400e;
+            color: #f59e0b;
+            font-weight: bold;
         }
 
         .status-rejected {
-            background-color: #fee2e2;
-            color: #b91c1c;
+            color: #ef4444;
+            font-weight: bold;
         }
 
-        .reference-section {
-            margin-top: 30px;
-            border-top: 1px solid #eee;
-            padding-top: 20px;
+        .status-in_process {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        .logo {
+            max-width: 120px;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <div class="logo">
-            <h1>Campus Connect</h1>
+        <div class="header">
+            <img src="{{ public_path('images/logo.png') }}" alt="Campus Connect Logo" class="logo">
+            <h1>Transaction Receipt</h1>
+            <p>#{{ $transaction->id }}</p>
         </div>
 
-        <div class="header">Transaction Receipt</div>
-
-        <div class="receipt-box">
-            <!-- Transaction Type and Status -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div>
-                    <div class="label">Transaction Type</div>
-                    <div class="value">{{ ucfirst($transaction->reference_type) }}</div>
-                </div>
-
-                <div style="text-align: right;">
-                    <div class="label">Status</div>
-                    <div
-                        class="status 
-                        {{ strtolower($transaction->status) === 'completed' ? 'status-completed' : '' }}
-                        {{ strtolower($transaction->status) === 'pending' ? 'status-pending' : '' }}
-                        {{ strtolower($transaction->status) === 'rejected' ? 'status-rejected' : '' }}">
+        <div class="receipt-details">
+            <table>
+                <tr>
+                    <td>Transaction Type</td>
+                    <td>
+                        @if (!$transaction->reference_type)
+                            Wallet Activation
+                        @elseif($transaction->reference_type == 'verification')
+                            Verification
+                        @elseif($transaction->reference_type == 'refill')
+                            Add Funds
+                        @elseif($transaction->reference_type == 'withdrawal')
+                            Withdrawal
+                        @else
+                            {{ ucfirst($transaction->reference_type) }}
+                        @endif
+                    </td>
+                </tr>
+                <tr>
+                    <td>Status</td>
+                    <td class="status-{{ strtolower($transaction->status) }}">
                         {{ strtoupper($transaction->status) }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Amount Section -->
-            <div style="text-align: center; margin-bottom: 30px;">
-                <div class="label">Amount</div>
-                <div class="big-value">₱{{ number_format(floatval($transaction->amount), 2) }}</div>
-            </div>
-
-            <div class="divider"></div>
-
-            <!-- Detailed Information -->
-            <div class="details-grid">
-                <div class="detail-item">
-                    <div class="label">Transaction ID</div>
-                    <div class="value">{{ $transaction->id }}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="label">Reference ID</div>
-                    <div class="value">{{ $transaction->reference_id }}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="label">Date</div>
-                    <div class="value">{{ $transaction->created_at->format('F j, Y g:i A') }}</div>
-                </div>
-
+                    </td>
+                </tr>
+                <tr>
+                    <td>Amount</td>
+                    <td>₱{{ number_format((float) $transaction->amount, 2) }}</td>
+                </tr>
+                <tr>
+                    <td>Transaction ID</td>
+                    <td>{{ $transaction->id }}</td>
+                </tr>
+                <tr>
+                    <td>Reference ID</td>
+                    <td>{{ $transaction->reference_id }}</td>
+                </tr>
+                <tr>
+                    <td>Date</td>
+                    <td>{{ date('F j, Y g:i A', strtotime($transaction->created_at)) }}</td>
+                </tr>
                 @if ($transaction->processed_at)
-                    <div class="detail-item">
-                        <div class="label">Processed Date</div>
-                        <div class="value">{{ $transaction->processed_at->format('F j, Y g:i A') }}</div>
-                    </div>
+                    <tr>
+                        <td>Processed Date</td>
+                        <td>{{ date('F j, Y g:i A', strtotime($transaction->processed_at)) }}</td>
+                    </tr>
                 @endif
 
-                <div class="detail-item">
-                    <div class="label">Previous Balance</div>
-                    <div class="value">₱{{ number_format(floatval($transaction->previous_balance ?? 0), 2) }}</div>
-                </div>
+                <!-- Previous and New Balance - Only show actual balance change if not rejected -->
+                @if ($transaction->status !== 'rejected')
+                    <tr>
+                        <td>Previous Balance</td>
+                        <td>₱{{ number_format((float) $transaction->previous_balance, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td>New Balance</td>
+                        <td>₱{{ number_format((float) $transaction->new_balance, 2) }}</td>
+                    </tr>
+                @else
+                    <tr>
+                        <td>Current Balance</td>
+                        <td>₱{{ number_format((float) $transaction->previous_balance, 2) }}</td>
+                    </tr>
+                @endif
 
-                <div class="detail-item">
-                    <div class="label">New Balance</div>
-                    <div class="value">₱{{ number_format(floatval($transaction->new_balance ?? 0), 2) }}</div>
-                </div>
-            </div>
+                @if ($transaction->description)
+                    <tr>
+                        <td>Description</td>
+                        <td>{{ $transaction->description }}</td>
+                    </tr>
+                @endif
 
-            @if ($transaction->description)
-                <div class="reference-section">
-                    <div class="label">Description</div>
-                    <div class="value">{{ $transaction->description }}</div>
-                </div>
-            @endif
+                @if ($transaction->remarks)
+                    <tr>
+                        <td>Remarks</td>
+                        <td>{{ $transaction->remarks }}</td>
+                    </tr>
+                @endif
 
-            @if ($transaction->remarks)
-                <div class="reference-section">
-                    <div class="label">Remarks</div>
-                    <div class="value">{{ $transaction->remarks }}</div>
-                </div>
-            @endif
+                <!-- Add GCash Phone Number if available for withdrawals -->
+                @if ($transaction->reference_type == 'withdrawal' && !empty($transaction->phone_number))
+                    <tr>
+                        <td>GCash Phone Number</td>
+                        <td>{{ $transaction->phone_number }}</td>
+                    </tr>
+                @endif
+
+                <!-- Add Account Name if available for withdrawals -->
+                @if ($transaction->reference_type == 'withdrawal' && !empty($transaction->account_name))
+                    <tr>
+                        <td>Account Name</td>
+                        <td>{{ $transaction->account_name }}</td>
+                    </tr>
+                @endif
+            </table>
         </div>
 
         <div class="footer">
             <p>This is an automatically generated receipt and is valid without a signature.</p>
             <p>Thank you for using Campus Connect!</p>
-            <p>Generated on: {{ now()->format('F j, Y g:i A') }}</p>
+            <p>Generated on: {{ date('F j, Y g:i A') }}</p>
         </div>
     </div>
 </body>
