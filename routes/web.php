@@ -83,7 +83,6 @@ Route::middleware('auth')->group(function () {
 
             // Fix: Consolidate wishlist routes under proper prefix
             Route::prefix('wishlist')->group(function () {
-                Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
                 Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
                 Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
             });
@@ -155,7 +154,7 @@ Route::middleware('auth')->group(function () {
         // Update wishlist routes
         Route::prefix('dashboard/wishlist')->group(function () {
             Route::get('/', [WishlistController::class, 'index'])->name('dashboard.wishlist');
-            Route::post('/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+            Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle'); // Keep this one as the main toggle route
             Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
         });
