@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3'; // Added router import
 
 const activeButton = ref('');
 
@@ -16,31 +16,42 @@ onMounted(() => {
     }
 });
 
+// Updated navigationItems to match routes from the main AdminLayout
 const navigationItems = [
     { name: 'Dashboard', icon: 'bx-home', route: 'admin.dashboard' },
     { name: 'Users', icon: 'bx-user', route: 'admin.users' },
     { name: 'Products', icon: 'bx-package', route: 'admin.products' },
-    { name: 'Wallet', icon: 'bx-credit-card', route: 'admin.funds' },
-    { name: 'Transactions', icon: 'bx-transfer', route: 'admin.transactions' },
-    { name: 'Settings', icon: 'bx-cog', route: 'admin.settings' },
-    { name: 'Logout', icon: 'bx-log-in-circle', route: 'admin.logout' }
+    { name: 'Wallet', icon: 'bx-wallet', route: 'admin.wallet' },
+    { name: 'Wallet Requests', icon: 'bx-credit-card', route: 'admin.wallet-requests' },
+    { name: 'Orders', icon: 'bx-transfer', route: 'admin.orders' },
+    // Add a logout action that uses router
+    { name: 'Logout', icon: 'bx-log-out', action: () => router.post(route('admin.logout')) }
 ];
 </script>
 
 <template>
+    <!-- This component is deprecated. Please use @/Layouts/AdminLayout.vue instead -->
     <div class="bg-gray-100 min-h-screen text-gray-800">
         <div class="flex">
             <!-- Sidebar -->
             <div class="bg-white rounded-lg p-5 flex flex-col items-center gap-4 shadow-md sidebar">
-                <Link v-for="item in navigationItems" 
-                      :key="item.name"
+                <template v-for="item in navigationItems" :key="item.name">
+                    <Link v-if="!item.action"
                       :href="route(item.route)"
                       class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1"
                       :class="{ 'active': activeButton === item.name }"
                       :data-tooltip="item.name"
                       @click="setActive(item.name)">
-                    <i :class="['bx', item.icon]"></i>
-                </Link>
+                        <i :class="['bx', item.icon]"></i>
+                    </Link>
+                    <button v-else
+                      class="w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer transition-all duration-200 relative hover:bg-red-100 hover:text-red-600 transform hover:-translate-y-1"
+                      :class="{ 'active': activeButton === item.name }"
+                      :data-tooltip="item.name"
+                      @click="item.action">
+                        <i :class="['bx', item.icon]"></i>
+                    </button>
+                </template>
             </div>
 
             <!-- Main Content -->
