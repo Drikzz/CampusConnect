@@ -10,6 +10,7 @@ use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
+use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -187,6 +188,11 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
+
+        // Report Routes
+        Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
+        Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
+        Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
 
         // Wallet Management Routes
         Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
