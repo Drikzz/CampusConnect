@@ -52,19 +52,26 @@
         <h1>Campus Connect</h1>
     </div>
     <div class="content">
-        <h2>Dear {{ $transaction->user->first_name }},</h2>
+        <h2>Dear {{ $transaction->wallet->user->first_name }},</h2>
 
         @if ($transaction->reference_type === 'verification')
             <p>Your wallet verification request has been approved! Your Campus Connect wallet is now active and ready to
                 use.</p>
             <p>You can now add funds to your wallet and start selling on our platform.</p>
+        @elseif ($transaction->reference_type === 'withdrawal')
+            <p>Your withdrawal request of <strong>₱{{ number_format($transaction->amount, 2) }}</strong> has been
+                approved and is now being processed.</p>
+            <p>The funds will be transferred to your GCash account within 24-48 hours. We'll notify you once the
+                transfer is complete.</p>
+            <p>Please note that your wallet balance will be updated once the transfer has been completed.</p>
         @else
             <p>Your wallet {{ $transaction->reference_type }} request of
-                <strong>₱{{ number_format($transaction->amount, 2) }}</strong> has been approved.</p>
+                <strong>₱{{ number_format($transaction->amount, 2) }}</strong> has been approved.
+            </p>
             <p>New Balance: <strong>₱{{ number_format($transaction->new_balance, 2) }}</strong></p>
         @endif
 
-        <p>Transaction ID: <strong>{{ $transaction->reference_id }}</strong></p>
+        <p>Transaction ID: <strong>{{ $transaction->id }}</strong></p>
         <p>Date: <strong>{{ $transaction->processed_at->format('F j, Y g:i A') }}</strong></p>
 
         <a href="{{ url('/dashboard/seller/wallet') }}" class="button">View My Wallet</a>

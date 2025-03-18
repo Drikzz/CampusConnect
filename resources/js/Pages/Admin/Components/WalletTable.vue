@@ -44,7 +44,7 @@
 import { ref, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table"
-import { Button } from "@/Components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/Components/ui/input"
 
 const props = defineProps({

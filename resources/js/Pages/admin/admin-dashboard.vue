@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import AdminLayout from '@/Pages/admin/AdminLayout.vue';
+import AdminLayout from '@/Layouts/AdminLayout.vue'; // Updated import path
 
 const props = defineProps({
     stats: {

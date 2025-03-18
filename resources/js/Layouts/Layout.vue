@@ -1,8 +1,9 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { useToast } from '@/Components/ui/toast/use-toast';
 import { Toaster } from '@/Components/ui/toast';
+import RegistrationGuard from '@/Components/RegistrationGuard.vue';
 
 const props = defineProps({
   auth: Object
@@ -107,6 +108,9 @@ watch(() => page.props.flash.toast, (flashMessage) => {
 
 <template>
     <div>
+        <!-- Add the registration guard component -->
+        <RegistrationGuard />
+        
         <div class="fixed top-4 right-4 w-full z-101">
             <Toaster></Toaster>
         </div>
@@ -187,7 +191,8 @@ watch(() => page.props.flash.toast, (flashMessage) => {
                             </template>
                             <template v-else>
                                 <div class="flex items-center gap-2">
-                                    <Link :href="route('register.personal-info')"
+                                    <!-- Fix the route name from register.personal-info to register.details -->
+                                    <Link :href="'/register'"
                                         class="text-white hover:text-gray-200 px-4 py-2 text-sm font-medium transition-colors rounded-lg hover:bg-white/10">
                                         Sign Up
                                     </Link>

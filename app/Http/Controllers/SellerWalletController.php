@@ -21,10 +21,10 @@ class SellerWalletController extends Controller
   {
     $user = auth()->user();
 
-    // Get wallet with transactions
+    // Get wallet with transactions - remove the 5 limit to get all transactions
     $wallet = SellerWallet::where('user_id', $user->id)
       ->with(['transactions' => function ($query) {
-        $query->latest()->take(5);
+        $query->latest(); // Remove the take(5) limit
       }])
       ->first();
 
@@ -44,6 +44,14 @@ class SellerWalletController extends Controller
       ->latest()
       ->first();
 
+    // Log the user data to debug
+    Log::info('User data passed to wallet view:', [
+      'user_id' => $user->id,
+      'user_email' => $user->wmsu_email,
+      'user_phone' => $user->phone,
+      'has_wallet' => (bool)$wallet
+    ]);
+
     return Inertia::render('Dashboard/seller/Wallet', [
       'user' => $user,
       'wallet' => $wallet,
@@ -59,31 +67,6 @@ class SellerWalletController extends Controller
         $this->getWalletStats($wallet)
       )
     ]);
-  }
-
-  public function activate(Request $request)
-  {
-    try {
-      DB::beginTransaction();
-
-      // Get the wallet by user ID instead of seller code
-      $wallet = SellerWallet::where('user_id', auth()->id())->firstOrFail();
-
-      // Update wallet activation
-      $wallet->update([
-        'is_activated' => true,
-        'status' => 'active',
-        'activated_at' => now()
-      ]);
-
-      DB::commit();
-
-      return back()->with('success', 'Wallet activated successfully');
-    } catch (\Exception $e) {
-      DB::rollBack();
-      Log::error('Wallet activation error: ' . $e->getMessage());
-      return back()->with('error', 'Failed to activate wallet');
-    }
   }
 
   public function setup(Request $request)
@@ -192,7 +175,7 @@ class SellerWalletController extends Controller
     }
 
     $request->validate([
-      'amount' => 'required|numeric|min:100',
+      'amount' => 'required|numeric|min:50',
       'reference_number' => 'required|string',
       'receipt_image' => 'required|image|max:2048'
     ]);
@@ -230,15 +213,17 @@ class SellerWalletController extends Controller
 
   public function withdraw(Request $request)
   {
+    // Simple validation
     $request->validate([
-      'amount' => 'required|numeric|min:100',
-      'phone_number' => 'required|regex:/^(09|\+639)\d{9}$/',
+      'amount' => 'required|numeric|min:50',
+      'phone_number' => 'required|string',
       'account_name' => 'nullable|string|max:255'
     ]);
 
     $user = auth()->user();
-    $wallet = SellerWallet::where('user_id', $user->id)->first();
+    $wallet = $user->wallet;
 
+    // Check wallet status and balance
     if (!$wallet || $wallet->status !== 'active') {
       return back()->with('error', 'Wallet not active');
     }
@@ -247,42 +232,36 @@ class SellerWalletController extends Controller
       return back()->with('error', 'Insufficient balance');
     }
 
-    try {
-      DB::beginTransaction();
+    DB::beginTransaction();
 
-      $previousBalance = $wallet->balance;
-      $newBalance = $previousBalance - $request->amount;
+    // Create withdrawal transaction
+    $transaction = WalletTransaction::create([
+      'user_id' => $user->id,
+      'seller_code' => $user->seller_code,
+      'type' => 'debit',
+      'amount' => $request->amount,
+      'previous_balance' => $wallet->balance,
+      'new_balance' => $wallet->balance - $request->amount,
+      'reference_type' => 'withdrawal',
+      'reference_id' => (string) Str::ulid(),
+      'phone_number' => $request->phone_number,
+      'account_name' => $request->account_name,
+      'status' => 'pending',
+      'description' => 'GCash withdrawal request',
+      'remarks' => "GCash: {$request->phone_number}" .
+        ($request->account_name ? " | Account Name: {$request->account_name}" : '')
+    ]);
 
-      $payoutDetails = "GCash: {$request->phone_number}";
-      if ($request->account_name) {
-        $payoutDetails .= " | Account Name: {$request->account_name}";
-      }
-
-      // Deduct amount as pending transaction
-      $transaction = WalletTransaction::create([
-        'user_id' => $user->id,
-        'seller_code' => $user->seller_code,
-        'type' => 'debit',
-        'amount' => $request->amount,
-        'previous_balance' => $previousBalance,
-        'new_balance' => $newBalance,
-        'reference_type' => 'withdrawal',
-        'reference_id' => uniqid('WD-'),
-        'status' => 'pending',
-        'description' => 'GCash withdrawal request',
-        'remarks' => $payoutDetails
-      ]);
-
+    // Check if the transaction was created successfully
+    if ($transaction) {
       DB::commit();
-
       return back()->with('success', 'Withdrawal request submitted for approval');
-    } catch (\Exception $e) {
+    } else {
       DB::rollBack();
-      Log::error('Wallet withdrawal error: ' . $e->getMessage());
+      Log::error('Wallet withdrawal error: Failed to create transaction');
       return back()->with('error', 'Failed to submit withdrawal request');
     }
   }
-
 
   // Update the getWalletStatus method
   public function getWalletStatus()
@@ -291,7 +270,7 @@ class SellerWalletController extends Controller
       $user = auth()->user();
       $wallet = SellerWallet::where('user_id', $user->id)
         ->with(['transactions' => function ($query) {
-          $query->latest()->take(5);
+          $query->latest(); // Remove the take(5) limit
         }])
         ->first();
 
@@ -345,11 +324,54 @@ class SellerWalletController extends Controller
         ->where('user_id', auth()->id()) // Ensure the user owns the transaction
         ->firstOrFail();
 
-      // Generate PDF
-      $pdf = Pdf::loadView('pdf.receipt', compact('transaction'));
+      // For withdrawal transactions, update the description/remarks if empty
+      if ($transaction->reference_type === 'withdrawal') {
+        // Set description if empty
+        if (empty($transaction->description)) {
+          $transaction->description = 'Withdrawal to GCash account';
+        }
+
+        // Set remarks based on status
+        if ($transaction->status === 'completed' && empty($transaction->remarks)) {
+          $transaction->remarks = 'Your withdrawal has been completed. GCash Reference: ' . $transaction->reference_id;
+        } else if ($transaction->status === 'rejected' && empty($transaction->remarks)) {
+          $transaction->remarks = 'Your withdrawal request was rejected.';
+        } else if ($transaction->status === 'pending' && empty($transaction->remarks)) {
+          $transaction->remarks = 'Your withdrawal request is pending approval.';
+        } else if ($transaction->status === 'in_process' && empty($transaction->remarks)) {
+          $transaction->remarks = 'Your withdrawal is being processed and will be sent to your GCash account soon.';
+        }
+      }
+
+      // Fix for rejected transactions
+      if ($transaction->status === 'rejected') {
+        // For rejected transactions, there is no actual balance change
+        $transaction->new_balance = $transaction->previous_balance;
+      }
+
+      // Make sure numeric fields are properly formatted
+      $transaction->amount = (float)$transaction->amount;
+      $transaction->previous_balance = (float)$transaction->previous_balance;
+      $transaction->new_balance = (float)$transaction->new_balance;
+
+      // Generate PDF - pass the primary color to the view
+      $pdf = Pdf::loadView('pdf.receipt', [
+        'transaction' => $transaction,
+        'primary_color' => '#20509e', // Add system primary color
+      ]);
+
+      // Make PDF fit on one page by setting page size and margins
+      $pdf->setPaper('a4', 'portrait');
+      $pdf->setOptions([
+        'margin-top' => 10,
+        'margin-right' => 10,
+        'margin-bottom' => 10,
+        'margin-left' => 10,
+      ]);
 
       // Set filename based on transaction type
-      $filename = "CampusConnect_" . ucfirst($transaction->reference_type) . "_Receipt_" . $id . ".pdf";
+      $type = $transaction->reference_type ? ucfirst($transaction->reference_type) : 'Transaction';
+      $filename = "CampusConnect_{$type}_Receipt_{$id}.pdf";
 
       return $pdf->download($filename);
     } catch (\Exception $e) {
@@ -369,21 +391,22 @@ class SellerWalletController extends Controller
         'total_transactions' => 0,
         'total_credits' => 0,
         'total_debits' => 0,
-        'pending_transactions' => 0
+        'pending_transactions' => 0,
+        'total_sales' => 0,
+        'total_deductions' => 0
       ];
     }
 
-    $transactions = $wallet->transactions();
+    $transactions = $wallet->transactions;
+    $completedTransactions = $transactions->where('status', 'completed');
 
     return [
       'total_transactions' => $transactions->count(),
-      'total_credits' => $transactions->where('reference_type', 'refill')
-        ->where('status', 'Completed')
-        ->sum('amount'),
-      'total_debits' => $transactions->whereIn('reference_type', ['withdraw', 'deduction'])
-        ->where('status', 'Completed')
-        ->sum('amount'),
-      'pending_transactions' => $transactions->where('status', 'pending')->count()
+      'total_credits' => $completedTransactions->where('type', 'credit')->sum('amount'),
+      'total_debits' => $completedTransactions->where('type', 'debit')->sum('amount'),
+      'pending_transactions' => $transactions->where('status', 'pending')->count(),
+      'total_sales' => $completedTransactions->where('reference_type', 'sale')->sum('amount'),
+      'total_deductions' => $completedTransactions->where('reference_type', 'listing_fee')->sum('amount')
     ];
   }
 
@@ -401,12 +424,6 @@ class SellerWalletController extends Controller
     ];
 
     if ($user->is_seller) {
-      $stats['totalSales'] = OrderItem::where('seller_code', $user->seller_code)
-        ->whereHas('order', function ($query) {
-          $query->where('status', 'Completed');
-        })
-        ->sum('subtotal');
-
       $stats['activeProducts'] = Product::where('seller_code', $user->seller_code)
         ->where('status', 'Active')
         ->count();
@@ -419,7 +436,7 @@ class SellerWalletController extends Controller
       // Add wallet details - This is the important part
       $wallet = SellerWallet::where('seller_code', $user->seller_code)
         ->with(['transactions' => function ($query) {
-          $query->latest()->take(5);  // Fixed: Add missing parenthesis
+          $query->latest()->take(5);
         }])
         ->first();
 

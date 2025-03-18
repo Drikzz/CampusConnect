@@ -12,13 +12,15 @@ return new class extends Migration
       $table->id();
       $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // Foreign key user_id
       $table->string('seller_code'); // Remove the foreign key constraint
+      $table->string('phone_number')->nullable();
+      $table->string('account_name')->nullable();
       $table->enum('type', ['credit', 'debit'])->nullable(); // credit = refill, debit = deduction
       $table->decimal('amount', 10, 2);
       $table->decimal('previous_balance', 10, 2)->nullable(); // Nullable because no balance yet on first refill
       $table->decimal('new_balance', 10, 2)->nullable();
       $table->enum('reference_type', ['verification', 'order', 'withdrawal', 'refund', 'refill']);
       $table->string('reference_id')->nullable(); // Holds verification request ID, order ID, or payment ref #
-      $table->enum('status', ['pending', 'completed', 'failed', 'rejected'])->default('pending');
+      $table->enum('status', ['pending', 'in_process', 'completed', 'rejected', 'failed'])->default('pending');
       $table->text('description')->nullable(); // Remarks for the transaction
 
       // New verification columns
