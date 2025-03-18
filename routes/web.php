@@ -8,6 +8,8 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminUsersController;
+use App\Http\Controllers\AdminProductsController;
+use App\Http\Controllers\AdminCategoriesTagsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
@@ -182,19 +184,40 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
-        // Add this route within your admin routes group
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
-
+        
         // User Management Routes
         Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
         Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
         Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
+        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
         Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
         Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
 
         
-        // Add these new routes
-        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
+        // Product Management Routes
+        Route::get('/products', [AdminProductsController::class, 'index'])->name('products');
+        Route::post('/products', [AdminProductsController::class, 'store'])->name('products.store');
+        Route::put('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update');
+        Route::patch('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update'); // Add PATCH as alternative
+        Route::delete('/products/{id}', [AdminProductsController::class, 'destroy'])->name('products.delete');
+        Route::delete('/products/bulk-delete', [AdminProductsController::class, 'bulkDelete'])->name('products.bulk-delete');
+        Route::post('/products/{id}/toggle-status', [AdminProductsController::class, 'toggleStatus'])->name('products.toggle-status');
+        
+        // Categories & Tags Management Routes
+        Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'index'])->name('admin.categories-tags');
+        
+        // Category Routes
+        Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory'])->name('categories.store');
+        Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory'])->name('categories.update');
+        Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory'])->name('categories.delete');
+        Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories'])->name('categories.bulk-delete');
+        
+        // Tag Routes
+        Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag'])->name('tags.store');
+        Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag'])->name('tags.update');
+        Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag'])->name('tags.delete');
+        Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags'])->name('tags.bulk-delete');
+        
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
