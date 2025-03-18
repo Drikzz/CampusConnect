@@ -211,10 +211,11 @@ Route::middleware('auth', 'admin')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
         
-        // Make sure these routes are clearly defined and separate
+        // Fix the wallet routes - ensure each one has a unique path and controller method
         Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
-        Route::get('/wallet', [AdminController::class, 'wallet'])->name('wallet');
         
+        Route::get('/test', [AdminController::class, 'test'])->name('test');
+
         // Make sure to keep the wallet approval routes
         Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
         Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
@@ -223,9 +224,12 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
+        // Fix the wallet management route to use a different method
+        Route::get('/wallet', [AdminController::class, 'walletManagement'])->name('wallet');
+        
         // Add this route within your admin routes group
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
-
+        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('users.update');
+        
         // User Management Routes
         Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
         Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
