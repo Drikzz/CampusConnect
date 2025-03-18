@@ -19,9 +19,11 @@ return new class extends Migration
             $table->foreignId('seller_id')->nullable()->constrained('users');  // Make nullable
             $table->string('seller_code')->nullable();  // Add seller_code field
             $table->foreignId('seller_product_id')->constrained('products');
+            $table->foreignId('meetup_location_id')->nullable()->constrained('meetup_locations')->nullOnDelete();  // Add meetup location reference
             $table->decimal('additional_cash', 10, 2)->default(0);
             $table->enum('status', ['pending', 'accepted', 'rejected', 'canceled', 'completed'])->default('pending');
             $table->text('notes')->nullable();
+            $table->timestamp('meetup_schedule')->nullable();  // Add scheduled meetup time
             $table->timestamps();
             
             // Add index on seller_code for performance
@@ -46,6 +48,15 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('trade_messages', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('trade_transaction_id')->constrained('trade_transactions')->onDelete('cascade');
+            $table->foreignId('sender_id')->constrained('users'); // Buyer or Seller
+            $table->text('message');
+            $table->timestamp('read_at')->nullable(); // To track if the message is read
+            $table->timestamps();
+        });
     }
 
     /**
@@ -55,6 +66,7 @@ return new class extends Migration
      */
     public function down()
     {
+        Schema::dropIfExists('trade_messages');
         Schema::dropIfExists('trade_offered_items');
         Schema::dropIfExists('trade_negotiations');
         Schema::dropIfExists('trade_transactions');
