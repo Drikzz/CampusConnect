@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
             'user_type_id' => null,
             'wmsu_dept_id' => null,
             'is_admin' => true,
-            // 'email_verified_at' => now(),
+            'email_verified_at' => now(),
         ]);
 
         // Create admin's verification record
@@ -60,7 +60,7 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_back' => 'college/id_back/student1-id-back.jpg',
             'is_seller' => true,
             'seller_code' => 'S' . str_pad(1, 5, '0', STR_PAD_LEFT),
-            // 'email_verified_at' => now(),
+            'email_verified_at' => now(),
         ]);
 
         // Create user1's verification record
@@ -107,7 +107,7 @@ class DatabaseSeeder extends Seeder
             'user_type_id' => UserType::where('code', 'EMP')->first()->id,
             'wmsu_dept_id' => null,
             'profile_picture' => 'employee/profile_pictures/emp1-avatar.jpg',
-            // 'email_verified_at' => now(),
+            'email_verified_at' => now(),
         ]);
 
         // Create employee's verification record
@@ -132,7 +132,7 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_back' => 'alumni/id_back/alum1-id-back.jpg',
             'is_seller' => true,
             'seller_code' => 'S' . str_pad(2, 5, '0', STR_PAD_LEFT),
-            // 'email_verified_at' => now(),
+            'email_verified_at' => now(),
         ]);
 
         // Create alumni's verification record
@@ -152,7 +152,5 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
         }
-
-        $this->call(TagSeeder::class);
     }
 }

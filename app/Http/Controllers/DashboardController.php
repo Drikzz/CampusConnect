@@ -2,26 +2,34 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SellerRegistrationConfirmation;
 use App\Models\Department;
 use App\Models\GradeLevel;
-use App\Models\Location;
-use App\Models\MeetupLocation;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\UserType;
 use App\Models\Product;
 use App\Models\Wishlist;
+use App\Models\SellerWallet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
     public function index()
     {
+
         $user = auth()->user();
+        // Mail::to($user->wmsu_email)->send(new SellerRegistrationConfirmation($user));
+
+        // Check if user is admin and redirect to admin dashboard
+        if ($user->is_admin) {
+            return redirect()->route('admin.dashboard');
+        }
+
         $stats = $this->getDashboardStats($user);
 
         // Load the user with their relationships
@@ -264,33 +272,11 @@ class DashboardController extends Controller
         }
     }
 
-    public function wishlist()
+    public function wishlist(Request $request)
     {
-        $user = auth()->user();
-        $stats = $this->getDashboardStats($user);
-
-        $wishlists = Wishlist::where('user_id', auth()->id())
-            ->with('product')
-            ->paginate(10);
-
-        return Inertia::render('Dashboard/Wishlist', [
-            'user' => $user,
-            'stats' => $stats,
-            'wishlists' => $wishlists->items(),
-            'links' => [
-                'first' => $wishlists->url(1),
-                'last' => $wishlists->url($wishlists->lastPage()),
-                'prev' => $wishlists->previousPageUrl(),
-                'next' => $wishlists->nextPageUrl(),
-                'pages' => collect($wishlists->links()->elements[0])->map(function ($url, $page) use ($wishlists) {
-                    return [
-                        'url' => $url,
-                        'label' => $page,
-                        'active' => $page === $wishlists->currentPage()
-                    ];
-                })
-            ]
-        ]);
+        // Use the WishlistController to handle the actual logic
+        $wishlistController = new WishlistController();
+        return $wishlistController->index($request);
     }
 
     public function orders()
@@ -474,7 +460,7 @@ class DashboardController extends Controller
         return $validated;
     }
 
-    private function getDashboardStats($user)
+    public function getDashboardStats($user)
     {
         $stats = [
             'totalOrders' => Order::where('buyer_id', $user->id)->count(),
@@ -502,6 +488,21 @@ class DashboardController extends Controller
                 ->whereHas('order', function ($query) {
                     $query->where('status', 'Pending');
                 })->count();
+
+            // Fix: Update how we get the wallet data to match SellerWalletController
+            $wallet = SellerWallet::where('seller_code', $user->seller_code)
+                ->with(['transactions' => function ($query) {
+                    $query->latest()->take(5);
+                }])
+                ->first();
+
+            $stats['wallet'] = $wallet ? [
+                'id' => $wallet->id,
+                'balance' => $wallet->balance,
+                'is_activated' => $wallet->is_activated,
+                'status' => $wallet->status,
+                'transactions' => $wallet->transactions
+            ] : null;
         }
 
         return $stats;

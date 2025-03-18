@@ -1,10 +1,12 @@
 <template>
-  <form @submit.prevent="submitForm" id="checkout-form">
-    <input type="hidden" name="product_id" :value="product.id">
-    <input type="hidden" name="sub_total" id="form-total" :value="product.discounted_price">
-    <input type="hidden" name="quantity" id="form-quantity" :value="quantity">
+  <div>
+    <Head title="Checkout" />
 
-    <div class="min-h-screen bg-gray-50 pb-24 pt-12 md:pb-20 md:pt-16">
+    <form @submit.prevent="submitForm" id="checkout-form" class="min-h-screen bg-gray-50 pb-24 pt-12">
+      <input type="hidden" name="product_id" :value="product.id">
+      <input type="hidden" name="sub_total" id="form-total" :value="product.discounted_price">
+      <input type="hidden" name="quantity" id="form-quantity" :value="quantity">
+
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
           <!-- Left Column - Order Summary -->
@@ -89,256 +91,212 @@
 
           <!-- Right Column - Checkout Form -->
           <div class="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col">
-            <div class="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col">
-  <div class="bg-white p-6 border-b">
-    <h2 class="text-2xl font-Satoshi-bold">Checkout Details</h2>
-  </div>
+            <div class="p-6 border-b">
+              <h2 class="text-2xl font-Satoshi-bold">Checkout Details</h2>
+            </div>
 
-  <div class="p-6 overflow-y-auto flex-1">
-    <div class="space-y-6">
-      <!-- Contact Information -->
-      <div>
-        <div class="flex items-center justify-between w-full py-5 font-medium border-b border-gray-200">
-          <span class="font-Satoshi-bold text-black">Contact Information</span>
-        </div>
-        <div class="py-5 border-b border-gray-200 space-y-4">
-          <div class="space-y-2">
-            <label class="block text-sm font-medium text-gray-900">WMSU Email</label>
-            <input type="email" v-model="form.email" :value="user.wmsu_email"
-              class="w-full px-4 py-2 border rounded-md bg-gray-100" readonly>
-          </div>
-          <div class="space-y-2">
-            <label class="block text-sm font-medium text-gray-900">Phone number</label>
-            <input type="tel" v-model="form.phone" :value="user.phone"
-              class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-black focus:outline-none">
-          </div>
-        </div>
-      </div>
-
-      <!-- Meetup Schedule Section -->
-      <div>
-        <div class="flex items-center justify-between w-full py-5 font-medium border-b border-gray-200">
-          <span class="font-Satoshi-bold text-black">Meetup Schedule</span>
-        </div>
-        <div class="py-5 border-b border-gray-200 space-y-4">
-          <template v-for="location in product.seller.meetupLocations" :key="location.id">
-            <div class="border rounded-lg p-4 space-y-4">
-              <div class="font-medium text-gray-900">{{ location.full_name }}</div>
-              <div class="text-sm text-gray-600">{{ location.description }}</div>
-
-              <!-- Available Schedules -->
-              <div class="space-y-2">
-                <template v-for="day in parseAvailableDays(location.available_days)" :key="day">
-                  <label class="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer">
-                    <input type="radio" v-model="selectedMeetupSchedule" 
-                           :value="`${location.id}_${getDayNumber(day)}`"
-                           class="form-radio text-black mr-3">
-                    <div>
-                      <span class="font-medium">{{ day }}</span>
-                      <span class="text-gray-600 text-sm ml-2">
-                        {{ formatTime(location.available_from) }} - {{ formatTime(location.available_until) }}
-                      </span>
-                    </div>
-                  </label>
-                </template>
+            <div class="p-6 flex-1 overflow-y-auto">
+              <!-- Contact Information -->
+              <div class="mb-6">
+                <h3 class="font-Satoshi-bold mb-4">Contact Information</h3>
+                <div class="space-y-4">
+                  <div>
+                    <Label for="email">Email</Label>
+                    <Input id="email" type="email" v-model="form.email" readonly />
+                  </div>
+                  <div>
+                    <Label for="phone">Phone Number</Label>
+                    <Input id="phone" type="tel" v-model="form.phone" required />
+                  </div>
+                </div>
               </div>
 
-              <!-- Location Details with Google Maps -->
-              <div class="text-sm text-gray-600 mt-2">
-                <p>{{ location.custom_location }}</p>
-                <template v-if="location.latitude && location.longitude">
-                  <a :href="`https://maps.google.com/?q=${location.latitude},${location.longitude}`"
-                     target="_blank"
-                     class="inline-flex items-center text-primary-color hover:text-primary-color/80 mt-2">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    View on Maps
-                  </a>
-                </template>
+              <!-- Meetup Schedule -->
+              <div class="mb-6">
+                <h3 class="font-Satoshi-bold mb-4">Available Meetup Schedules</h3>
+                <ScrollArea class="h-[200px] rounded-md border p-4">
+                  <div class="space-y-2">
+                    <label v-for="schedule in availableSchedules" 
+                           :key="schedule.id"
+                           class="flex p-3 border rounded hover:bg-gray-50 cursor-pointer">
+                      <input type="radio" 
+                             v-model="form.meetup_schedule"
+                             :value="schedule.id"
+                             class="mr-3">
+                      <div>
+                        <div class="font-medium">{{ schedule.location }}</div>
+                        <div class="text-sm text-gray-600">
+                          {{ schedule.day }} | {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
+                        </div>
+                        <div v-if="schedule.description" class="text-sm text-gray-500 mt-1">
+                          {{ schedule.description }}
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </ScrollArea>
+              </div>
+
+              <!-- Payment Method -->
+              <div class="mb-6">
+                <h3 class="font-Satoshi-bold mb-4">Payment Method</h3>
+                <div class="space-y-2">
+                  <label class="flex items-center space-x-3">
+                    <input type="radio" v-model="form.payment_method" value="cash" class="form-radio">
+                    <span>Cash on Meetup</span>
+                  </label>
+                  <label class="flex items-center space-x-3">
+                    <input type="radio" v-model="form.payment_method" value="gcash" class="form-radio">
+                    <span>GCash</span>
+                  </label>
+                </div>
               </div>
             </div>
-          </template>
-        </div>
-      </div>
 
-      <!-- Payment Method Section -->
-      <div class="py-5 space-y-4">
-        <h3 class="font-Satoshi-bold">Payment Method</h3>
-        <div class="space-y-2">
-          <label class="flex items-center space-x-3">
-            <input type="radio" v-model="selectedPaymentMethod" value="cash" class="form-radio text-black">
-            <span>Cash on Meetup</span>
-          </label>
-          <label class="flex items-center space-x-3">
-            <input type="radio" v-model="selectedPaymentMethod" value="gcash" class="form-radio text-black">
-            <span>GCash</span>
-          </label>
-        </div>
-      </div>
-    </div>
-  </div>
+            <!-- Order Button -->
+            <div class="p-6 border-t">
+              <Button type="submit" class="w-full">Place Order</Button>
+            </div>
 
-  <!-- Order Button -->
-  <div class="p-6 border-t bg-white">
-    <button type="submit"
-      class="w-full bg-black text-white py-3 rounded-full font-Satoshi-bold hover:bg-gray-800 transition-colors">
-      Place Order
-    </button>
-  </div>
-</div>
           </div>
         </div>
       </div>
-    </div>
-  </form>
+    </form>
+  </div>
 </template>
 
-<script>
-import { ref, computed } from 'vue'
-import { router, Link } from '@inertiajs/vue3'
-import { Button } from '@/Components/ui/button'
-import { Input } from '@/Components/ui/input'
-import { Label } from '@/Components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/Components/ui/radio-group'
-import { useToast } from '@/Components/ui/toast/use-toast'
 
-export default {
-  components: {
-    Link,
-    Button,
-    Input,
-    Label,
-    RadioGroup,
-    RadioGroupItem
-  },
+<script setup>
+import { ref, computed } from 'vue';
+import { router } from '@inertiajs/vue3';
+import { Button } from "@/Components/ui/button"
+import { Input } from "@/Components/ui/input"
+import { Label } from "@/Components/ui/label"
+import { ScrollArea } from '@/Components/ui/scroll-area'
+import { Head } from '@inertiajs/vue3';
 
-  props: {
+const props = defineProps({
+
     product: {
-      type: Object,
-      required: true
+        type: Object,
+        required: true
     },
     user: {
-      type: Object,
-      required: true
+        type: Object,
+        required: true
     },
     meetupLocations: {
-      type: Array,
-      default: () => []
+
+        type: Array,
+        required: true
+
     }
-  },
+});
 
-  setup(props) {
-    const quantity = ref(1)
-    const selectedVariant = ref(null)
-    const selectedPaymentMethod = ref('cash')
-    const selectedMeetupSchedule = ref(null)
+const quantity = ref(1);
+const form = ref({
+    product_id: props.product.id,
+    quantity: 1,
+    sub_total: props.product.discounted_price,
+    phone: props.user.phone || '',
+    email: props.user.wmsu_email || '',
+    payment_method: 'cash',
+    meetup_schedule: '', // Will be in format: locationId_dayNumber
+    delivery_estimate: `${new Date().toLocaleDateString()} - ${new Date(Date.now() + 7*24*60*60*1000).toLocaleDateString()}`,
+    address: '',
+    city: 'Zamboanga City',
+    postal_code: '7000'
+});
 
-    const calculateSubtotal = computed(() => {
-      return props.product.discounted_price * quantity.value
-    })
+// Calculate subtotal
+const calculateSubtotal = computed(() => {
+    return props.product.discounted_price * quantity.value;
+});
 
-    const calculateDiscount = computed(() => {
-      return props.product.price - props.product.discounted_price
-    })
+const formattedSubtotal = computed(() => {
+    return new Intl.NumberFormat().format(calculateSubtotal.value);
+});
 
-    const calculateTotal = computed(() => {
-      return calculateSubtotal.value
-    })
+// Update quantity and form values
+const updateQuantity = (value) => {
+    if (value < 1) value = 1;
+    if (value > props.product.stock) value = props.product.stock;
+    quantity.value = value;
+    form.value.quantity = value;
+    form.value.sub_total = calculateSubtotal.value;
+};
 
-    const incrementQuantity = () => {
-      if (quantity.value < props.product.stock) {
-        quantity.value++
-      }
-    }
+const submitForm = () => {
+    router.post(route('checkout.process'), form.value);
+};
 
-    const decrementQuantity = () => {
-      if (quantity.value > 1) {
-        quantity.value--
-      }
-    }
-
-    const formatPrice = (price) => {
-      return new Intl.NumberFormat().format(price)
-    }
-
-    const capitalizeFirst = (string) => {
-      return string.charAt(0).toUpperCase() + string.slice(1)
-    }
-
-    const form = ref({
-      email: props.user?.wmsu_email || '',
-      phone: props.user?.phone || '',
-    })
-
-    const parseAvailableDays = (days) => {
-      if (!days) return []
-      return typeof days === 'string' ? JSON.parse(days) : days
-    }
-
-    const getDayNumber = (dayName) => {
-      const days = {
-        'Sunday': 0,
-        'Monday': 1,
-        'Tuesday': 2,
-        'Wednesday': 3,
-        'Thursday': 4,
-        'Friday': 5,
-        'Saturday': 6
-      }
-      return days[dayName] || 0
-    }
-
-    const formatTime = (time) => {
-      if (!time) return ''
-      return new Date(`2000-01-01 ${time}`).toLocaleTimeString('en-US', {
+// Function to format time from 24h to 12h format
+const formatTime = (time) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':');
+    const date = new Date(2000, 0, 1, hours, minutes);
+    return date.toLocaleTimeString('en-US', { 
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
-      }).toLowerCase()
-    }
+        hour12: true 
+    }).toLowerCase();
+};
 
-    const submitForm = () => {
-      if (!selectedMeetupSchedule.value) {
-        alert('Please select a meetup schedule')
-        return
-      }
+// Computed property to get available schedules from meetup locations
+const availableSchedules = computed(() => {
+    const schedules = [];
+    
+    props.meetupLocations.forEach(location => {
+        const availableDays = location.available_days || [];
+        availableDays.forEach(day => {
+            schedules.push({
+                id: `${location.id}_${day}`,
+                location: location.full_name,
+                day: day,
+                timeFrom: formatTime(location.available_from),
+                timeUntil: formatTime(location.available_until),
+                description: location.description || '',
+                maxMeetups: location.max_daily_meetups
+            });
+        });
+    });
 
-      router.post(route('checkout.process'), {
-        product_id: props.product.id,
-        quantity: quantity.value,
-        sub_total: calculateTotal.value,
-        variant_id: selectedVariant.value,
-        payment_method: selectedPaymentMethod.value,
-        meetup_schedule: selectedMeetupSchedule.value,
-        email: form.value.email,
-        phone: form.value.phone
-      })
-    }
+    return schedules;
+});
 
-    return {
-      quantity,
-      selectedVariant,
-      selectedPaymentMethod,
-      selectedMeetupSchedule,
-      calculateSubtotal,
-      calculateDiscount,
-      calculateTotal,
-      incrementQuantity,
-      decrementQuantity,
-      formatPrice,
-      capitalizeFirst,
-      submitForm,
-      form,
-      parseAvailableDays,
-      formatTime,
-      getDayNumber
+// Add utility functions
+const capitalizeFirst = (str) => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+const formatPrice = (price) => {
+    return new Intl.NumberFormat().format(price);
+};
+
+// Add these computed properties for price calculations
+const calculateDiscount = computed(() => {
+    return (props.product.price - props.product.discounted_price) * quantity.value;
+});
+
+const calculateTotal = computed(() => {
+    return props.product.discounted_price * quantity.value;
+});
+
+// Add increment/decrement functions
+const incrementQuantity = () => {
+    if (quantity.value < props.product.stock) {
+        updateQuantity(quantity.value + 1);
     }
-  }
-}
+};
+
+
+const decrementQuantity = () => {
+    if (quantity.value > 1) {
+        updateQuantity(quantity.value - 1);
+
+    }
+};
 </script>
 
 <style scoped>

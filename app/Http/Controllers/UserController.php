@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SellerWallet;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\SellerRegistrationConfirmation;
 
 class UserController extends Controller
 {
@@ -141,15 +146,27 @@ class UserController extends Controller
             'acceptTerms' => 'required|accepted'
         ]);
 
+        // Remove the try-catch blocks and perform operations directly
         $user = auth()->user();
         $user->is_seller = true;
         $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
         $user->save();
 
-        // Redirect to main dashboard instead of seller index
+        // Create inactive wallet automatically
+        SellerWallet::create([
+            'user_id' => $user->id,
+            'seller_code' => $user->seller_code,
+            'balance' => 0.00,
+            'is_activated' => false,
+            'status' => 'pending'
+        ]);
+
+        // Send email directly without try-catch
+        Mail::to($user->wmsu_email)->send(new SellerRegistrationConfirmation($user));
+
         return redirect()->route('dashboard.profile')->with('toast', [
             'title' => 'Success!',
-            'description' => 'Congratulations! You are now registered as a seller.',
+            'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
             'variant' => 'default'
         ]);
     }

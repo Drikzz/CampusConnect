@@ -17,10 +17,8 @@ return new class extends Migration
             $table->string('seller_code')->constrained('seller_code')->onDelete('cascade');
 
             // Basic order information
-            $table->string('address');
-            $table->string('delivery_estimate')->nullable();
-            $table->string('phone');
             $table->string('email')->nullable();
+            $table->string('phone');
             $table->decimal('sub_total', 10, 2);
             $table->string('payment_method');
 

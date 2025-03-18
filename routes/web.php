@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
+use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\ProductTradeController;
+
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
@@ -25,6 +28,11 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
+
+// Trade routes
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
+Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit')->middleware('auth');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -35,6 +43,8 @@ Route::middleware('guest')->group(function () {
         Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
         Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
         Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
+        Route::post('/register/details', [AuthController::class, 'processAccountInfo'])->name('register.account-info');
+        Route::get('/register/profile-picture', [AuthController::class, 'showProfilePicturePage'])->name('register.profile-picture');
         Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
     });
 });
@@ -50,6 +60,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/email/verification-notification', [AuthController::class, 'verifyHandler'])->middleware('throttle:6,1')->name('verification.send');
 
+    Route::get('/wishlist/after-login', [WishlistController::class, 'handleAfterLogin'])
+        ->name('wishlist.after-login');
+
     // Protect these routes with verified middleware
     Route::middleware(['verified'])->group(function () {
         // Combined Dashboard and Seller routes
@@ -58,14 +71,26 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
-            Route::get('/wishlist', [DashboardController::class, 'wishlist'])->name('dashboard.wishlist');
+
+            // Fix: Update the wishlist route definition to avoid conflicts
+            Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
+
             Route::get('/meetup-locations', [DashboardController::class, 'address'])->name('dashboard.address');
             Route::get('/reviews', [DashboardController::class, 'reviews'])->name('dashboard.reviews');
 
             // Profile and wishlist routes
             Route::post('/profile/update', [DashboardController::class, 'updateProfile'])->name('profile.update');
-            Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancelOrder'])->name('orders.cancel');
-            Route::delete('/wishlist/{wishlist}', [DashboardController::class, 'removeFromWishlist'])->name('wishlist.remove');
+
+            // Fix: Consolidate wishlist routes under proper prefix
+            Route::prefix('wishlist')->group(function () {
+                Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+                Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+            });
+
+            Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+            Route::get('/orders/{order}/details', [OrderController::class, 'show'])->name('orders.details');
+            Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
+            Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
 
             // Seller registration routes
             Route::get('/become-seller', [UserController::class, 'showBecomeSeller'])->name('dashboard.become-seller');
@@ -77,14 +102,14 @@ Route::middleware('auth')->group(function () {
                 // Dashboard and main routes
                 Route::get('/', [SellerController::class, 'index'])->name('seller.index');
                 Route::get('/products', [SellerController::class, 'products'])->name('seller.products');
-                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders');
+                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders'); // edit this colleen
                 Route::get('/analytics', [SellerController::class, 'analytics'])->name('seller.analytics');
                 Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews');
 
-                // Order management routes
-                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
-                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
-                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
+                // Order management routes // edit this colleen
+                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show'); // edit this colleen
+                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status'); // edit this colleen
+                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup'); // edit this colleen
 
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
@@ -110,14 +135,34 @@ Route::middleware('auth')->group(function () {
                 Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
 
                 //wallet routes
-                Route::get('/wallet', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
-                Route::post('/wallet/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
+                Route::prefix('wallet')->group(function () {
+                    Route::get('/', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
+                    Route::post('/setup', [SellerWalletController::class, 'setup'])->name('seller.wallet.setup');
+                    Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
+                    Route::post('/withdraw', [SellerWalletController::class, 'withdraw'])->name('seller.wallet.withdraw'); // Add this missing route
+                    Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
+                    // Route::get('/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])->name('seller.wallet.receipt');
+                });
             });
         });
 
+        // Add or update the receipt download route
+        Route::get('/dashboard/seller/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])
+            ->middleware(['auth', 'verified'])
+            ->name('seller.wallet.receipt');
 
-        //checkout routes
+        // Update wishlist routes
+        Route::prefix('dashboard/wishlist')->group(function () {
+            Route::get('/', [WishlistController::class, 'index'])->name('dashboard.wishlist');
+            Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle'); // Keep this one as the main toggle route
+            Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
+            Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+        });
+
+        //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
+        // Add a new route with checkout.show name for backward compatibility
+        Route::get('/checkout/{id}', [CheckoutController::class, 'summary'])->name('checkout.show');
         Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 
         Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
@@ -125,101 +170,36 @@ Route::middleware('auth')->group(function () {
     });
 });
 
+Route::middleware('auth', 'admin')->group(function () {
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
+        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
 
-// Add these routes in the appropriate place (e.g., inside a middleware group if needed)
-Route::prefix('tags')->group(function () {
-    Route::get('/', [TagController::class, 'index'])->name('tags.index');
-    Route::post('/', [TagController::class, 'store'])->name('tags.store');
-    Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+        // Ensure this route is properly defined
+        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
+            ->name('wallet-requests.complete-withdrawal');
+
+        // Add these new routes
+        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
+        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
+        Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
+
+        // Wallet Management Routes
+        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
+        Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
+            ->name('wallet-requests.update-fees');
+        Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
+            ->name('wallet-requests.adjust-balance');
+        Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
+            ->name('wallet-requests.approve-refund');
+        Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
+            ->name('wallet-requests.reject-refund');
+    });
 });
-
-// Add a simple test route for debugging (remove in production)
-Route::get('/debug/send-test-email', function () {
-    if (!Auth::check()) {
-        return "Please login first";
-    }
-
-    $user = Auth::user();
-
-    try {
-        \Illuminate\Support\Facades\Mail::raw('Test email from Campus Connect', function ($message) use ($user) {
-            $message->to($user->wmsu_email)
-                ->subject('Test Email');
-        });
-
-        return "Test email sent to {$user->wmsu_email} - Please check your Mailtrap inbox.";
-    } catch (\Exception $e) {
-        return "Error: " . $e->getMessage();
-    }
-})->name('debug.test-email');
-
-// Admin Authentication Routes
-// Route::get('/admin/login', [AdminController::class, 'showLoginForm'])->name('admin.login');
-// Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
-
-// Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
-
-// Admin Dashboard Route
-// Route::get('/admin/dashboard', function () {
-//     return view('admin.admin-dashboard');
-// })->name('admin.dashboard');
-
-// Route::get('/admin/dashboard2', [AdminController::class, 'dashboard2'])->name('admin-dashboard2');
-// Route::get('/admin/userManagement', [AdminController::class, 'userManagement'])->name('admin-userManagement');
-// Route::get('/admin/userManagement/create', [AdminController::class, 'create'])->name('admin-userManagement.create');
-// Route::post('/admin/userManagement', [AdminController::class, 'store'])->name('admin-userManagement.store');
-// Route::get('/admin/userManagement/{user}/edit', [AdminController::class, 'edit'])->name('admin-userManagement.edit');
-// Route::put('/admin/userManagement/{user}', [AdminController::class, 'update'])->name('admin-userManagement.update');
-// Route::delete('/admin/userManagement/{user}', [AdminController::class, 'destroy'])->name('admin-userManagement.destroy');
-// Route::get('/admin/userManagement/{user}', [AdminController::class, 'show'])->name('admin-userManagement.show');
-
-// Route::get('/admin/sales', function () {
-//     return view('admin.admin-sales');
-// })->name('admin.sales');
-
-// Route::get('/admin/transactions', function () {
-//     return view('admin.admin-transactions');
-// })->name('admin.transactions');
-
-// Route::get('/admin/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
-
-// Route::get('/admin/users', function () {
-//     return view('admin.admin-userManagement');
-// })->name('admin.users');
-
-// Route::get('/admin/reports', function () {
-//     return view('admin.admin-reportManagement');
-// })->name('admin.reports');
-
-
-// Route::get('/admin/funds', function () {
-//     return view('admin.admin-fundManagement');
-// })->name('admin.funds');
-
-// Route::get('/admin/product-management', [AdminController::class, 'productManagement'])->name('admin-productManagement');
-
-// PLS DON'T DELETE THIS CODE FOR A WHILE
-// Protected Admin Routes
-// Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-//     // Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-//     // Route::get('/sales', [AdminController::class, 'sales'])->name('admin.sales');
-//     // Route::get('/transactions', [AdminController::class, 'transactions'])->name('admin.transactions');
-//     // Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
-//     // Route::get('/reports', [AdminController::class, 'reports'])->name('admin.reports');
-//     Route::get('/products', [AdminController::class, 'products'])->name('admin.products');
-//     Route::get('/funds', [AdminController::class, 'funds'])->name('admin.funds');
-// });
-
-// Route::view('/admin/sales', 'admin.admin-sales')->name('adminsales');
-
-// Route::view('/admin/products', 'admin.admin-productManagement')->name('admin-product-management');
-// Route::view('/admin/userManagement', 'admin.admin-userManagement')->name('admin-userManagement');
-// Route::view('/admin/funds', 'admin.admin-fundManagement')->name('admin-funds');
-
-// Route::view('/Adminside-userprofile', 'admin.adminside-userprofile  ')->name('admin-userManagement');
-// Route::view('/Admin-transactions', 'admin.admin-transactions')->name('admin-transactions');
-
-// Route::view('/Admin-user-approve', 'admin.admin-user-approved')->name('admin-user-approved');
 
 Route::fallback(function () {
     return Inertia::render('404');
