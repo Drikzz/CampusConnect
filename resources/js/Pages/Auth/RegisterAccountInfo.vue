@@ -248,7 +248,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                     <Input 
                                         id="wmsu_email"
                                         v-model="form.wmsu_email" 
-                                        type="email"
+                                        type="text"
                                         autocomplete="email"
                                         placeholder="youremail@wmsu.edu.ph"
                                         :disabled="form.processing"

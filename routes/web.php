@@ -173,31 +173,27 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth', 'admin')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        
+        // Make sure these routes are clearly defined and separate
         Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+        Route::get('/wallet', [AdminController::class, 'wallet'])->name('wallet');
+        
+        // Make sure to keep the wallet approval routes
         Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
         Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
-
-        // Ensure this route is properly defined
-        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
-            ->name('wallet-requests.complete-withdrawal');
-
-        // Add these new routes
-        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
-        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
-        Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
-        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
-        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
-
-        // Wallet Management Routes
-        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
-        Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
-            ->name('wallet-requests.update-fees');
-        Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
-            ->name('wallet-requests.adjust-balance');
+        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])->name('wallet-requests.complete-withdrawal');
+        
+        // Fix the route names for the fee management routes to match the controller methods
+        Route::post('/wallet/update-fees', [AdminController::class, 'updatePlatformFees'])->name('wallet.update-fees');
+        Route::post('/wallet/adjust-balance', [AdminController::class, 'adjustWalletBalance'])->name('wallet.adjust-balance');
+        
+        // Fix refund routes to use wallet. prefix for consistency
         Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('wallet-requests.approve-refund');
+            ->name('refunds.approve');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('wallet-requests.reject-refund');
+            ->name('refunds.reject');
+        
+        // ...other admin routes...
     });
 });
 
