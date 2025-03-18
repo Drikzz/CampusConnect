@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AdminUsersController extends Controller
 {
@@ -30,6 +31,7 @@ class AdminUsersController extends Controller
                 $query->where(function($query) use ($search) {
                     $query->where('username', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('wmsu_email', 'like', "%{$search}%") // Add search by wmsu_email
                         ->orWhere('phone', 'like', "%{$search}%");
                 });
             })
@@ -49,8 +51,12 @@ class AdminUsersController extends Controller
             
         // Apply sorting
         if ($sortField && $sortDirection) {
+            // Map 'email' sort field to 'wmsu_email' when needed
+            if ($sortField === 'email') {
+                $query->orderBy('wmsu_email', $sortDirection);
+            }
             // Map 'username' sort field to the actual database column if different
-            if ($sortField === 'username') {
+            elseif ($sortField === 'username') {
                 $query->orderBy('username', $sortDirection);
             }
             // Remove sorting for the derived fields that were removed
@@ -70,7 +76,12 @@ class AdminUsersController extends Controller
                     'username' => $user->username,  // Add username field
                     'name' => $user->name,
                     'email' => $user->email,
-                    'email_verified_at' => $user->email_verified_at,
+                    'wmsu_email' => $user->wmsu_email, // Include wmsu_email field
+                    'first_name' => $user->first_name,  // Include user's first name
+                    'middle_name' => $user->middle_name, // Include user's middle name
+                    'last_name' => $user->last_name,    // Include user's last name
+                    'gender' => $user->gender,          // Include user's gender
+                    'date_of_birth' => $user->date_of_birth, // Include user's date of birth
                     'phone' => $user->phone,
                     'is_seller' => $user->is_seller,
                     'is_admin' => $user->is_admin,
@@ -111,6 +122,42 @@ class AdminUsersController extends Controller
         return Inertia::render('Admin/Users/Show', [
             'user' => $user
         ]);
+    }
+
+    /**
+     * Update the specified user in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function update(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'username' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('users')->ignore($user->id)
+            ],
+            'gender' => 'required|string|in:male,female,non-binary,prefer-not-to-say',
+            'date_of_birth' => 'required|date|before:today',
+            'phone' => [
+                'required',
+                'string',
+                'regex:/^\+?[0-9]{11,}$/',
+                Rule::unique('users')->ignore($user->id)
+            ],
+        ]);
+        
+        $user->update($validated);
+        
+        return redirect()->back()->with('success', 'User updated successfully');
     }
 
     /**

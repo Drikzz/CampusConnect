@@ -182,7 +182,9 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
-        
+        // Add this route within your admin routes group
+        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+
         // User Management Routes
         Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
         Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
