@@ -85,13 +85,29 @@ class AuthController extends Controller
 
     public function showPersonalInfoForm(Request $request)
     {
-        // Only clear registration-related data, not the entire session
-        $request->session()->forget([
-            'registration_data',
-            'form_data',
-            'step1_completed',
-            'temp_files'
-        ]);
+        // If accessing directly from a non-registration page, clear all session data
+        $referer = $request->headers->get('referer');
+        $isFromRegistration = $referer && (
+            str_contains($referer, '/register') || 
+            str_contains($referer, '/register/details') ||
+            str_contains($referer, '/register/personal-info')
+        );
+
+        // If not coming from another registration page, clear all data
+        if (!$isFromRegistration) {
+            // Clear session data
+            $request->session()->forget([
+                'registration_data',
+                'form_data',
+                'step1_completed',
+                'temp_files'
+            ]);
+            
+            // Set flag to clear client-side storage
+            $clearStorage = true;
+        } else {
+            $clearStorage = false;
+        }
 
         // Get data for form dropdowns
         $departments = Department::orderBy('name')->get();
@@ -102,6 +118,7 @@ class AuthController extends Controller
             'departments' => $departments,
             'gradeLevels' => $gradeLevels,
             'userTypes' => $userTypes,
+            'clearStorage' => $clearStorage,
         ])->with('toast', [
             'variant' => 'default',
             'title' => 'Welcome!',
@@ -125,7 +142,8 @@ class AuthController extends Controller
             ]);
 
             $request->session()->put('registration_data', $validatedData);
-
+            
+            // Return to details page with a proper Inertia redirect rather than JSON response
             return redirect()->route('register.details')
                 ->with('toast', [
                     'variant' => 'default',
@@ -167,7 +185,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function completeRegistration(Request $request)
+    public function processAccountInfo(Request $request)
     {
         if (!$request->session()->has('registration_data')) {
             return redirect()->route('register.personal-info')
@@ -178,16 +196,14 @@ class AuthController extends Controller
                 ]);
         }
 
-        $firstStepData = $request->session()->get('registration_data');
-
         try {
             $rules = [
                 'username' => ['required', 'string', 'max:255', 'unique:users'],
                 'password' => [
                     'required',
                     'string',
-                    'min:8',  // Enforce minimum 8 characters
-                    'confirmed',
+                    'min:8',
+                    'confirmed',  // This uses the password_confirmation field automatically
                     function ($attribute, $value, $fail) {
                         $strength = 0;
                         if (strlen($value) >= 8) $strength++;
@@ -202,10 +218,12 @@ class AuthController extends Controller
                         }
                     }
                 ],
-                'profile_picture' => ['required', 'image', 'mimes:jpeg,png,jpg', 'max:2048']
+                'password_confirmation' => ['required'], // Add explicit validation for password_confirmation
             ];
 
             // Add email validation based on user type
+            $firstStepData = $request->session()->get('registration_data');
+            
             if (in_array($firstStepData['user_type_id'], ['HS', 'COL', 'PG', 'EMP'])) {
                 $rules['wmsu_email'] = [
                     'required',
@@ -231,55 +249,51 @@ class AuthController extends Controller
             }
 
             $validatedData = $request->validate($rules);
-
-            // Merge data and hash password
-            $userData = array_merge($firstStepData, $validatedData);
-            $userData['password'] = bcrypt($userData['password']);
-
+            
+            // Store ID images if provided
+            $accountData = [
+                'username' => $validatedData['username'],
+                'password' => bcrypt($validatedData['password']),
+            ];
+            
+            if (isset($validatedData['wmsu_email'])) {
+                $accountData['wmsu_email'] = $validatedData['wmsu_email'];
+            }
+            
             // Handle file uploads
             try {
-                // Store profile picture
-                $userData['profile_picture'] = $request->file('profile_picture')
-                    ->store($firstStepData['user_type_id'] . '/profile_pictures', 'public');
-
-                // Store ID pictures if provided
                 if ($request->hasFile('wmsu_id_front')) {
-                    $userData['wmsu_id_front'] = $request->file('wmsu_id_front')
+                    $accountData['wmsu_id_front'] = $request->file('wmsu_id_front')
                         ->store($firstStepData['user_type_id'] . '/id_front', 'public');
                 }
+                
                 if ($request->hasFile('wmsu_id_back')) {
-                    $userData['wmsu_id_back'] = $request->file('wmsu_id_back')
+                    $accountData['wmsu_id_back'] = $request->file('wmsu_id_back')
                         ->store($firstStepData['user_type_id'] . '/id_back', 'public');
                 }
             } catch (\Exception $e) {
-                return back()
-                    ->withInput()
+                return back()->withInput()
                     ->with('toast', [
                         'variant' => 'destructive',
                         'title' => 'Error!',
-                        'description' => 'Failed to upload files. Please try again.'
+                        'description' => 'Failed to upload ID files. Please try again.'
                     ]);
             }
-
-            // Get proper user type ID
-            $userTypeId = UserType::where('code', $firstStepData['user_type_id'])->first()->id;
-            $userData['user_type_id'] = $userTypeId;
-
-            // Create user
-            $user = User::create($userData);
-
-            // Log the user in AFTER creating the Registered event
-            Auth::login($user);
-
-            // Fire the Registered event - this triggers verification email
-            event(new Registered($user));
-
-            // Clear session data
-            $request->session()->forget('registration_data');
-
-            // Redirect to verification notice page
-            return redirect()->route('verification.notice')
-                ->with('message', 'Registration successful! Please check your email to verify your account.');
+            
+            // Store account data in session
+            $request->session()->put('account_data', $accountData);
+            
+            // Use Inertia's redirect with header that prevents scroll restoration
+            return redirect()->route('register.profile-picture')
+                ->header('X-Inertia-Scroll-Restoration', 'false')
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', 'Sat, 01 Jan 2000 00:00:00 GMT')
+                ->with('toast', [
+                    'variant' => 'default',
+                    'title' => 'Success!',
+                    'description' => 'Account details saved successfully.'
+                ]);
         } catch (ValidationException $e) {
             return back()
                 ->withErrors($e->errors())
@@ -289,13 +303,95 @@ class AuthController extends Controller
                     'title' => 'Error!',
                     'description' => 'Please check the form for errors.'
                 ]);
+        }
+    }
+
+    public function showProfilePicturePage(Request $request)
+    {
+        if (!$request->session()->has('registration_data') || !$request->session()->has('account_data')) {
+            return redirect()->route('register.personal-info')
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please complete the previous steps of registration.'
+                ]);
+        }
+
+        return Inertia::render('Auth/RegisterProfilePicture', [
+            'registrationData' => $request->session()->get('registration_data'),
+            'accountData' => $request->session()->get('account_data')
+        ])->with('toast', [
+            'variant' => 'default',
+            'title' => 'Almost there!',
+            'description' => 'Add a profile picture or skip this step.'
+        ]);
+    }
+    
+    public function completeRegistration(Request $request)
+    {
+        if (!$request->session()->has('registration_data') || !$request->session()->has('account_data')) {
+            return redirect()->route('register.personal-info')
+                ->with('toast', [
+                    'variant' => 'destructive',
+                    'title' => 'Error!',
+                    'description' => 'Please complete the previous steps of registration.'
+                ]);
+        }
+
+        $personalData = $request->session()->get('registration_data');
+        $accountData = $request->session()->get('account_data');
+
+        try {
+            // Check if profile picture is provided (optional)
+            if ($request->hasFile('profile_picture')) {
+                $validatedData = $request->validate([
+                    'profile_picture' => ['image', 'mimes:jpeg,png,jpg', 'max:2048']
+                ]);
+                
+                // Upload the profile picture
+                try {
+                    $accountData['profile_picture'] = $request->file('profile_picture')
+                        ->store($personalData['user_type_id'] . '/profile_pictures', 'public');
+                } catch (\Exception $e) {
+                    return back()
+                        ->withInput()
+                        ->with('toast', [
+                            'variant' => 'destructive',
+                            'title' => 'Error!',
+                            'description' => 'Failed to upload profile picture. Please try again.'
+                        ]);
+                }
+            }
+
+            // Merge all data for user creation
+            $userData = array_merge($personalData, $accountData);
+
+            // Get proper user type ID
+            $userTypeId = UserType::where('code', $personalData['user_type_id'])->first()->id;
+            $userData['user_type_id'] = $userTypeId;
+
+            // Create the user
+            $user = User::create($userData);
+
+            // Log the user in
+            Auth::login($user);
+
+            // Fire the Registered event - this triggers verification email
+            event(new Registered($user));
+
+            // Clear session data
+            $request->session()->forget(['registration_data', 'account_data']);
+
+            // Redirect to verification notice page
+            return redirect()->route('verification.notice')
+                ->with('message', 'Registration successful! Please check your email to verify your account.');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
                 ->with('toast', [
                     'variant' => 'destructive',
                     'title' => 'Error!',
-                    'description' => 'An unexpected error occurred. Please try again.'
+                    'description' => 'An unexpected error occurred: ' . $e->getMessage()
                 ]);
         }
     }
@@ -337,7 +433,7 @@ class AuthController extends Controller
     //Logout User
     public function logout(Request $request)
     {
-        //Logout the sser
+        //Logout the user
         Auth::logout();
 
         // Invalidate user's session
@@ -359,4 +455,5 @@ class AuthController extends Controller
     {
         return Inertia::render('Auth/Login');
     }
+
 }

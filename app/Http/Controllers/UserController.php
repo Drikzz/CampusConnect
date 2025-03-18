@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\SellerRegistrationConfirmation;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -33,31 +36,14 @@ class UserController extends Controller
                         $daysLeft = now()->diffInDays($user->username_changed_at->addDays(30));
                         $fail("Username can only be changed once every 30 days. Please wait {$daysLeft} more days.");
                     }
-
-                    // Check if username was recently used by someone else
-                    $recentlyUsed = UsernameHistory::where('old_username', $value)
-                        ->where('created_at', '>', now()->subDays(30))
-                        ->exists();
-                    if ($recentlyUsed) {
-                        $fail('This username was recently in use and cannot be claimed yet.');
-                    }
                 }
             ],
             'phone' => ['required', 'string', 'regex:/^[0-9]{11}$/'],
-            'wmsu_email' => ['required', 'email', 'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/'],
         ]);
 
-        // Handle username change
+        // Update username_changed_at if username is changing
         if ($user->username !== $validated['username']) {
-            UsernameHistory::create([
-                'user_id' => $user->id,
-                'old_username' => $user->username,
-                'new_username' => $validated['username']
-            ]);
             $user->username_changed_at = now();
-
-            // Send email notification
-            Mail::to($user->wmsu_email)->send(new UsernameChanged($user, $validated['username']));
         }
 
         // Handle phone verification
@@ -67,15 +53,6 @@ class UserController extends Controller
             // Send SMS with verification code
             // SMS::send($validated['phone'], "Your verification code is: {$code}");
             return redirect()->back()->with('verify-phone', true);
-        }
-
-        // Handle email verification
-        if ($user->wmsu_email !== $validated['wmsu_email']) {
-            $code = Str::random(32);
-            $user->email_verification_code = $code;
-            $user->email_verification_code_expires_at = now()->addHours(24);
-            Mail::to($validated['wmsu_email'])->send(new VerifyEmail($code));
-            return redirect()->back()->with('verify-email', true);
         }
 
         $user->update($validated);
@@ -144,40 +121,29 @@ class UserController extends Controller
             'acceptTerms' => 'required|accepted'
         ]);
 
-        try {
-            DB::beginTransaction();
+        // Remove the try-catch blocks and perform operations directly
+        $user = auth()->user();
+        $user->is_seller = true;
+        $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
+        $user->save();
 
-            $user = auth()->user();
-            $user->is_seller = true;
-            $user->seller_code = 'S' . str_pad($user->id, 5, '0', STR_PAD_LEFT);
-            $user->save();
+        // Create inactive wallet automatically
+        SellerWallet::create([
+            'user_id' => $user->id,
+            'seller_code' => $user->seller_code,
+            'balance' => 0.00,
+            'is_activated' => false,
+            'status' => 'pending'
+        ]);
 
-            // Create inactive wallet automatically
-            SellerWallet::create([
-                'user_id' => $user->id,
-                'seller_code' => $user->seller_code,
-                'balance' => 0.00,
-                'is_activated' => false,
-                'status' => 'pending'
-            ]);
+        // Send email directly without try-catch
+        Mail::to($user->wmsu_email)->send(new SellerRegistrationConfirmation($user));
 
-            DB::commit();
-
-            return redirect()->route('dashboard.profile')->with('toast', [
-                'title' => 'Success!',
-                'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
-                'variant' => 'default'
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error creating seller account: ' . $e->getMessage());
-
-            return back()->with('toast', [
-                'title' => 'Error',
-                'description' => 'Failed to create seller account. Please try again.',
-                'variant' => 'destructive'
-            ]);
-        }
+        return redirect()->route('dashboard.profile')->with('toast', [
+            'title' => 'Success!',
+            'description' => 'Your seller account has been created. Please set up your wallet to start selling.',
+            'variant' => 'default'
+        ]);
     }
 
     private function uploadImage($request, $user, $userType, $validated)

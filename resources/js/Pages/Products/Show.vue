@@ -149,10 +149,20 @@ const currentTab = ref('ProductDetails');
 
                 <!-- Product Owner Info -->
                 <div class="flex justify-start items-center gap-4 mt-4">
-                    <img :src="product.seller.profile_picture || '/imgs/default-avatar.jpg'" 
-                         :alt="product.seller.username"
-                         class="w-10 h-10 rounded-full object-cover">
-                    <p class="font-Satoshi-bold text-base">{{ product.seller.username }}</p>
+                    <div v-if="product.seller.profile_picture" 
+                         class="w-10 h-10 rounded-full overflow-hidden">
+                        <img :src="product.seller.profile_picture" 
+                             :alt="product.seller.username"
+                             class="w-full h-full object-cover">
+                    </div>
+                    <div v-else
+                         class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
+                        <span class="text-white text-lg font-medium">{{ product.seller.first_name ? product.seller.first_name[0] : (product.seller.username ? product.seller.username[0] : 'U') }}</span>
+                    </div>
+                    <div>
+                        <p class="font-Satoshi-bold text-base">{{ product.seller.username }}</p>
+                        <p class="text-xs text-gray-500">{{ product.seller.first_name }} {{ product.seller.last_name }}</p>
+                    </div>
 
                     <!-- Rating Stars -->
                     <div class="flex justify-center items-center gap-1">

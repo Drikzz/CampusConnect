@@ -14,8 +14,7 @@ return new class extends Migration
       $table->string('seller_code')->unique(); // Just for display purposes
       $table->decimal('balance', 10, 2)->default(0.00);
       $table->boolean('is_activated')->default(false); // Verification step
-      $table->string('status')->default('pending'); // pending, active, suspended
-      $table->string('id_path')->nullable(); // Add this line
+      $table->enum('status', ['pending', 'pending_approval', 'active', 'suspended', 'rejected'])->default('pending');
       $table->timestamp('activated_at')->nullable();
       $table->timestamps();
       $table->softDeletes();

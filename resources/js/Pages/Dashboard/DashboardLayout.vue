@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full mt-10 mb-28 px-4 md:px-16">
+    <div class="w-full mt-10 mb-64 px-4 md:px-16">
       <!-- Flash Messages -->
       <div v-if="props.flash?.success" 
            class="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">

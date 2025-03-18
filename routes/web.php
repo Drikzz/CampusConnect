@@ -7,6 +7,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminUsersController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
@@ -43,6 +44,8 @@ Route::middleware('guest')->group(function () {
         Route::get('/register', [AuthController::class, 'showPersonalInfoForm'])->name('register.personal-info');
         Route::post('/register/step1', [AuthController::class, 'processPersonalInfo'])->name('register.step1');
         Route::get('/register/details', [AuthController::class, 'showDetailsForm'])->name('register.details');
+        Route::post('/register/details', [AuthController::class, 'processAccountInfo'])->name('register.account-info');
+        Route::get('/register/profile-picture', [AuthController::class, 'showProfilePicturePage'])->name('register.profile-picture');
         Route::post('/register/complete', [AuthController::class, 'completeRegistration'])->name('register.complete');
     });
 });
@@ -82,7 +85,6 @@ Route::middleware('auth')->group(function () {
 
             // Fix: Consolidate wishlist routes under proper prefix
             Route::prefix('wishlist')->group(function () {
-                Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
                 Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
                 Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
             });
@@ -102,14 +104,14 @@ Route::middleware('auth')->group(function () {
                 // Dashboard and main routes
                 Route::get('/', [SellerController::class, 'index'])->name('seller.index');
                 Route::get('/products', [SellerController::class, 'products'])->name('seller.products');
-                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders');
+                Route::get('/orders', [SellerController::class, 'orders'])->name('seller.orders'); // edit this colleen
                 Route::get('/analytics', [SellerController::class, 'analytics'])->name('seller.analytics');
                 Route::get('/reviews', [SellerController::class, 'reviews'])->name('seller.reviews');
 
-                // Order management routes
-                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show');
-                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
-                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
+                // Order management routes // edit this colleen
+                Route::get('/orders/{order}', [SellerController::class, 'showOrder'])->name('seller.orders.show'); // edit this colleen
+                Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status'); // edit this colleen
+                Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup'); // edit this colleen
 
                 // Trade offers route
                 Route::get('/trade-offers', [SellerController::class, 'tradeOffers'])->name('seller.trade-offers');
@@ -150,17 +152,23 @@ Route::middleware('auth')->group(function () {
                 Route::prefix('wallet')->group(function () {
                     Route::get('/', [SellerWalletController::class, 'index'])->name('seller.wallet.index');
                     Route::post('/setup', [SellerWalletController::class, 'setup'])->name('seller.wallet.setup');
-                    Route::post('/activate', [SellerWalletController::class, 'activate'])->name('seller.wallet.activate');
                     Route::post('/refill', [SellerWalletController::class, 'refill'])->name('seller.wallet.refill');
+                    Route::post('/withdraw', [SellerWalletController::class, 'withdraw'])->name('seller.wallet.withdraw'); // Add this missing route
                     Route::get('/status', [SellerWalletController::class, 'getWalletStatus'])->name('seller.wallet.status');
+                    // Route::get('/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])->name('seller.wallet.receipt');
                 });
             });
         });
 
+        // Add or update the receipt download route
+        Route::get('/dashboard/seller/wallet/receipt/{id}', [SellerWalletController::class, 'downloadReceipt'])
+            ->middleware(['auth', 'verified'])
+            ->name('seller.wallet.receipt');
+
         // Update wishlist routes
         Route::prefix('dashboard/wishlist')->group(function () {
             Route::get('/', [WishlistController::class, 'index'])->name('dashboard.wishlist');
-            Route::post('/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+            Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle'); // Keep this one as the main toggle route
             Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
         });
@@ -198,29 +206,50 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware('auth', 'admin')->group(function () {
-    Route::prefix('admin')->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
-        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('admin.wallet-requests');
-        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('admin.wallet-requests.approve');
-        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('admin.wallet-requests.reject');
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        
+        // Make sure these routes are clearly defined and separate
+        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+        Route::get('/wallet', [AdminController::class, 'wallet'])->name('wallet');
+        
+        // Make sure to keep the wallet approval routes
+        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
+        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
+      
+        // Ensure this route is properly defined
+        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
+            ->name('wallet-requests.complete-withdrawal');
 
+        // Add this route within your admin routes group
+        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+
+        // User Management Routes
+        Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
+        Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
+        Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
+        Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
+        Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
+
+        
         // Add these new routes
-        Route::get('/users', [AdminController::class, 'userManagement'])->name('admin.users');
-        Route::get('/products', [AdminController::class, 'productManagement'])->name('admin.products');
-        Route::get('/orders', [AdminController::class, 'transactions'])->name('admin.orders');
-        Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
-        Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
+        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
+        Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
 
         // Wallet Management Routes
-        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('admin.wallet'); // Use same controller method
+        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
         Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
-            ->name('admin.wallet-requests.update-fees');
+            ->name('wallet-requests.update-fees');
         Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
-            ->name('admin.wallet-requests.adjust-balance');
+            ->name('wallet-requests.adjust-balance');
         Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('admin.wallet-requests.approve-refund');
+            ->name('refunds.approve');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('admin.wallet-requests.reject-refund');
+            ->name('refunds.reject');
+        
+        // ...other admin routes...
     });
 });
 

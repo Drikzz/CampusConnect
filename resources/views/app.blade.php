@@ -13,6 +13,7 @@
 
 <body>
     @inertia
+    <ToastWrapper />
 </body>
 
 </html>
