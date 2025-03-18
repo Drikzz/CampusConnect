@@ -361,9 +361,6 @@ class AuthController extends Controller
                             'description' => 'Failed to upload profile picture. Please try again.'
                         ]);
                 }
-            } else {
-                // Set a default profile picture if none provided
-                $accountData['profile_picture'] = 'default-profile.jpg';
             }
 
             // Merge all data for user creation
