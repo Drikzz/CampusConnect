@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
 use App\Http\Controllers\AdminReportController;
+use App\Http\Controllers\AdminMeetupLocController;
 use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -193,6 +194,13 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
         Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
         Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
+
+        //Meetup Location Routes
+        Route::get('/locations', [AdminMeetupLocController::class, 'index'])->name('locations');
+        Route::post('/locations', [AdminMeetupLocController::class, 'store'])->name('locations.store');
+        Route::put('/locations/{location}', [AdminMeetupLocController::class, 'update'])->name('locations.update');
+        Route::delete('/locations/{location}', [AdminMeetupLocController::class, 'destroy'])->name('locations.destroy');
+
 
         // Wallet Management Routes
         Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
