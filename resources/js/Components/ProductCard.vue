@@ -211,10 +211,10 @@ const openTradeModal = () => {
 
         <!-- Add Trade Form Modal -->
         <TradeForm 
-            v-if="showTradeModal" 
             :product="product" 
             :open="showTradeModal"
             @close="showTradeModal = false"
+            @update:open="showTradeModal = $event"
         />
     </div>
 </template>

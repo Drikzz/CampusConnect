@@ -174,12 +174,12 @@ watch(() => page.props.flash.toast, (flashMessage) => {
                                 <Link href="/dashboard/profile" 
                                     class="flex items-center gap-3 text-white hover:text-gray-200 p-2 rounded-lg transition-colors hover:bg-white/10">
                                     <div v-if="auth.user.profile_picture" class="h-10 w-10 rounded-full overflow-hidden">
-                                        <img :src="`/storage/${auth.user.profile_picture}`" :alt="auth.user.first_name" 
+                                        <img :src="`/storage/${auth.user.profile_picture}`" 
                                             class="h-full w-full object-cover border-2 border-white">
                                     </div>
                                     <div v-else
                                         class="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
-                                        <span class="text-white text-lg font-medium">{{ auth.user.first_name[0] }}</span>
+                                        <span class="text-white text-lg font-medium">{{ auth.user.first_name ? auth.user.first_name[0] : 'U' }}</span>
                                     </div>
                                     <div class="hidden md:block">
                                         <p class="text-sm font-medium leading-tight">

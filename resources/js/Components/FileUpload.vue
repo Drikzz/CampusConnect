@@ -15,6 +15,11 @@ const props = defineProps({
     accept: {
         type: String,
         default: 'image/*'
+    },
+    // Add onUpload prop to support callback pattern
+    onUpload: {
+        type: Function,
+        default: null
     }
 });
 
@@ -60,12 +65,24 @@ const handleFileSelection = (event) => {
     
     // Emit update
     emit('update:files', localFiles.value);
+    
+    // IMPORTANT: Also call the onUpload callback if provided
+    if (props.onUpload && typeof props.onUpload === 'function') {
+        props.onUpload(localFiles.value);
+    }
 };
 
 // Remove file
 const removeFile = (index) => {
     localFiles.value = localFiles.value.filter((_, i) => i !== index);
+    
+    // Emit update
     emit('update:files', localFiles.value);
+    
+    // IMPORTANT: Also call the onUpload callback if provided
+    if (props.onUpload && typeof props.onUpload === 'function') {
+        props.onUpload(localFiles.value);
+    }
 };
 
 // Generate preview URLs for images

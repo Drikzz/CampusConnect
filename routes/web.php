@@ -7,6 +7,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminUsersController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
@@ -73,6 +74,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
+            Route::get('/trades', [DashboardController::class, 'trades'])->name('dashboard.trades');
 
             // Fix: Update the wishlist route definition to avoid conflicts
             Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
@@ -113,6 +115,16 @@ Route::middleware('auth')->group(function () {
                 Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status'); // edit this colleen
                 Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup'); // edit this colleen
 
+                // Trade offers route
+                Route::get('/trade-offers', [SellerController::class, 'tradeOffers'])->name('seller.trade-offers');
+                
+                // Add these new routes for accepting and rejecting trade offers
+                Route::post('/trades/{id}/accept', [SellerController::class, 'acceptTradeOffer'])->name('seller.trades.accept');
+                Route::post('/trades/{id}/reject', [SellerController::class, 'rejectTradeOffer'])->name('seller.trades.reject');
+
+                // Add this route where you have other trade routes, likely in a seller middleware group
+                Route::post('/seller/trades/{id}/complete', [ProductTradeController::class, 'completeTrade'])->name('seller.trades.complete');
+
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
                 Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
@@ -135,6 +147,8 @@ Route::middleware('auth')->group(function () {
                 Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
                 Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');
                 Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
+                // Add new public endpoint to get meetup locations for a seller
+                Route::get('/meetup-locations/get/{seller}', [SellerController::class, 'getMeetupLocations'])->name('seller.meetup-locations.get')->withoutMiddleware('seller');
 
                 //wallet routes
                 Route::prefix('wallet')->group(function () {
@@ -161,6 +175,27 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
         });
 
+        // Trade related routes
+        Route::prefix('trades')->group(function () {
+            Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
+            Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
+            
+            // Add new routes for deleting trades
+            Route::delete('/{trade}', [ProductTradeController::class, 'deleteTrade'])->name('trades.delete');
+            Route::delete('/bulk-delete', [ProductTradeController::class, 'bulkDeleteTrades'])->name('trades.bulk-delete');
+            
+            // Add new route to get meetup locations for a product
+            Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
+                ->name('trades.product.meetup-locations');
+
+            // Add this route where other trade routes are defined:
+            Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');
+            
+            // Add new routes for trade messages
+            Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
+            Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
+        });
+
         //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
         // Add a new route with checkout.show name for backward compatibility
@@ -175,16 +210,31 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth', 'admin')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        
+        // Make sure these routes are clearly defined and separate
         Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+        Route::get('/wallet', [AdminController::class, 'wallet'])->name('wallet');
+        
+        // Make sure to keep the wallet approval routes
         Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
         Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
-
+      
         // Ensure this route is properly defined
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
+        // Add this route within your admin routes group
+        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+
+        // User Management Routes
+        Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
+        Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
+        Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
+        Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
+        Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
+
+        
         // Add these new routes
-        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
         Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
@@ -209,9 +259,11 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
             ->name('wallet-requests.adjust-balance');
         Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('wallet-requests.approve-refund');
+            ->name('refunds.approve');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('wallet-requests.reject-refund');
+            ->name('refunds.reject');
+        
+        // ...other admin routes...
     });
 });
 
