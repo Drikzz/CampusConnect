@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import AdminLayout from './AdminLayout.vue';
+import AdminLayout from '@/Layouts/AdminLayout.vue'; // Updated import path
 import { Link } from '@inertiajs/vue3';
 
 const props = defineProps({
