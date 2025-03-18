@@ -52,9 +52,15 @@
                   <TableCell>{{ location.name }}</TableCell>
                   <TableCell>{{ location.address }}</TableCell>
                   <TableCell>
-                    <Badge :variant="location.is_active ? 'success' : 'secondary'">
+                    <!-- Replaced Badge component with a styled span -->
+                    <span 
+                      class="px-2 py-1 text-xs font-medium rounded-full"
+                      :class="location.is_active 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'"
+                    >
                       {{ location.is_active ? 'Active' : 'Inactive' }}
-                    </Badge>
+                    </span>
                   </TableCell>
                   <TableCell>{{ formatDate(location.created_at) }}</TableCell>
                   <TableCell>
@@ -139,7 +145,7 @@ import { Input } from '@/Components/ui/input'
 import { Textarea } from '@/Components/ui/textarea'
 import { Label } from '@/Components/ui/label'
 import { Checkbox } from '@/Components/ui/checkbox'
-import { Badge } from '@/Components/ui/badge'
+// Removed Badge import that was causing the error
 import {
   Dialog,
   DialogContent,
