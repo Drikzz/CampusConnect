@@ -157,14 +157,12 @@
             <div class="p-6 border-t">
               <Button type="submit" class="w-full">Place Order</Button>
             </div>
-
           </div>
         </div>
       </div>
     </form>
   </div>
 </template>
-
 
 <script setup>
 import { ref, computed } from 'vue';
@@ -176,7 +174,6 @@ import { ScrollArea } from '@/Components/ui/scroll-area'
 import { Head } from '@inertiajs/vue3';
 
 const props = defineProps({
-
     product: {
         type: Object,
         required: true
@@ -186,10 +183,8 @@ const props = defineProps({
         required: true
     },
     meetupLocations: {
-
         type: Array,
         required: true
-
     }
 });
 
@@ -290,11 +285,9 @@ const incrementQuantity = () => {
     }
 };
 
-
 const decrementQuantity = () => {
     if (quantity.value > 1) {
         updateQuantity(quantity.value - 1);
-
     }
 };
 </script>

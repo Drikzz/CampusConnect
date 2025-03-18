@@ -173,15 +173,10 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth', 'admin')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
-        
-        // Make sure these routes are clearly defined and separate
         Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
-        Route::get('/wallet', [AdminController::class, 'wallet'])->name('wallet');
-        
-        // Make sure to keep the wallet approval routes
         Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
         Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
-      
+
         // Ensure this route is properly defined
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
@@ -200,11 +195,9 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
             ->name('wallet-requests.adjust-balance');
         Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('refunds.approve');
+            ->name('wallet-requests.approve-refund');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('refunds.reject');
-        
-        // ...other admin routes...
+            ->name('wallet-requests.reject-refund');
     });
 });
 
