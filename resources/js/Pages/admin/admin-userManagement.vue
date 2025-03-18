@@ -35,7 +35,6 @@ const editForm = ref({
     phone: ''
 });
 const formErrors = ref({});
-const isSubmitting = ref(false);
 
 // Simple date formatter
 const formatDate = (dateString) => {
@@ -106,9 +105,11 @@ const editUser = (user) => {
 
 // Save user edits
 const saveUserEdit = () => {
-    isSubmitting.value = true;
     formErrors.value = {};
-
+    
+    // Debug the form data
+    console.log('Submitting user data:', editForm.value);
+    
     // Validate form
     let hasErrors = false;
     if (!editForm.value.first_name) {
@@ -140,20 +141,21 @@ const saveUserEdit = () => {
     }
 
     if (hasErrors) {
-        isSubmitting.value = false;
         return;
     }
 
-    // Submit form via Inertia
-    router.put(route('admin.users.update', editForm.value.id), editForm.value, {
+    // Submit form via Inertia with direct URL instead of route helper
+    router.put(`/admin/users/${editForm.value.id}`, editForm.value, {
         onSuccess: () => {
             showEditModal.value = false;
-            isSubmitting.value = false;
+            // Add a success message
+            alert('User updated successfully!');
         },
         onError: (errors) => {
             formErrors.value = errors;
-            isSubmitting.value = false;
+            console.error('Error updating user:', errors);
         },
+        preserveScroll: true,
     });
 };
 
@@ -616,16 +618,14 @@ const isAllSelected = computed(() => {
                     <button 
                         @click="closeEditModal"
                         class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
-                        :disabled="isSubmitting"
                     >
                         Cancel
                     </button>
                     <button 
                         @click="saveUserEdit"
                         class="px-4 py-2 bg-primary-color border border-transparent rounded-md text-sm font-medium text-white hover:bg-primary-color/90"
-                        :disabled="isSubmitting"
                     >
-                        {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+                        Save Changes
                     </button>
                 </div>
             </div>
