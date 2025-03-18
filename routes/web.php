@@ -7,6 +7,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminUsersController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\SellerWalletController;
@@ -181,8 +182,16 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
+        
+        // User Management Routes
+        Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
+        Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
+        Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
+        Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
+        Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
+
+        
         // Add these new routes
-        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
         Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
