@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\SellerRegistrationConfirmation;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -35,31 +36,14 @@ class UserController extends Controller
                         $daysLeft = now()->diffInDays($user->username_changed_at->addDays(30));
                         $fail("Username can only be changed once every 30 days. Please wait {$daysLeft} more days.");
                     }
-
-                    // Check if username was recently used by someone else
-                    $recentlyUsed = UsernameHistory::where('old_username', $value)
-                        ->where('created_at', '>', now()->subDays(30))
-                        ->exists();
-                    if ($recentlyUsed) {
-                        $fail('This username was recently in use and cannot be claimed yet.');
-                    }
                 }
             ],
             'phone' => ['required', 'string', 'regex:/^[0-9]{11}$/'],
-            'wmsu_email' => ['required', 'email', 'regex:/^[a-zA-Z0-9._%+-]+@wmsu\.edu\.ph$/'],
         ]);
 
-        // Handle username change
+        // Update username_changed_at if username is changing
         if ($user->username !== $validated['username']) {
-            UsernameHistory::create([
-                'user_id' => $user->id,
-                'old_username' => $user->username,
-                'new_username' => $validated['username']
-            ]);
             $user->username_changed_at = now();
-
-            // Send email notification
-            Mail::to($user->wmsu_email)->send(new UsernameChanged($user, $validated['username']));
         }
 
         // Handle phone verification
@@ -69,15 +53,6 @@ class UserController extends Controller
             // Send SMS with verification code
             // SMS::send($validated['phone'], "Your verification code is: {$code}");
             return redirect()->back()->with('verify-phone', true);
-        }
-
-        // Handle email verification
-        if ($user->wmsu_email !== $validated['wmsu_email']) {
-            $code = Str::random(32);
-            $user->email_verification_code = $code;
-            $user->email_verification_code_expires_at = now()->addHours(24);
-            Mail::to($validated['wmsu_email'])->send(new VerifyEmail($code));
-            return redirect()->back()->with('verify-email', true);
         }
 
         $user->update($validated);
