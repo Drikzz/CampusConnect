@@ -605,51 +605,59 @@ class SellerController extends Controller
     public function updateOrderStatus(Request $request, Order $order)
     {
         if ($order->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         $validated = $request->validate([
-            'status' => 'required|in:Accepted,Delivered,Completed,Cancelled'
+            'status' => 'required|in:Accepted,Meetup Scheduled,Delivered,Completed,Cancelled',
+            'cancellation_reason' => 'required_if:status,Cancelled|string|nullable',
+            'cancelled_by' => 'required_if:status,Cancelled|string|in:buyer,seller|nullable',
         ]);
 
         try {
-            $order->update(['status' => $validated['status']]);
-            return response()->json([
-                'success' => true,
-                'message' => 'Order status updated successfully'
-            ]);
+            if ($validated['status'] === 'Cancelled') {
+                $order->cancel($validated['cancellation_reason'] ?? 'No reason provided', $validated['cancelled_by'] ?? 'seller');
+            } else {
+                // Use existing status transition methods when possible
+                switch($validated['status']) {
+                    case 'Accepted':
+                        $order->markAsAccepted();
+                        break;
+                    case 'Delivered':
+                        $order->markAsDelivered();
+                        break;
+                    case 'Completed':
+                        $order->markAsCompleted();
+                        break;
+                    default:
+                        $order->update(['status' => $validated['status']]);
+                }
+            }
+            
+            return redirect()->back()->with('success', 'Order status updated successfully');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating order status: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with('error', 'Error updating order status: ' . $e->getMessage());
         }
     }
 
     public function completeOrder(Order $order)
     {
         if ($order->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         try {
             $order->update(['status' => 'Completed']);
-            return response()->json([
-                'success' => true,
-                'message' => 'Order marked as completed'
-            ]);
+            return redirect()->back()->with('success', 'Order marked as completed');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error completing order: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with('error', 'Error completing order: ' . $e->getMessage());
         }
     }
 
     public function scheduleMeetup(Request $request, Order $order)
     {
         if ($order->seller_code !== Auth::user()->seller_code) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+            return redirect()->back()->with('error', 'Unauthorized action');
         }
 
         $validated = $request->validate([
@@ -664,15 +672,9 @@ class SellerController extends Controller
                 'status' => 'Meetup Scheduled'
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Meetup scheduled successfully'
-            ]);
+            return redirect()->back()->with('success', 'Meetup scheduled successfully');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error scheduling meetup: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->with('error', 'Error scheduling meetup: ' . $e->getMessage());
         }
     }
 
