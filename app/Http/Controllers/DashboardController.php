@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
-
+use App\Models\TradeTransaction;
 class DashboardController extends Controller
 {
     public function index()
@@ -506,5 +506,67 @@ class DashboardController extends Controller
         }
 
         return $stats;
+    }
+
+    /**
+     * Display the user's trades.
+     *
+     * @return \Inertia\Response
+     */
+    public function trades()
+    {
+        $user = auth()->user();
+        
+        // Get the user's trades - both as buyer and seller
+        $trades = TradeTransaction::where('buyer_id', $user->id)
+            ->orWhere('seller_id', $user->id)
+            ->orWhere('seller_code', $user->seller_code)
+            ->with([
+                'sellerProduct', 
+                'offeredItems', 
+                'buyer:id,first_name,last_name,username,profile_picture', 
+                'seller:id,first_name,last_name,username,profile_picture,seller_code'
+            ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+        
+        // Format trades for the frontend
+        $trades->through(function ($trade) {
+            return [
+                'id' => $trade->id,
+                'buyer_id' => $trade->buyer_id,
+                'seller_id' => $trade->seller_id,
+                'seller_code' => $trade->seller_code,
+                'seller_product_id' => $trade->seller_product_id,
+                'additional_cash' => $trade->additional_cash,
+                'notes' => $trade->notes,
+                'status' => $trade->status,
+                'created_at' => $trade->created_at,
+                'updated_at' => $trade->updated_at,
+                'seller_product' => $trade->sellerProduct,
+                'offered_items' => $trade->offeredItems,
+                'buyer' => $trade->buyer ? [
+                    'id' => $trade->buyer->id,
+                    'name' => $trade->buyer->first_name . ' ' . $trade->buyer->last_name,
+                    'profile_picture' => $trade->buyer->profile_picture ? 
+                        asset('storage/' . $trade->buyer->profile_picture) : null
+                ] : null,
+                'seller' => $trade->seller ? [
+                    'id' => $trade->seller->id,
+                    'name' => $trade->seller->first_name . ' ' . $trade->seller->last_name,
+                    'profile_picture' => $trade->seller->profile_picture ? 
+                        asset('storage/' . $trade->seller->profile_picture) : null
+                ] : null,
+            ];
+        });
+        
+        // Get user stats
+        $stats = $this->getDashboardStats($user);
+        
+        return Inertia::render('Dashboard/MyTrades', [
+            'user' => $user,
+            'stats' => $stats,
+            'trades' => $trades
+        ]);
     }
 }
