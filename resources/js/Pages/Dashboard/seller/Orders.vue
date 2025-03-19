@@ -154,7 +154,13 @@ const columns: ColumnDef<any>[] = [
   {
     accessorKey: 'total',
     header: 'Total',
-    cell: ({ row }) => h('div', { class: 'font-medium' }, `₱${formatNumber(row.getValue('total'))}`),
+    cell: ({ row }) => {
+      // Get the order total - try to access from the order object first, 
+      // if not available, calculate from items
+      const order = row.original;
+      const total = order.total || order.sub_total || calculateSubtotal(order.items);
+      return h('div', { class: 'font-medium' }, `₱${formatNumber(total)}`);
+    },
   },
   {
     accessorKey: 'status',
