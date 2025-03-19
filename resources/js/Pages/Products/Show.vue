@@ -213,6 +213,7 @@ const submitTradeOffer = () => {
 
                 <!-- Product Owner Info -->
                 <div class="flex justify-start items-center gap-4 mt-4">
+
                     <div v-if="product.seller.profile_picture" 
                          class="w-10 h-10 rounded-full overflow-hidden">
                         <img :src="product.seller.profile_picture" 
@@ -227,7 +228,6 @@ const submitTradeOffer = () => {
                         <p class="font-Satoshi-bold text-base">{{ product.seller.username }}</p>
                         <p class="text-xs text-gray-500">{{ product.seller.first_name }} {{ product.seller.last_name }}</p>
                     </div>
-                    
                     <!-- Rating Stars -->
                     <div class="flex justify-center items-center gap-1">
                         <svg v-for="i in 5" :key="i" class="w-5 h-5 fill-yellow-400" viewBox="0 0 24 24">

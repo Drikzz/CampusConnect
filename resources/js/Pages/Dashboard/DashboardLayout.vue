@@ -71,6 +71,20 @@
                   <span>My Orders</span>
                 </Link>
               </li>
+
+              <li>
+                <Link :href="route('dashboard.trades')"
+                  class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/orders') }">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                  </svg>
+                  <span>My Trades</span>
+                </Link>
+              </li>
+
+
               <li>
                 <Link :href="route('dashboard.wishlist')"
                   class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -100,6 +114,19 @@
                   </Link>
                 </li>
                 
+                <!-- Add Trade Offers Link -->
+                <li>
+                  <Link :href="route('seller.trade-offers')"
+                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/trade-offers') }">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                    </svg>
+                    <span>Trade Offers</span>
+                  </Link>
+                </li>
+
                 <li>
                   <Link :href="route('seller.wallet.index')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"

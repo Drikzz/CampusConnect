@@ -198,4 +198,5 @@ import {
 const logout = () => {
   router.post(route('admin.logout'))
 }
+
 </script>

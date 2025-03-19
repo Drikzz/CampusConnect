@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Order;
+use App\Models\TradeTransaction;  // Add this import if it doesn't exist
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -1233,5 +1234,134 @@ class SellerController extends Controller
                 'description' => $product->description
             ];
         });
+    }
+
+    public function tradeOffers()
+    {
+        $user = auth()->user();
+        $stats = $this->getDashboardStats($user);
+        
+        // Get trade offers for this seller
+        $tradeOffers = TradeTransaction::where(function($query) use ($user) {
+                $query->where('seller_id', $user->id)
+                      ->orWhere('seller_code', $user->seller_code);
+            })
+            ->with(['buyer:id,first_name,last_name,username,wmsu_email,profile_picture', 
+                    'sellerProduct:id,name,price,images,description',
+                    'offeredItems'])
+            ->latest()
+            ->get()
+            ->map(function($trade) {
+                return [
+                    'id' => $trade->id,
+                    'buyer_id' => $trade->buyer_id,
+                    'buyer_name' => $trade->buyer ? $trade->buyer->first_name . ' ' . $trade->buyer->last_name : 'Unknown',
+                    'buyer_username' => $trade->buyer ? $trade->buyer->username : '',
+                    'buyer_email' => $trade->buyer ? $trade->buyer->wmsu_email : '',
+                    'buyer_avatar' => $trade->buyer && $trade->buyer->profile_picture ? 
+                        '/storage/' . $trade->buyer->profile_picture : null,
+                    'product_id' => $trade->seller_product_id,
+                    'product_name' => $trade->sellerProduct ? $trade->sellerProduct->name : 'Unknown Product',
+                    'product_price' => $trade->sellerProduct ? $trade->sellerProduct->price : 0,
+                    'seller_product' => $trade->sellerProduct ? [
+                        'id' => $trade->sellerProduct->id,
+                        'name' => $trade->sellerProduct->name,
+                        'price' => $trade->sellerProduct->price,
+                        'description' => $trade->sellerProduct->description,
+                        'images' => $trade->sellerProduct->images ? array_map(function ($image) {
+                            if ($image && file_exists(storage_path('app/public/' . $image))) {
+                                return asset('storage/' . $image);
+                            } else {
+                                return asset('images/placeholder-product.jpg');
+                            }
+                        }, $trade->sellerProduct->images) : []
+                    ] : null,
+                    'additional_cash' => $trade->additional_cash,
+                    'status' => $trade->status,
+                    'notes' => $trade->notes,
+                    'meetup_schedule' => $trade->meetup_schedule,
+                    'offered_items' => $trade->offeredItems->map(function($item) {
+                        // Handle image paths, decode JSON if needed
+                        $images = is_string($item->images) ? json_decode($item->images, true) : $item->images;
+                        $firstImage = !empty($images) ? $images[0] : null;
+                        
+                        return [
+                            'id' => $item->id,
+                            'name' => $item->name,
+                            'quantity' => $item->quantity,
+                            'estimated_value' => $item->estimated_value,
+                            'description' => $item->description,
+                            'image_url' => $firstImage ? '/storage/' . $firstImage : null,
+                            'images' => $images ? array_map(function($img) {
+                                return '/storage/' . $img;
+                            }, $images) : []
+                        ];
+                    }),
+                    'offered_items_count' => $trade->offeredItems->count(),
+                    'created_at' => $trade->created_at,
+                    'updated_at' => $trade->updated_at,
+                ];
+            });
+        
+        return Inertia::render('Dashboard/seller/TradeOffers', [
+            'user' => $user,
+            'stats' => $stats,
+            'tradeOffers' => $tradeOffers
+        ]);
+    }
+
+    public function acceptTradeOffer($id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            
+            // Verify that the user is the seller for this trade
+            if ($trade->seller_id !== auth()->id() && $trade->seller_code !== auth()->user()->seller_code) {
+                return redirect()->back()->with('error', 'Unauthorized action');
+            }
+            
+            // Only pending trades can be accepted
+            if ($trade->status !== 'pending') {
+                return redirect()->back()->with('error', 'Only pending trades can be accepted');
+            }
+            
+            // Update trade status
+            $trade->update(['status' => 'accepted']);
+            
+            // Here you could implement additional logic like:
+            // - Notify the buyer
+            // - Update product availability
+            // - Create a new order based on the trade
+            
+            return redirect()->back()->with('success', 'Trade offer accepted successfully');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error accepting trade: ' . $e->getMessage());
+        }
+    }
+
+    public function rejectTradeOffer($id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            
+            // Verify that the user is the seller for this trade
+            if ($trade->seller_id !== auth()->id() && $trade->seller_code !== auth()->user()->seller_code) {
+                return redirect()->back()->with('error', 'Unauthorized action');
+            }
+            
+            // Only pending trades can be rejected
+            if ($trade->status !== 'pending') {
+                return redirect()->back()->with('error', 'Only pending trades can be rejected');
+            }
+            
+            // Update trade status
+            $trade->update(['status' => 'rejected']);
+            
+            // Here you could implement notification to the buyer
+            
+            return redirect()->back()->with('success', 'Trade offer rejected successfully');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error rejecting trade: ' . $e->getMessage());
+        }
     }
 }
