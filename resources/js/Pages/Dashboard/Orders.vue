@@ -92,6 +92,22 @@
                     >
                       Cancel
                     </Button>
+                    <!-- Add Review Button for completed orders -->
+                    <Button 
+                      v-if="order.status === 'Completed'"
+                      variant="secondary"
+                      @click="openReviewDialogForOrder(order)"
+                    >
+                      <svg 
+                        class="w-4 h-4 mr-1" 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                      </svg>
+                      Review
+                    </Button>
                   </div>
                 </CardFooter>
               </Card>
@@ -112,13 +128,39 @@
         />
       </DialogContent>
     </Dialog>
+
+    <!-- Reviews Dialog -->
+    <Dialog :open="showReviewsDialog" @update:open="showReviewsDialog = $event">
+      <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Seller Reviews</DialogTitle>
+          <DialogDescription v-if="selectedOrder">
+            Reviews for {{ selectedOrder.seller?.first_name + ' ' + selectedOrder.seller?.last_name }}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <SellerReviews
+          v-if="selectedOrder"
+          :seller-code="selectedOrder.seller_code"
+          :seller-name="selectedOrder.seller?.first_name + ' ' + selectedOrder.seller?.last_name"
+          :transaction-id="selectedOrder.id"
+          transaction-type="order"
+          :is-completed="selectedOrder.status === 'Completed'"
+          @review-submitted="handleReviewSubmitted"
+        />
+        
+        <DialogFooter>
+          <Button variant="outline" @click="showReviewsDialog = false">Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </DashboardLayout>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import DashboardLayout from './DashboardLayout.vue'
 import { Link } from '@inertiajs/vue3'
+import DashboardLayout from './DashboardLayout.vue'
 import { Button } from '@/Components/ui/button'
 import {
   Card,
@@ -134,9 +176,17 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/Components/ui/tabs'
-import UserOrderDetails from './UserOrderDetails.vue'
-import { Dialog, DialogContent } from '@/Components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription 
+} from '@/Components/ui/dialog'
 import { useToast } from '@/Components/ui/toast/use-toast'
+import UserOrderDetails from './UserOrderDetails.vue'
+import SellerReviews from '@/Components/SellerReviews.vue'
 
 const props = defineProps({
   user: Object,
@@ -150,6 +200,7 @@ const props = defineProps({
 const searchQuery = ref('')
 const selectedOrder = ref(null)
 const showOrderDetails = ref(false)
+const showReviewsDialog = ref(false)
 const { toast } = useToast()
 
 const orderStatuses = [
@@ -183,16 +234,24 @@ const groupedOrders = computed(() => {
         order.id.toString().includes(query) ||
         order.items.some(item => item.product.name.toLowerCase().includes(query))
       )
-    })
+    }) 
   }
   
   return groups
 })
 
 const formatDate = (date) => new Date(date).toLocaleDateString()
+
+const formatDateTime = (date) => {
+  return new Date(date).toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
 const formatPrice = (price) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price)
 
-// Add new formatting functions
 const getStatusColor = (status) => {
   const colors = {
     'Pending': 'bg-yellow-100 text-yellow-800',
@@ -203,32 +262,49 @@ const getStatusColor = (status) => {
     'Cancelled': 'bg-red-100 text-red-800',
     'Disputed': 'bg-orange-100 text-orange-800'
   };
+  
   return colors[status] || 'bg-gray-100 text-gray-800';
-};
+}
 
-const formatDateTime = (date) => {
-  return new Date(date).toLocaleDateString('en-PH', {
-    year: 'numeric',
-    month: 'long', 
-    day: 'numeric'
-  });
-};
-
-// Add these to your script setup
 const viewOrderDetails = (order) => {
   selectedOrder.value = order
   showOrderDetails.value = true
 }
 
 const closeOrderDetails = () => {
-  selectedOrder.value = null
   showOrderDetails.value = false
+  selectedOrder.value = null
 }
+
+const openReviewDialog = () => {
+  if (selectedOrder.value) {
+    showReviewsDialog.value = true
+  }
+}
+
+// Add function to open review dialog directly for a specific order
+const openReviewDialogForOrder = (order) => {
+  selectedOrder.value = order;
+  showReviewsDialog.value = true;
+};
+
+// Handle review submission completion
+const handleReviewSubmitted = () => {
+  toast({
+    title: 'Review Submitted',
+    description: 'Thank you for your feedback!',
+    variant: 'default'
+  });
+  
+  // Close the dialog after a short delay
+  setTimeout(() => {
+    showReviewsDialog.value = false;
+  }, 1500);
+};
 </script>
 
 <style scoped>
 .bg-card {
   background-color: white;
 }
-
 </style>
