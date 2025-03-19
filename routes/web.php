@@ -111,6 +111,16 @@ Route::middleware('auth')->group(function () {
                 Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status');
                 Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup');
 
+                // Trade offers route
+                Route::get('/trade-offers', [SellerController::class, 'tradeOffers'])->name('seller.trade-offers');
+                
+                // Add these new routes for accepting and rejecting trade offers
+                Route::post('/trades/{id}/accept', [SellerController::class, 'acceptTradeOffer'])->name('seller.trades.accept');
+                Route::post('/trades/{id}/reject', [SellerController::class, 'rejectTradeOffer'])->name('seller.trades.reject');
+
+                // Add this route where you have other trade routes, likely in a seller middleware group
+                Route::post('/seller/trades/{id}/complete', [ProductTradeController::class, 'completeTrade'])->name('seller.trades.complete');
+
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
                 Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
@@ -133,6 +143,8 @@ Route::middleware('auth')->group(function () {
                 Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
                 Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');
                 Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
+                // Add new public endpoint to get meetup locations for a seller
+                Route::get('/meetup-locations/get/{seller}', [SellerController::class, 'getMeetupLocations'])->name('seller.meetup-locations.get')->withoutMiddleware('seller');
 
                 //wallet routes
                 Route::prefix('wallet')->group(function () {
@@ -156,6 +168,22 @@ Route::middleware('auth')->group(function () {
         // Trade related routes
         Route::prefix('trades')->group(function () {
             Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
+            Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
+            
+            // Add new routes for deleting trades
+            Route::delete('/{trade}', [ProductTradeController::class, 'deleteTrade'])->name('trades.delete');
+            Route::delete('/bulk-delete', [ProductTradeController::class, 'bulkDeleteTrades'])->name('trades.bulk-delete');
+            
+            // Add new route to get meetup locations for a product
+            Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
+                ->name('trades.product.meetup-locations');
+
+            // Add this route where other trade routes are defined:
+            Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');
+            
+            // Add new routes for trade messages
+            Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
+            Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
         });
 
         //checkout routes - update to add consistent naming
