@@ -1366,4 +1366,23 @@ class SellerController extends Controller
             return redirect()->back()->with('error', 'Error rejecting trade: ' . $e->getMessage());
         }
     }
+
+    public function reviews()
+    {
+        $user = auth()->user();
+        $sellerCode = $user->seller_code;
+        $stats = $this->getDashboardStats($user);
+        
+        // Get reviews for this seller
+        $reviews = \App\Models\SellerReview::with('buyer:id,first_name,last_name')
+            ->where('seller_code', $sellerCode)
+            ->latest()
+            ->paginate(10);
+        
+        return Inertia::render('Dashboard/seller/Reviews', [
+            'user' => $user,
+            'stats' => $stats,
+            'reviews' => $reviews
+        ]);
+    }
 }
