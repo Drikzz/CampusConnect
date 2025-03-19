@@ -1,6 +1,6 @@
 <script setup>
-import { useForm, usePage } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { useForm, usePage, router } from '@inertiajs/vue3';
+import { ref, onMounted, watch, computed } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { Progress } from "@/Components/ui/progress";
@@ -19,7 +19,6 @@ const form = useForm({
     wmsu_email: '',
     password: '',
     password_confirmation: '',
-    profile_picture: null,
     wmsu_id_front: null,
     wmsu_id_back: null,
     progress: null
@@ -33,7 +32,54 @@ onMounted(() => {
             form[field] = value;
         }
     });
+
+    // Add a direct event listener to clear data when navigating away
+    const registrationRoutes = ['/register', '/register/details', '/register/personal-info'];
+    
+    router.on('navigate', (event) => {
+        const targetPath = new URL(event.detail.page.url, window.location.origin).pathname;
+        const isRegistrationRoute = registrationRoutes.some(route => targetPath.startsWith(route));
+        
+        if (!isRegistrationRoute) {
+            console.log("RegisterAccountInfo: Navigating away from registration - clearing data");
+            clearFormData();
+        }
+    });
+
+    // Also listen for page unload events
+    window.addEventListener('beforeunload', () => {
+        clearFormData();
+    });
 });
+
+// Function to clear registration form data with explicit force parameter
+function clearFormData(force = false) {
+    console.log("Clearing form data from RegisterAccountInfo");
+    const formFields = [
+        'user_type_id', 
+        'grade_level_id', 
+        'wmsu_dept_id', 
+        'first_name', 
+        'middle_name', 
+        'last_name', 
+        'gender', 
+        'date_of_birth', 
+        'phone',
+        'username',
+        'wmsu_email',
+        'from_account_info',
+        'registration_in_progress'
+    ];
+    
+    formFields.forEach(field => {
+        sessionStorage.removeItem(field);
+    });
+    
+    // If forced, also reset the form
+    if (force) {
+        form.reset();
+    }
+}
 
 watch(() => ({
     username: form.username,
@@ -115,21 +161,17 @@ const checkPasswordStrength = (password) => {
     passwordFeedback.value = feedback;
 };
 
+// Add password match check function
+const passwordMatch = computed(() => {
+    if (!form.password || !form.password_confirmation) return null;
+    return form.password === form.password_confirmation;
+});
+
 const submit = () => {
-    form.post(route('register.complete'), {
-        preserveScroll: true,
-        onProgress: (progress) => {
-            form.progress = progress;
-        },
-        onSuccess: () => {
-            form.reset();
-            Object.keys(previewUrls.value).forEach(key => {
-                previewUrls.value[key] = null;
-            });
-            form.progress = null;
-        },
-        onError: () => {
-            form.progress = null;
+    // Instead of posting directly to register.complete, store the data and go to profile picture page
+    form.post(route('register.account-info'), {
+        onError: (errors) => {
+            console.error("Form submission errors:", errors);
         }
     });
 };
@@ -176,42 +218,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                 <p class="font-FontSpring-bold text-3xl text-primary-color">Account Details</p>
                             </div>
 
-                            <!-- Profile Picture Upload -->
-                            <div class="mb-8">
-                                <Label class="text-lg font-semibold mb-4">Profile Picture*</Label>
-                                <div class="flex items-center gap-4">
-                                    <!-- Preview Container -->
-                                    <div class="w-32 h-32 border-2 border-dashed border-gray-300 rounded-full flex items-center justify-center overflow-hidden bg-gray-50">
-                                        <img v-if="previewUrls.profile_picture" :src="previewUrls.profile_picture" 
-                                            class="w-full h-full object-cover" />
-                                        <div v-else class="text-gray-400 text-center">
-                                            <i class="fas fa-user text-3xl mb-2"></i>
-                                            <p class="text-sm">No image</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Upload Controls -->
-                                    <div class="flex flex-col gap-2">
-                                        <Input 
-                                            type="file"
-                                            accept="image/*"
-                                            @change="(e) => handleFileUpload(e, 'profile_picture')"
-                                            :disabled="form.processing"
-                                            class="bg-white border-primary-color file:bg-primary-color file:text-white file:border-0"
-                                        />
-                                        <p class="text-sm text-gray-500">Max size: 2MB (JPG, JPEG, PNG)</p>
-                                        <Button 
-                                            v-if="previewUrls.profile_picture"
-                                            type="button"
-                                            variant="destructive"
-                                            size="sm"
-                                            @click="removeImage('profile_picture')"
-                                        >
-                                            Remove Image
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- Remove Profile Picture Upload section -->
 
                             <!-- Account Fields -->
                             <div class="space-y-6">
@@ -241,7 +248,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                     <Input 
                                         id="wmsu_email"
                                         v-model="form.wmsu_email" 
-                                        type="email"
+                                        type="text"
                                         autocomplete="email"
                                         placeholder="youremail@wmsu.edu.ph"
                                         :disabled="form.processing"
@@ -278,7 +285,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                             </button>
                                         </div>
                                         <div v-if="passwordStrength" 
-                                            :class="{'text-red-600': passwordStrength === 'Very Weak',
+                                            :class="{'text-red': passwordStrength === 'Very Weak',
                                                 'text-orange-600': passwordStrength === 'Weak',
                                                 'text-yellow-600': passwordStrength === 'Fair',
                                                 'text-blue-600': passwordStrength === 'Good',
@@ -296,7 +303,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                                 id="password_confirmation"
                                                 v-model="form.password_confirmation" 
                                                 :type="showConfirmPassword ? 'text' : 'password'"
-                                                autocomplete="new-password"
+                                                autocomplete="off"
                                                 placeholder="Confirm your password"
                                                 :disabled="form.processing"
                                                 class="bg-white border-primary-color pr-10"
@@ -309,6 +316,21 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                             >
                                                 <i :class="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
                                             </button>
+                                        </div>
+                                        <!-- Live password confirmation feedback -->
+                                        <div v-if="form.password && form.password_confirmation" 
+                                            :class="{
+                                                'text-green-600': passwordMatch,
+                                                'text-red-500': !passwordMatch
+                                            }"
+                                            class="text-sm mt-1 flex items-center gap-2"
+                                        >
+                                            <span v-if="passwordMatch">✓ Passwords match</span>
+                                            <span v-else>✗ Passwords don't match</span>
+                                        </div>
+                                        <!-- Static error message from server validation -->
+                                        <div v-if="form.errors.password_confirmation" class="text-red-500 text-sm mt-1">
+                                            {{ form.errors.password_confirmation }}
                                         </div>
                                     </div>
                                 </div>
@@ -398,7 +420,7 @@ watch(() => page.props.flash.toast, (flashToast) => {
                                     :disabled="form.processing"
                                     class="bg-primary-color text-primary-foreground"
                                 >
-                                    {{ form.processing ? 'Processing...' : 'Complete Registration' }}
+                                    {{ form.processing ? 'Processing...' : 'Continue' }}
                                 </Button>
                             </div>
                         </CardContent>

@@ -192,5 +192,8 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getReviewsCountAttribute()
     {
         return $this->receivedReviews()->count();
+    public function walletTransactions()
+    {
+        return $this->hasMany(WalletTransaction::class);
     }
 }

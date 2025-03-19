@@ -1,8 +1,9 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { useToast } from '@/Components/ui/toast/use-toast';
 import { Toaster } from '@/Components/ui/toast';
+import RegistrationGuard from '@/Components/RegistrationGuard.vue';
 
 const props = defineProps({
   auth: Object
@@ -107,6 +108,9 @@ watch(() => page.props.flash.toast, (flashMessage) => {
 
 <template>
     <div>
+        <!-- Add the registration guard component -->
+        <RegistrationGuard />
+        
         <div class="fixed top-4 right-4 w-full z-101">
             <Toaster></Toaster>
         </div>
@@ -170,12 +174,12 @@ watch(() => page.props.flash.toast, (flashMessage) => {
                                 <Link href="/dashboard/profile" 
                                     class="flex items-center gap-3 text-white hover:text-gray-200 p-2 rounded-lg transition-colors hover:bg-white/10">
                                     <div v-if="auth.user.profile_picture" class="h-10 w-10 rounded-full overflow-hidden">
-                                        <img :src="`/storage/${auth.user.profile_picture}`" :alt="auth.user.first_name" 
+                                        <img :src="`/storage/${auth.user.profile_picture}`" 
                                             class="h-full w-full object-cover border-2 border-white">
                                     </div>
                                     <div v-else
                                         class="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
-                                        <span class="text-white text-lg font-medium">{{ auth.user.first_name[0] }}</span>
+                                        <span class="text-white text-lg font-medium">{{ auth.user.first_name ? auth.user.first_name[0] : 'U' }}</span>
                                     </div>
                                     <div class="hidden md:block">
                                         <p class="text-sm font-medium leading-tight">
@@ -187,7 +191,8 @@ watch(() => page.props.flash.toast, (flashMessage) => {
                             </template>
                             <template v-else>
                                 <div class="flex items-center gap-2">
-                                    <Link :href="route('register.personal-info')"
+                                    <!-- Fix the route name from register.personal-info to register.details -->
+                                    <Link :href="'/register'"
                                         class="text-white hover:text-gray-200 px-4 py-2 text-sm font-medium transition-colors rounded-lg hover:bg-white/10">
                                         Sign Up
                                     </Link>

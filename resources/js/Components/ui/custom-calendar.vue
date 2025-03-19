@@ -37,9 +37,10 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 const formatter = useDateFormatter('en')
 
 const years = computed(() => {
-  const currentYear = placeholder.value.year;
-  const startYear = currentYear - 100; // Show 100 years back
-  const endYear = currentYear + 1; // Show up to next year
+  // Show 100 years back from current year and 5 years into future
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 100;
+  const endYear = currentYear + 5;
   
   const years = [];
   for (let year = startYear; year <= endYear; year++) {

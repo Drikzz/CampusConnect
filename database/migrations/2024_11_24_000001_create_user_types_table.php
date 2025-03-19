@@ -25,7 +25,7 @@ return new class extends Migration
             ['name' => 'High School Student', 'code' => 'HS', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'College Student', 'code' => 'COL', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Alumni', 'code' => 'ALM', 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Post Graduate', 'code' => 'PG', 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Graduates', 'code' => 'PG', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Employee', 'code' => 'EMP', 'created_at' => now(), 'updated_at' => now()],
         ]);
     }
