@@ -49,6 +49,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/Components/ui/card'
+import { usePage } from '@inertiajs/vue3'
+import { watch } from 'vue'
 
 const props = defineProps({
   user: Object,
@@ -288,29 +290,38 @@ const closeOrderDetails = () => {
   }, 300) // Wait for the dialog animation to finish
 }
 
+// Add flash message handling
+const page = usePage()
+
+// Watch for flash messages to display toast notifications
+watch(() => page.props.flash, (flash) => {
+  if (flash.success) {
+    toast({
+      title: "Success",
+      description: flash.success,
+      variant: "default"
+    })
+  }
+  
+  if (flash.error) {
+    toast({
+      title: "Error",
+      description: flash.error,
+      variant: "destructive"
+    })
+  }
+}, { deep: true, immediate: true })
+
+// Modify the updateOrderStatus function to use toast only for loading state
 const updateOrderStatus = (orderId: number, status: string) => {
+  toast({
+    title: "Processing",
+    description: `Updating order status to ${status}...`,
+    variant: "default"
+  })
+  
   router.put(route('seller.orders.update-status', orderId), {
     status: status
-  }, {
-    onSuccess: () => {
-      toast({
-        title: "Success!",
-        description: `Order status updated to ${status}`,
-        variant: "default"
-      })
-      
-      // Refresh the page after a short delay to show the toast
-      setTimeout(() => {
-        router.reload()
-      }, 1000)
-    },
-    onError: () => {
-      toast({
-        title: "Error!",
-        description: "Failed to update order status",
-        variant: "destructive"
-      })
-    }
   })
 }
 
@@ -330,44 +341,20 @@ const cancelOrder = () => {
     return
   }
 
+  toast({
+    title: "Processing",
+    description: "Cancelling order...",
+    variant: "default"
+  })
+
   router.put(route('seller.orders.update-status', selectedOrderId.value), {
     status: 'Cancelled',
     cancellation_reason: cancellationReason.value,
     cancelled_by: 'seller'
   }, {
-    onSuccess: () => {
-      toast({
-        title: "Success!",
-        description: "Order cancelled successfully",
-        variant: "default"
-      })
+    onFinish: () => {
       showCancelDialog.value = false
-      
-      // Refresh the page after a short delay to show the toast
-      setTimeout(() => {
-        router.reload()
-      }, 1000)
-    },
-    onError: () => {
-      toast({
-        title: "Error!",
-        description: "Failed to cancel order",
-        variant: "destructive"
-      })
     }
-  })
-}
-
-const handleStatusChange = (status: string) => {
-  selectedStatus.value = status
-}
-
-const exportOrders = () => {
-  // Add export functionality here
-  toast({
-    title: "Export Started",
-    description: "Your orders data is being prepared for export",
-    variant: "default"
   })
 }
 
