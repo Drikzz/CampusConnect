@@ -12,6 +12,7 @@ use App\Http\Controllers\AdminProductsController;
 use App\Http\Controllers\AdminCategoriesTagsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
+use App\Http\Controllers\SellerReviewController;
 use App\Http\Controllers\SellerWalletController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AdminMeetupLocController;
@@ -197,6 +198,19 @@ Route::middleware('auth')->group(function () {
         // Trade routes - moved to auth middleware group
         Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
         Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
+
+        // Seller Reviews Routes
+        Route::middleware(['auth', 'verified'])->group(function () {
+            Route::get('/reviews/seller/{sellerCode}', [SellerReviewController::class, 'index'])->name('reviews.index');
+            Route::post('/reviews', [SellerReviewController::class, 'store'])->name('reviews.store');
+            Route::put('/reviews/{id}', [SellerReviewController::class, 'update'])->name('reviews.update');
+            Route::delete('/reviews/{id}', [SellerReviewController::class, 'destroy'])->name('reviews.destroy');
+            Route::get('/seller/{sellerCode}/rating', [SellerReviewController::class, 'getSellerRating'])->name('seller.rating');
+        });
+
+        // Seller review routes
+        Route::post('/seller-reviews', [SellerReviewController::class, 'store'])->name('seller-reviews.store');
+        Route::get('/seller-reviews/{sellerCode}', [SellerReviewController::class, 'index'])->name('seller-reviews.index');
 
         //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
