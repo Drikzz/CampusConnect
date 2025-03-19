@@ -192,6 +192,8 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getReviewsCountAttribute()
     {
         return $this->receivedReviews()->count();
+    } // Added missing closing curly brace here
+    
     public function walletTransactions()
     {
         return $this->hasMany(WalletTransaction::class);
