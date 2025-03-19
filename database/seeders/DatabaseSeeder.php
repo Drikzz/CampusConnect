@@ -26,8 +26,8 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'System',
             'last_name' => 'Administrator',
             'wmsu_email' => 'admin@wmsu.edu.ph',
-            'phone' => '+63' . fake()->numberBetween(9000000000, 9999999999),
-            'date_of_birth' => Carbon::now()->subYears(rand(25, 40))->format('Y-m-d'),
+            'phone' => '+639172534680',
+            'date_of_birth' => '1985-06-12',
             'gender' => 'male',
             'profile_picture' => 'defaults/admin-avatar.jpg',
             'user_type_id' => null,
@@ -50,8 +50,8 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'Aldrikz',
             'last_name' => 'Suarez',
             'wmsu_email' => 'eh202201066@wmsu.edu.ph',
-            'phone' => '+63' . fake()->numberBetween(9000000000, 9999999999),
-            'date_of_birth' => Carbon::now()->subYears(rand(18, 22))->format('Y-m-d'),
+            'phone' => '+639352178943',
+            'date_of_birth' => '2001-08-25',
             'gender' => 'male',
             'user_type_id' => UserType::where('code', 'COL')->first()->id,
             'wmsu_dept_id' => 7,
@@ -59,7 +59,7 @@ class DatabaseSeeder extends Seeder
             'wmsu_id_front' => 'college/id_front/student1-id-front.jpg',
             'wmsu_id_back' => 'college/id_back/student1-id-back.jpg',
             'is_seller' => true,
-            'seller_code' => 'S' . str_pad(1, 5, '0', STR_PAD_LEFT),
+            'seller_code' => 'S00001',
             'email_verified_at' => now(),
         ]);
 
@@ -77,11 +77,11 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'John',
             'last_name' => 'Smith',
             'wmsu_email' => 'js20240001@wmsu.edu.ph',
-            'phone' => '+63' . fake()->numberBetween(9000000000, 9999999999),
-            'date_of_birth' => Carbon::now()->subYears(rand(13, 17))->format('Y-m-d'),
+            'phone' => '+639458216790',
+            'date_of_birth' => '2007-03-15',
             'gender' => 'male',
             'user_type_id' => UserType::where('code', 'HS')->first()->id,
-            'grade_level_id' => rand(1, 6),
+            'grade_level_id' => 4,
             'profile_picture' => 'highschool/profile_pictures/student2-avatar.jpg',
             'wmsu_id_front' => 'highschool/id_front/student2-id-front.jpg',
             'wmsu_id_back' => 'highschool/id_back/student2-id-back.jpg',
@@ -101,8 +101,8 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'Jane',
             'last_name' => 'Doe',
             'wmsu_email' => 'jane.doe@wmsu.edu.ph',
-            'phone' => '+63' . fake()->numberBetween(9000000000, 9999999999),
-            'date_of_birth' => Carbon::now()->subYears(rand(25, 50))->format('Y-m-d'),
+            'phone' => '+639265438921',
+            'date_of_birth' => '1982-11-30',
             'gender' => 'female',
             'user_type_id' => UserType::where('code', 'EMP')->first()->id,
             'wmsu_dept_id' => null,
@@ -123,15 +123,15 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('Alumni@1234!'),
             'first_name' => 'Robert',
             'last_name' => 'Johnson',
-            'phone' => '+63' . fake()->numberBetween(9000000000, 9999999999),
-            'date_of_birth' => Carbon::now()->subYears(rand(23, 40))->format('Y-m-d'),
+            'phone' => '+639178903456',
+            'date_of_birth' => '1995-04-18',
             'gender' => 'male',
             'user_type_id' => UserType::where('code', 'ALM')->first()->id,
             'profile_picture' => 'alumni/profile_pictures/alum1-avatar.jpg',
             'wmsu_id_front' => 'alumni/id_front/alum1-id-front.jpg',
             'wmsu_id_back' => 'alumni/id_back/alum1-id-back.jpg',
             'is_seller' => true,
-            'seller_code' => 'S' . str_pad(2, 5, '0', STR_PAD_LEFT),
+            'seller_code' => 'S00002',
             'email_verified_at' => now(),
         ]);
 
@@ -143,11 +143,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Create products for sellers
+        $categoryDistribution = [1, 1, 1, 2, 2, 3, 3, 4]; // More products in categories 1-3
+
         foreach ([$user1, $user4] as $user) {
             for ($i = 0; $i < 4; $i++) {
                 Product::factory()->create([
                     'seller_code' => $user->seller_code,
-                    'category_id' => rand(1, 3),
+                    'category_id' => $categoryDistribution[array_rand($categoryDistribution)],
                     'status' => 'Active'
                 ]);
             }

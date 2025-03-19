@@ -1048,7 +1048,7 @@ const loadImageWithFallback = (image, index) => {
                                 >
                                     <option value="active">Active</option>
                                     <option value="inactive">Inactive</option>
-                                    <option value="pending">Pending</option>
+                                    
                                 </select>
                                 <p v-if="formErrors.status" class="text-red-500 text-xs mt-1">{{ formErrors.status }}</p>
                             </div>
