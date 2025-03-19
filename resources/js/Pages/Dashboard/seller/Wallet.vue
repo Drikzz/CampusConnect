@@ -202,7 +202,12 @@
             <DataTable :columns="transactionColumns" :data="filteredTransactions" :get-actions="getTransactionActions"
               :selectable="false" :items-per-page="transactionItemsPerPage"
               @update:items-per-page="transactionItemsPerPage = $event" search-placeholder="Search transactions..."
-              reset-button-label="Reset Filters" :show-reset-button="true" :show-custom-buttons="true">
+              reset-button-label="Reset Filters" :show-reset-button="true" :show-custom-buttons="true"
+              :empty-state="{ 
+                message: 'No Transactions Yet',
+                description: 'You haven\'t made any transactions yet. Start by adding funds to your wallet to begin your seller journey.',
+                icon: 'WalletIcon'
+              }">
               <!-- Pass the custom buttons as a slot -->
               <template #custom-buttons>
                 <Button @click="showWithdrawModal = true" variant="outline" class="flex items-center">
@@ -215,25 +220,6 @@
                 </Button>
               </template>
             </DataTable>
-          </div>
-
-          <!-- Empty state for no transactions -->
-          <div v-if="!hasNonVerificationTransactions" class="p-8 text-center">
-            <div class="flex flex-col items-center justify-center space-y-3">
-              <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <p class="text-gray-500 text-lg font-medium">No Transactions Yet</p>
-              <p class="text-gray-400 max-w-md">
-                You haven't made any transactions yet. Start by adding funds to your wallet
-                to begin your seller journey.
-              </p>
-              <Button variant="outline" @click="showRefillModal = true" class="mt-2">
-                <PlusIcon class="w-4 h-4 mr-2" />
-                Add Funds
-              </Button>
-            </div>
           </div>
         </div>
       </div>
