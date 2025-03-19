@@ -33,12 +33,8 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
-Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
-Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
-
-// Trade routes
-Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
-Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit')->middleware('auth');
+Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
+// Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -198,6 +194,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
             Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
         });
+
+        // Trade routes - moved to auth middleware group
+        Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
+        Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
 
         // Seller Reviews Routes
         Route::middleware(['auth', 'verified'])->group(function () {

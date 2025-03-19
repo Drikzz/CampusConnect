@@ -1,29 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-100">
-    <!-- Navigation Header -->
-    <header class="bg-white shadow sticky top-0 z-10">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex">
-            <div class="flex-shrink-0 flex items-center">
-              <!-- Logo -->
-              <Link :href="route('admin.dashboard')" class="font-bold text-xl text-gray-800">
-                Campus<span class="text-red-600">Connect</span> Admin
-              </Link>
-            </div>
-          </div>
-          
-          <!-- User menu -->
-          <div class="ml-4 flex items-center md:ml-6">
-            <button @click="logout" class="flex items-center p-2 text-gray-600 hover:text-red-600">
-              <ArrowRightOnRectangleIcon class="w-5 h-5 mr-1" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-
+  <div>
     <!-- Main Content Layout -->
     <div class="w-full mt-10 mb-64 px-4 md:px-16">
       <!-- Flash Messages -->

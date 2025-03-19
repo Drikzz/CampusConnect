@@ -198,7 +198,7 @@ const openTradeModal = () => {
                 class="py-2 px-3 bg-black rounded-lg hover:opacity-80 transition-all focus:opacity-60">
                 <span class="font-Satoshi text-white">Trade Now!</span>
             </button>
-            <Link v-else-if="product.is_tradable" :href="route('products.trade')"
+            <Link v-else-if="product.is_tradable" :href="route('trade')"
                 class="py-2 px-3 bg-black rounded-lg hover:opacity-80 transition-all focus:opacity-60">
                 <button class="font-Satoshi text-white">Trade Now!</button>
             </Link>

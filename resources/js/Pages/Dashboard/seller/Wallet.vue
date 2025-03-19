@@ -150,6 +150,33 @@
           </p>
         </div>
 
+        <!-- Add QR Code Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 class="text-lg font-medium mb-4">Scan to Pay via GCash</h3>
+          <div class="flex items-start space-x-6">
+            <div class="flex-shrink-0">
+              <img src="../../../../../public/storage/images/campus-connect-qr.jpg" alt="GCash QR Code" class="w-48 h-48 object-cover rounded-lg shadow-sm" />
+            </div>
+            <div class="flex-grow space-y-3">
+              <div>
+                <h4 class="font-medium text-gray-700">Steps to Add Funds:</h4>
+                <ol class="list-decimal list-inside text-gray-600 space-y-2 mt-2">
+                  <li>Open your GCash app</li>
+                  <li>Scan the QR code or send to the number below</li>
+                  <li>Enter the amount you want to add</li>
+                  <li>Complete the payment</li>
+                  <li>Copy the reference number</li>
+                  <li>Click "Add Funds" and submit the details</li>
+                </ol>
+              </div>
+              <div class="pt-2">
+                <p class="text-gray-600"><span class="font-medium">GCash Number:</span> 09123456789</p>
+                <p class="text-gray-600"><span class="font-medium">Account Name:</span> Campus Connect</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Wallet Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="bg-white p-6 rounded-lg shadow-md border border-primary-color/20">

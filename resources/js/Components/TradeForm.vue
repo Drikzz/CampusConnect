@@ -38,38 +38,49 @@ const sellerData = ref(null);
 const selectedDate = ref(null); // Add selected date ref
 const selectedSchedule = ref(null); // Track selected schedule for availability
 
-// Enhanced seller name computation to handle more data structures
+// Update the computed properties for seller information
 const sellerName = computed(() => {
-    console.log("Computing sellerName with:", props.product?.seller);
-    
-    // First try to get combined name (from seller.name)
-    if (props.product?.seller?.name) {
-        return props.product.seller.name;
+    // First try from seller data fetched from API
+    if (sellerData.value?.name || (sellerData.value?.first_name && sellerData.value?.last_name)) {
+        return sellerData.value.name || `${sellerData.value.first_name} ${sellerData.value.last_name}`.trim();
     }
     
-    // Try first_name + last_name combination (from database)
-    if (props.product?.seller?.first_name) {
-        const firstName = props.product.seller.first_name;
-        const lastName = props.product.seller.last_name || '';
-        return lastName ? `${firstName} ${lastName}`.trim() : firstName;
+    // Then try from product.seller
+    const seller = props.product?.seller;
+    if (seller) {
+        if (seller.first_name && seller.last_name) {
+            return `${seller.first_name} ${seller.last_name}`.trim();
+        }
+        if (seller.username) {
+            return seller.username;
+        }
     }
     
-    // Try username
-    if (props.product?.seller?.username) {
-        return props.product.seller.username;
-    }
-    
-    // Try seller_code (on product or in seller object)
-    if (props.product?.seller_code) {
-        return `Seller #${props.product.seller_code}`;
-    }
-    
-    if (props.product?.seller?.seller_code) {
-        return `Seller #${props.product.seller.seller_code}`;
-    }
-    
-    // Last resort fallback
     return 'Unknown Seller';
+});
+
+const sellerLocation = computed(() => {
+    // First try from enhanced seller data from API
+    if (sellerData.value?.location) {
+        return sellerData.value.location;
+    }
+    
+    // Then try from product.seller
+    if (props.product?.seller?.location) {
+        return props.product.seller.location;
+    }
+    
+    return 'Location N/A';
+});
+
+const sellerProfilePicture = computed(() => {
+    const profilePic = sellerData.value?.profile_picture || props.product?.seller?.profile_picture;
+    
+    if (profilePic) {
+        return profilePic.startsWith('http') ? profilePic : `/storage/${profilePic}`;
+    }
+    
+    return '/images/placeholder-avatar.jpg';
 });
 
 // Properly format the product image URL
@@ -156,10 +167,12 @@ const fetchMeetupLocations = async () => {
         if (data && data.meetup_locations) {
             if (data.meetup_locations.length === 0) {
                 toast({
-                    title: "No Meetup Locations",
-                    description: "This seller has no meetup locations set up. You can still place a trade offer.",
-                    variant: "default"
+                    title: "Cannot Trade",
+                    description: "This seller has no meetup locations set up. Trading is not possible at this time.",
+                    variant: "destructive",
+                    duration: 5000
                 });
+                closeDialog(); // Close the dialog since trading isn't possible
             }
             
             meetupLocations.value = data.meetup_locations;
@@ -478,7 +491,7 @@ const availableSchedules = computed(() => {
         availableDays.forEach(day => {
             schedules.push({
                 id: `${location.id}_${day}`,
-                location: location.full_name,
+                location: location.location?.name || 'Location Not Available', // Changed to match Checkout.vue
                 day: day,
                 timeFrom: formatTime(location.available_from),
                 timeUntil: formatTime(location.available_until),
@@ -488,26 +501,8 @@ const availableSchedules = computed(() => {
         });
     });
 
+    console.log('Generated schedules:', schedules);
     return schedules;
-});
-
-// Get seller profile picture with appropriate fallback
-const sellerProfilePicture = computed(() => {
-    if (props.product?.seller?.profile_picture) {
-        return '/storage/' + props.product.seller.profile_picture;
-    }
-    return '/images/placeholder-avatar.jpg'; // Default fallback avatar
-});
-
-// Enhanced seller location computation to match Checkout.vue
-const sellerLocation = computed(() => {
-    // First try from enhanced seller data
-    if (sellerData.value?.location) {
-        return sellerData.value.location;
-    }
-    
-    // Then try from product.seller
-    return props.product?.seller?.location || 'Location N/A';
 });
 
 // Format price helper function - copied from Checkout.vue

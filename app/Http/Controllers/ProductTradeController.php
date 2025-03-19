@@ -640,9 +640,8 @@ class ProductTradeController extends Controller
     public function getProductMeetupLocations($id)
     {
         try {
-            // Load the product with its seller and meetup locations
             $product = Product::with(['seller' => function($query) {
-                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code');
+                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture', 'location');
             }])->findOrFail($id);
             
             if (!$product->is_tradable) {
@@ -684,7 +683,12 @@ class ProductTradeController extends Controller
                     'seller' => [
                         'id' => $seller->id,
                         'name' => $seller->first_name . ' ' . $seller->last_name,
-                        'seller_code' => $seller->seller_code
+                        'first_name' => $seller->first_name,
+                        'last_name' => $seller->last_name,
+                        'username' => $seller->username,
+                        'seller_code' => $seller->seller_code,
+                        'profile_picture' => $seller->profile_picture ? asset('storage/' . $seller->profile_picture) : null,
+                        'location' => $seller->location
                     ]
                 ],
                 'meetup_locations' => $meetupLocations,
