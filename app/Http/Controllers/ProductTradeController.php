@@ -768,13 +768,30 @@ class ProductTradeController extends Controller
                 return redirect()->back()->with('error', 'Only pending trade offers can be updated');
             }
             
-            // Validate the input
-            $validated = $request->validate([
+            // Validate the input - expand validation to include offered items if they exist
+            $baseValidation = [
                 'additional_cash' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
                 'meetup_location_id' => 'nullable|exists:meetup_locations,id',
                 'meetup_date' => 'nullable|date|after_or_equal:today',
-            ]);
+            ];
+            
+            // Check if we have offered item updates
+            if ($request->has('offered_items')) {
+                $baseValidation['offered_items'] = 'array';
+                $baseValidation['offered_items.*.id'] = 'required|exists:trade_offered_items,id';
+                $baseValidation['offered_items.*.name'] = 'required|string|max:255';
+                $baseValidation['offered_items.*.quantity'] = 'required|integer|min:1';
+                $baseValidation['offered_items.*.estimated_value'] = 'required|numeric|min:0';
+                $baseValidation['offered_items.*.description'] = 'nullable|string|max:1000';
+                
+                // Image validation - check for either new images or current images
+                $baseValidation['offered_items.*.images'] = 'nullable|array';
+                $baseValidation['offered_items.*.images.*'] = 'nullable|file|image|max:2048';
+                $baseValidation['offered_items.*.current_images'] = 'nullable';
+            }
+            
+            $validated = $request->validate($baseValidation);
             
             // Process and update meetup information
             $meetupSchedule = null;
@@ -795,29 +812,119 @@ class ProductTradeController extends Controller
                 }
             }
             
-            // Update the trade
-            $trade->update([
-                'meetup_location_id' => $validated['meetup_location_id'] ?? $trade->meetup_location_id,
-                'meetup_schedule' => $meetupSchedule ?? $trade->meetup_schedule,
-                'additional_cash' => $validated['additional_cash'] ?? $trade->additional_cash,
-                'notes' => $validated['notes'] ?? $trade->notes,
-            ]);
-            
-            Log::info('Trade offer updated', [
-                'trade_id' => $trade->id,
-                'user_id' => Auth::id(),
-                'changes' => array_diff_assoc($validated, $trade->getOriginal())
-            ]);
-            
-            // Send notification to seller here if implemented
-            
-            return redirect()->back()->with('success', 'Trade offer updated successfully');
+            // Begin database transaction
+            DB::beginTransaction();
+
+            try {
+                // Update the trade basic information
+                $trade->update([
+                    'meetup_location_id' => $validated['meetup_location_id'] ?? $trade->meetup_location_id,
+                    'meetup_schedule' => $meetupSchedule ?? $trade->meetup_schedule,
+                    'additional_cash' => $validated['additional_cash'] ?? $trade->additional_cash,
+                    'notes' => $validated['notes'] ?? $trade->notes,
+                ]);
+                
+                // Handle offered items updates if present
+                if (isset($validated['offered_items']) && is_array($validated['offered_items'])) {
+                    foreach ($validated['offered_items'] as $itemData) {
+                        // Find the item to update
+                        $offeredItem = TradeOfferedItem::where('id', $itemData['id'])
+                            ->where('trade_transaction_id', $trade->id)
+                            ->first();
+                            
+                        if (!$offeredItem) {
+                            Log::warning("Offered item not found or does not belong to this trade", [
+                                'item_id' => $itemData['id'],
+                                'trade_id' => $trade->id
+                            ]);
+                            continue;
+                        }
+                        
+                        // Update basic item info
+                        $offeredItem->name = $itemData['name'];
+                        $offeredItem->quantity = $itemData['quantity'];
+                        $offeredItem->estimated_value = $itemData['estimated_value'];
+                        $offeredItem->description = $itemData['description'] ?? '';
+                        
+                        // Process images
+                        $images = [];
+                        
+                        // Keep current images that weren't removed
+                        if (!empty($itemData['current_images'])) {
+                            $currentImages = is_string($itemData['current_images']) ? 
+                                json_decode($itemData['current_images'], true) : 
+                                $itemData['current_images'];
+                                
+                            if (is_array($currentImages)) {
+                                $images = array_merge($images, $currentImages);
+                            }
+                        }
+                        
+                        // Add any new uploaded images
+                        if (isset($itemData['images']) && is_array($itemData['images'])) {
+                            foreach ($itemData['images'] as $image) {
+                                if ($image instanceof \Illuminate\Http\UploadedFile) {
+                                    $path = $image->store('trade_images', 'public');
+                                    $images[] = $path;
+                                    
+                                    Log::info("New image uploaded for trade item", [
+                                        'item_id' => $offeredItem->id,
+                                        'image_path' => $path
+                                    ]);
+                                }
+                            }
+                        }
+                        
+                        // Make sure we have at least one image
+                        if (empty($images)) {
+                            return redirect()->back()->with('error', "Each offered item must have at least one image");
+                        }
+                        
+                        // Update the item's images
+                        $offeredItem->images = json_encode($images);
+                        $offeredItem->save();
+                        
+                        Log::info("Updated offered item for trade", [
+                            'item_id' => $offeredItem->id,
+                            'trade_id' => $trade->id,
+                            'image_count' => count($images)
+                        ]);
+                    }
+                }
+                
+                DB::commit();
+                
+                Log::info('Trade offer updated', [
+                    'trade_id' => $trade->id,
+                    'user_id' => Auth::id()
+                ]);
+                
+                // Return success response
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Trade updated successfully',
+                    ]);
+                }
+                
+                return redirect()->back()->with('success', 'Trade offer updated successfully');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
         } catch (\Exception $e) {
             Log::error('Error updating trade offer: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'trade_id' => $id,
                 'user_id' => Auth::id()
             ]);
+            
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update trade: ' . $e->getMessage()
+                ], 500);
+            }
             
             return redirect()->back()->with('error', 'Failed to update trade offer: ' . $e->getMessage());
         }

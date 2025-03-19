@@ -539,109 +539,14 @@
     </AlertDialog>
 
     <!-- Add Edit Trade Dialog -->
-    <Dialog :open="showEditDialog" @update:open="closeEditDialog">
-      <DialogContent class="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Trade Offer</DialogTitle>
-          <DialogDescription>
-            Make changes to your pending trade offer. The seller will be notified of your updates.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div v-if="editForm">
-          <form @submit.prevent="submitEditForm" class="space-y-6">
-            <!-- Trade summary section -->
-            <div class="p-4 bg-gray-50 rounded-lg space-y-2">
-              <h3 class="font-semibold text-sm text-gray-600">EDITING TRADE #{{ editForm.id }}</h3>
-              <p class="text-sm text-gray-500">You can modify additional cash, meetup details, and notes.</p>
-            </div>
-
-            <!-- Additional cash section -->
-            <div class="border-t border-gray-100 pt-4">
-              <h4 class="font-medium mb-2">Additional Cash</h4>
-              <div class="space-y-2">
-                <Label for="additional_cash">Amount (₱) <span class="text-gray-400 text-sm">(Optional)</span></Label>
-                <Input
-                  id="additional_cash"
-                  type="number"
-                  v-model="editForm.additional_cash"
-                  min="0"
-                  step="0.01"
-                />
-                <p v-if="editErrors.additional_cash" class="text-red-500 text-sm">{{ editErrors.additional_cash }}</p>
-              </div>
-            </div>
-            
-            <!-- Meetup section -->
-            <div class="border-t border-gray-100 pt-4" v-if="availableMeetupLocations.length > 0">
-              <h4 class="font-medium mb-4">Meetup Information</h4>
-              
-              <!-- Meetup Location Selection -->
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <Label>Meetup Location</Label>
-                  <Select v-model="editForm.meetup_location_id">
-                    <option value="">Select a location</option>
-                    <option 
-                      v-for="location in availableMeetupLocations" 
-                      :key="location.id" 
-                      :value="location.id"
-                    >
-                      {{ location.full_name }}
-                    </option>
-                  </Select>
-                  <p v-if="editErrors.meetup_location_id" class="text-red-500 text-sm">{{ editErrors.meetup_location_id }}</p>
-                </div>
-                
-                <!-- Meetup Date Selection -->
-                <div class="space-y-2">
-                  <Label>Meetup Date</Label>
-                  <Popover>
-                    <PopoverTrigger as-child>
-                      <Button variant="outline" class="w-full justify-start text-left">
-                        <CalendarIcon class="mr-2 h-4 w-4" />
-                        {{ editForm.meetup_date ? formatMeetupDate(editForm.meetup_date) : 'Select Date' }}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent class="w-auto p-0">
-                      <Calendar 
-                        v-model="editForm.meetup_date" 
-                        initialFocus 
-                        mode="single"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <p v-if="editErrors.meetup_date" class="text-red-500 text-sm">{{ editErrors.meetup_date }}</p>
-                  <p class="text-xs text-gray-500 mt-1">Choose a date for your meetup with the seller.</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Notes -->
-            <div class="border-t border-gray-100 pt-4">
-              <div class="space-y-2">
-                <Label for="notes">Notes for Seller <span class="text-gray-400 text-sm">(Optional)</span></Label>
-                <Textarea
-                  id="notes"
-                  v-model="editForm.notes"
-                  placeholder="Add any details about your trade offer here..."
-                  rows="4"
-                />
-              </div>
-            </div>
-            
-            <DialogFooter class="flex justify-between pt-4 border-t border-gray-100">
-              <Button type="button" variant="outline" @click="closeEditDialog">
-                Cancel
-              </Button>
-              <Button type="submit" :disabled="isSubmittingEdit">
-                {{ isSubmittingEdit ? 'Saving...' : 'Save Changes' }}
-              </Button>
-            </DialogFooter>
-          </form>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <EditTrade 
+      v-if="tradeToEdit"
+      :trade="tradeToEdit"
+      :open="showEditTradeDialog"
+      :availableMeetupLocations="availableMeetupLocations"
+      @close="closeEditTradeModal"
+      @update:open="showEditTradeDialog = $event"
+    />
 
     <!-- Add an Image Preview Dialog -->
     <Dialog :open="!!previewImageUrl" @update:open="previewImageUrl = null" class="image-preview-dialog">
@@ -712,6 +617,9 @@ import { Textarea } from "@/Components/ui/textarea"
 import { CalendarIcon } from "lucide-vue-next"
 import { format } from "date-fns"
 import { X } from "lucide-vue-next"
+
+// Import the EditTrade component
+import EditTrade from '@/Components/EditTrade.vue'
 
 const props = defineProps({
   user: Object,
@@ -1048,10 +956,8 @@ const confirmBulkDelete = () => {
 }
 
 // Add edit form state variables
-const showEditDialog = ref(false)
-const editForm = ref(null)
-const editErrors = ref({})
-const isSubmittingEdit = ref(false)
+const showEditTradeDialog = ref(false)
+const tradeToEdit = ref(null)
 const availableMeetupLocations = ref([])
 
 /**
@@ -1061,14 +967,8 @@ const editTrade = async (trade) => {
   // Close other dialogs if open
   showTradeDetails.value = false
   
-  // Initialize the edit form with current trade data
-  editForm.value = {
-    id: trade.id,
-    additional_cash: trade.additional_cash || 0,
-    meetup_location_id: trade.meetup_location?.id || '',
-    meetup_date: trade.meetup_schedule ? new Date(trade.meetup_schedule) : null,
-    notes: trade.notes || ''
-  }
+  // Set the trade to edit
+  tradeToEdit.value = trade
   
   // Load available meetup locations for this seller
   try {
@@ -1088,103 +988,28 @@ const editTrade = async (trade) => {
     availableMeetupLocations.value = []
   }
   
-  // Show the edit dialog
-  showEditDialog.value = true
+  // Show the edit trade dialog
+  showEditTradeDialog.value = true
 }
 
 /**
- * Format date for display in the meetup date picker
+ * Show modal for editing trade from a button click
  */
-const formatMeetupDate = (date) => {
-  if (!date) return 'Select Date'
-  return format(new Date(date), 'MMMM d, yyyy')
+const showEditTradeModal = (trade) => {
+  editTrade(trade);
 }
 
 /**
- * Close edit dialog and reset form
+ * Close edit trade dialog and reset form
  */
-const closeEditDialog = () => {
-  showEditDialog.value = false
-  editForm.value = null
-  editErrors.value = {}
-  isSubmittingEdit.value = false
-}
-
-/**
- * Validate edit form before submission
- */
-const validateEditForm = () => {
-  const errors = {}
+const closeEditTradeModal = () => {
+  tradeToEdit.value = null;
+  showEditTradeDialog.value = false;
   
-  if (editForm.value.additional_cash < 0) {
-    errors.additional_cash = 'Additional cash cannot be negative'
+  // Refresh trade details if we're viewing the trade details
+  if (selectedTrade.value && showTradeDetails.value) {
+    fetchTradeDetails(selectedTrade.value.id);
   }
-  
-  if (editForm.value.meetup_location_id && !editForm.value.meetup_date) {
-    errors.meetup_date = 'Please select a meetup date'
-  }
-  
-  if (editForm.value.meetup_date && !editForm.value.meetup_location_id) {
-    errors.meetup_location_id = 'Please select a meetup location'
-  }
-  
-  editErrors.value = errors
-  return Object.keys(errors).length === 0
-}
-
-/**
- * Submit edit form
- */
-const submitEditForm = () => {
-  if (!validateEditForm()) {
-    toast({
-      title: 'Validation Error',
-      description: 'Please check the form for errors',
-      variant: 'destructive'
-    })
-    return
-  }
-  
-  isSubmittingEdit.value = true
-  
-  // Format the date for the backend
-  let formattedDate = null
-  if (editForm.value.meetup_date) {
-    formattedDate = format(new Date(editForm.value.meetup_date), 'yyyy-MM-dd')
-  }
-  
-  // Create form data for submission
-  const formData = {
-    additional_cash: editForm.value.additional_cash,
-    meetup_location_id: editForm.value.meetup_location_id || null,
-    meetup_date: formattedDate,
-    notes: editForm.value.notes
-  }
-  
-  // Submit using Inertia
-  router.patch(route('trades.update', editForm.value.id), formData, {
-    preserveScroll: true,
-    onSuccess: () => {
-      toast({
-        title: 'Success',
-        description: 'Trade offer updated successfully',
-        variant: 'default'
-      })
-      closeEditDialog()
-    },
-    onError: (errors) => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update trade offer',
-        variant: 'destructive'
-      })
-      editErrors.value = errors
-      isSubmittingEdit.value = false
-    },
-    onFinish: () => {
-      isSubmittingEdit.value = false
-    }
-  })
 }
 
 // Add new state variables for chat
