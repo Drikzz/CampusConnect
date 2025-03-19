@@ -609,11 +609,31 @@ class SellerController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => 'required|in:Accepted,Delivered,Completed,Cancelled'
+            'status' => 'required|in:Accepted,Meetup Scheduled,Delivered,Completed,Cancelled',
+            'cancellation_reason' => 'required_if:status,Cancelled|string|nullable',
+            'cancelled_by' => 'required_if:status,Cancelled|string|in:buyer,seller|nullable',
         ]);
 
         try {
-            $order->update(['status' => $validated['status']]);
+            if ($validated['status'] === 'Cancelled') {
+                $order->cancel($validated['cancellation_reason'] ?? 'No reason provided', $validated['cancelled_by'] ?? 'seller');
+            } else {
+                // Use existing status transition methods when possible
+                switch($validated['status']) {
+                    case 'Accepted':
+                        $order->markAsAccepted();
+                        break;
+                    case 'Delivered':
+                        $order->markAsDelivered();
+                        break;
+                    case 'Completed':
+                        $order->markAsCompleted();
+                        break;
+                    default:
+                        $order->update(['status' => $validated['status']]);
+                }
+            }
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Order status updated successfully'
