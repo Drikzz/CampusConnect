@@ -169,29 +169,47 @@ class SellerReviewController extends Controller
     {
         $seller = User::where('seller_code', $sellerCode)->firstOrFail();
         
-        // Get the count of reviews for each rating value (1-5)
-        $ratingCounts = SellerReview::where('seller_code', $sellerCode)
-            ->select('rating', \DB::raw('COUNT(*) as count'))
-            ->groupBy('rating')
-            ->pluck('count', 'rating')
-            ->toArray();
+        // Fetch all reviews with their ratings to ensure we have complete data
+        $reviews = SellerReview::where('seller_code', $sellerCode)->get();
+        
+        // Get the count of reviews for each rating value (1-5) using a more reliable method
+        $ratingCounts = [];
+        foreach ($reviews as $review) {
+            $rating = (int)$review->rating;
+            if (!isset($ratingCounts[$rating])) {
+                $ratingCounts[$rating] = 0;
+            }
+            $ratingCounts[$rating]++;
+        }
         
         // Calculate total number of reviews
-        $totalReviews = array_sum($ratingCounts);
+        $totalReviews = count($reviews);
         
         // Calculate sum of (rating × count) for each rating
         $weightedSum = 0;
         foreach ($ratingCounts as $rating => $count) {
-            $weightedSum += $rating * $count;
+            // Ensure both rating and count are treated as numbers
+            $numRating = (float)$rating;
+            $numCount = (int)$count;
+            $weightedSum += $numRating * $numCount;
         }
         
         // Calculate the average using the correct formula
         $avgRating = $totalReviews > 0 ? $weightedSum / $totalReviews : 0;
         
+        // Debug information to help identify issues
+        $debugInfo = [
+            'rating_counts_raw' => $ratingCounts,
+            'total_reviews' => $totalReviews,
+            'weighted_sum' => $weightedSum,
+            'calculation' => $totalReviews > 0 ? "$weightedSum / $totalReviews = " . ($weightedSum / $totalReviews) : "No reviews"
+        ];
+        
         $stats = [
             'avg_rating' => round($avgRating, 1),
             'total_reviews' => $totalReviews,
             'rating_counts' => $ratingCounts,
+            'debug' => $debugInfo
         ];
         
         return response()->json([

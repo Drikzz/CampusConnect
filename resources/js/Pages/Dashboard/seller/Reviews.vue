@@ -88,16 +88,38 @@ const fetchRating = async () => {
     isLoading.value = true
     const response = await axios.get(`/api/seller-reviews/rating/${props.user.seller_code}`)
     if (response.data.success) {
-      console.log('Raw rating from API:', response.data.stats.avg_rating)
+      // Log the debug information to help identify issues
+      console.log('Rating debug info:', response.data.stats.debug)
       
-      // Don't recalculate, just use the properly calculated value from the backend
-      averageRating.value = Number(response.data.stats.avg_rating);
+      // Make sure to parse as a number and round to 1 decimal place
+      // Use the properly calculated value from the backend
+      averageRating.value = Number(parseFloat(response.data.stats.avg_rating).toFixed(1))
       totalReviews.value = response.data.stats.total_reviews
+      
+      console.log('Average Rating:', averageRating.value)
+      console.log('Total Reviews:', totalReviews.value)
       
       // If rating distribution data is available from backend, use it
       if (response.data.stats.rating_counts) {
         // Process rating counts to update distribution display
-        updateRatingDistribution(response.data.stats.rating_counts);
+        const ratingDistributionData = Array(5).fill(0);
+        
+        // Map backend data to our array (ratings are 1-indexed, array is 0-indexed)
+        Object.entries(response.data.stats.rating_counts).forEach(([rating, count]) => {
+          const index = parseInt(rating) - 1;
+          if (index >= 0 && index < 5) {
+            ratingDistributionData[index] = parseInt(count);
+          }
+        });
+        
+        // Calculate percentages using total reviews from API
+        const percentages = ratingDistributionData.map(count => 
+          totalReviews.value > 0 ? Math.round((count / totalReviews.value) * 100) : 0
+        );
+        
+        // Update component reactive data
+        ratingDistribution.value = [...ratingDistributionData];
+        ratingPercentages.value = [...percentages];
       }
     }
   } catch (error) {

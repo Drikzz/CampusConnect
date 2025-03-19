@@ -183,15 +183,21 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function getAverageRatingAttribute()
     {
-        // Get the count of reviews for each rating value
-        $ratingCounts = $this->receivedReviews()
-            ->select('rating', \DB::raw('COUNT(*) as count'))
-            ->groupBy('rating')
-            ->pluck('count', 'rating')
-            ->toArray();
+        // Fetch all reviews to ensure we have complete data
+        $reviews = $this->receivedReviews()->get();
+        
+        // Get the count of reviews for each rating value using a more reliable method
+        $ratingCounts = [];
+        foreach ($reviews as $review) {
+            $rating = (int)$review->rating;
+            if (!isset($ratingCounts[$rating])) {
+                $ratingCounts[$rating] = 0;
+            }
+            $ratingCounts[$rating]++;
+        }
         
         // Calculate total number of reviews
-        $totalReviews = array_sum($ratingCounts);
+        $totalReviews = count($reviews);
         
         // Calculate sum of (rating × count) for each rating
         $weightedSum = 0;
