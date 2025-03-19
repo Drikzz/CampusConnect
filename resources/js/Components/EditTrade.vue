@@ -115,7 +115,25 @@ const handleFileUpload = (files, index) => {
 
 // Remove a specific image from current images
 const removeCurrentImage = (itemIndex, imageIndex) => {
+    // Get the image being removed (for potential undo feature)
+    const removedImage = form.offered_items[itemIndex].current_images[imageIndex];
+    
+    // Remove the image from the array
     form.offered_items[itemIndex].current_images.splice(imageIndex, 1);
+    
+    // Show feedback to the user
+    toast({
+        title: "Image Removed",
+        description: "The image has been removed from your trade item",
+        variant: "default",
+        duration: 2000,
+    });
+    
+    // If all images were removed and it's the only item, remind user to add a new image
+    if (form.offered_items[itemIndex].current_images.length === 0 && 
+        (!form.offered_items[itemIndex].images || form.offered_items[itemIndex].images.length === 0)) {
+        errors.value[`item_${itemIndex}_images`] = 'At least one image is required. Please upload a new image.';
+    }
 };
 
 // Format price display
@@ -282,7 +300,9 @@ const getOptimizedImageUrl = (image, fallbackImage = '/images/placeholder-produc
     }
     
     if (image.startsWith('http://') || image.startsWith('https://')) {
-        return image;
+        // Remove any size/compression parameters and add cache busting
+        const urlWithoutParams = image.split('?')[0];
+        return `${urlWithoutParams}?quality=100&t=${Date.now()}`;
     }
     
     if (image.startsWith('storage/')) {
@@ -299,7 +319,7 @@ const handleImageError = (event) => {
 </script>
 
 <template>
-    <Dialog :open="open" @update:open="handleDialogClose">
+    <Dialog :open="open" @update:open="handleDialogClose" modal>
         <DialogContent class="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>Edit Trade Offer</DialogTitle>
@@ -397,30 +417,31 @@ const handleImageError = (event) => {
 
                         <!-- Current Images -->
                         <div v-if="item.current_images && item.current_images.length" class="space-y-2">
-                            <Label>Current Images</Label>
-                            <div class="grid grid-cols-4 gap-2">
+                            <Label>Current Images ({{ item.current_images.length }})</Label>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 <div v-for="(image, imageIndex) in item.current_images" :key="imageIndex" 
-                                     class="relative group">
+                                     class="relative border rounded-md p-1 bg-white">
                                     <img 
                                         :src="getOptimizedImageUrl(image)" 
                                         :alt="`Item ${index+1} image ${imageIndex+1}`"
-                                        class="h-24 w-24 object-cover rounded-md border"
+                                        class="aspect-square w-full object-contain rounded image-sharp"
                                         @error="handleImageError"
                                     />
                                     <button 
                                         type="button" 
                                         @click="removeCurrentImage(index, imageIndex)"
-                                        class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 
-                                               opacity-0 group-hover:opacity-100 transition-opacity"
+                                        class="absolute -top-2 -right-2 bg-white hover:bg-gray-100 border border-gray-200 rounded-full p-1.5 shadow-md"
+                                        title="Remove image"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                                         </svg>
                                     </button>
                                 </div>
                             </div>
+                            <p class="text-xs text-gray-500">Click the red button to remove an image</p>
                         </div>
-
+                        
                         <!-- Upload New Images -->
                         <div class="space-y-2">
                             <Label>Upload New Images</Label>
@@ -524,5 +545,22 @@ const handleImageError = (event) => {
 .image-preview img {
     max-width: 100%;
     height: auto;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+.image-sharp {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .image-sharp {
+        image-rendering: auto;
+    }
 }
 </style>

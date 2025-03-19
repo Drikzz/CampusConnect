@@ -767,10 +767,12 @@ const getOptimizedImageUrl = (image, fallbackImage = '/images/placeholder-produc
     return fallbackImage;
   }
   
-  // Add cache-busting for remotely served images
+  // Add cache-busting for remotely served images and ensure high quality
   if (image.startsWith('http://') || image.startsWith('https://')) {
-    // Add timestamp to prevent caching if needed
-    return image.includes('?') ? image : `${image}?t=${Date.now()}`;
+    // Remove any existing parameters that might affect quality
+    const baseUrl = image.split('?')[0];
+    // Add high quality parameters and cache busting
+    return `${baseUrl}?quality=100&t=${Date.now()}`;
   }
   
   // If the image path starts with 'storage/', add the leading slash
@@ -789,14 +791,25 @@ const previewImage = (imageUrl) => {
   
   // For remote images, remove any size parameters that might be limiting quality
   if (url.includes('?')) {
-    // Remove common size limiting parameters
-    url = url.split('?')[0];
+    // Remove common size limiting parameters but keep quality parameters
+    const baseUrl = url.split('?')[0];
+    url = `${baseUrl}?quality=100&t=${Date.now()}`;
   }
   
   previewImageUrl.value = url;
   
   // Preload the image for better display
   const img = new Image();
+  img.onload = () => {
+    // Force a repaint to ensure the image is displayed at its highest quality
+    if (img.complete) {
+      const currentUrl = previewImageUrl.value;
+      previewImageUrl.value = null;
+      setTimeout(() => {
+        previewImageUrl.value = currentUrl;
+      }, 10);
+    }
+  };
   img.src = url;
 };
 
@@ -832,7 +845,21 @@ const fetchTradeDetails = (tradeId) => {
           selectedTrade.value.offered_items.forEach(item => {
             if (!item.images) {
               item.images = [];
+            } else {
+              // Pre-cache images for better rendering
+              item.images.forEach(imgSrc => {
+                const img = new Image();
+                img.src = getOptimizedImageUrl(imgSrc);
+              });
             }
+          });
+        }
+        
+        // Pre-cache product images
+        if (selectedTrade.value.seller_product?.images?.length) {
+          selectedTrade.value.seller_product.images.forEach(imgSrc => {
+            const img = new Image();
+            img.src = getOptimizedImageUrl(imgSrc);
           });
         }
       } else {
@@ -1204,6 +1231,31 @@ img {
   -ms-transform: translateZ(0); /* IE 9 */
   -webkit-transform: translateZ(0); /* Chrome, Safari, Opera */
   transform: translateZ(0);
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Fix for Chromium-based browsers */
+@media screen and (-webkit-min-device-pixel-ratio: 0) and (min-resolution: 0.001dpcm) {
+  img {
+    image-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Fix for Firefox */
+@-moz-document url-prefix() {
+  img {
+    image-rendering: auto;
+  }
+}
+
+/* Specific styling for trade detail images */
+.aspect-square img {
+  object-fit: contain !important;
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 /* Fix Safari image rendering */
@@ -1220,8 +1272,19 @@ img {
 /* Improve image preview dialog */
 .image-preview-dialog :deep(.DialogContent) {
   padding: 8px;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(5px);
+  max-width: 95vw;
+  width: auto;
+  height: auto;
+}
+
+.image-preview-dialog img {
+  max-height: 85vh !important;
+  max-width: 95vw !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
 }
 
 /* Fix dialog rendering */
