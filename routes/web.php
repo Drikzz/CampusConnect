@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
+use App\Http\Controllers\SellerReviewController;
 use App\Http\Controllers\SellerWalletController;
 use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
@@ -185,6 +186,19 @@ Route::middleware('auth')->group(function () {
             Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
             Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
         });
+
+        // Seller Reviews Routes
+        Route::middleware(['auth', 'verified'])->group(function () {
+            Route::get('/reviews/seller/{sellerCode}', [SellerReviewController::class, 'index'])->name('reviews.index');
+            Route::post('/reviews', [SellerReviewController::class, 'store'])->name('reviews.store');
+            Route::put('/reviews/{id}', [SellerReviewController::class, 'update'])->name('reviews.update');
+            Route::delete('/reviews/{id}', [SellerReviewController::class, 'destroy'])->name('reviews.destroy');
+            Route::get('/seller/{sellerCode}/rating', [SellerReviewController::class, 'getSellerRating'])->name('seller.rating');
+        });
+
+        // Seller review routes
+        Route::post('/seller-reviews', [SellerReviewController::class, 'store'])->name('seller-reviews.store');
+        Route::get('/seller-reviews/{sellerCode}', [SellerReviewController::class, 'index'])->name('seller-reviews.index');
 
         //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');

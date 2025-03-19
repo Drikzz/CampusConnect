@@ -161,4 +161,36 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasOne(SellerWallet::class, 'seller_code', 'seller_code');
     }
+
+    /**
+     * Get reviews written by this user.
+     */
+    public function writtenReviews()
+    {
+        return $this->hasMany(SellerReview::class, 'reviewer_id');
+    }
+
+    /**
+     * Get reviews about this seller.
+     */
+    public function receivedReviews()
+    {
+        return $this->hasMany(SellerReview::class, 'seller_code', 'seller_code');
+    }
+
+    /**
+     * Get average rating for this seller
+     */
+    public function getAverageRatingAttribute()
+    {
+        return $this->receivedReviews()->avg('rating') ?: 0;
+    }
+
+    /**
+     * Get total number of reviews for this seller
+     */
+    public function getReviewsCountAttribute()
+    {
+        return $this->receivedReviews()->count();
+    }
 }

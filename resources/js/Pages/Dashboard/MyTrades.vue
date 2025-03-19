@@ -129,27 +129,19 @@
                     <Button variant="outline" @click="viewTradeDetails(trade)">
                       View Details
                     </Button>
-                    <Button 
-                      v-if="trade.status === 'pending'"
-                      variant="destructive"
-                      @click="promptCancelTrade(trade.id)"
-                    >
+                    <Button v-if="trade.status === 'completed'" variant="secondary" @click="openReviewDialogForTrade(trade)">
+                      <StarIcon class="w-4 h-4 mr-1" />
+                      Review
+                    </Button>
+                    <Button v-if="trade.status === 'pending'" variant="destructive" @click="promptCancelTrade(trade.id)">
                       Cancel
                     </Button>
-                    <!-- Add Edit button for pending trades -->
-                    <Button 
-                      v-if="trade.status === 'pending'"
-                      variant="default"
-                      @click="editTrade(trade)"
-                    >
-                      Edit
+                    <!-- Fix the Edit button for pending trades -->
+                    <Button v-if="trade.status === 'pending'" variant="default" @click="editTrade(trade)">
+                      Edit Trade
                     </Button>
-                    <Button 
-                      v-if="isTradeEligibleForDelete(trade)"
-                      variant="outline"
-                      class="text-red-500"
-                      @click="promptDeleteTrade(trade.id)"
-                    >
+                    <!-- Fix the Delete button -->
+                    <Button v-if="isTradeEligibleForDelete(trade)" variant="outline" class="text-red-500" @click="promptDeleteTrade(trade.id)">
                       Delete
                     </Button>
                   </div>
@@ -187,8 +179,7 @@
                 <div class="flex flex-col md:flex-row gap-4">
                   <!-- Product images - improved rendering quality -->
                   <div class="w-full md:w-1/3 space-y-2">
-                    <div v-if="selectedTrade.seller_product?.images?.length" 
-                         class="aspect-square rounded-md overflow-hidden border border-gray-200 shadow-sm bg-white">
+                    <div v-if="selectedTrade.seller_product?.images?.length" class="aspect-square rounded-md overflow-hidden border border-gray-200 shadow-sm bg-white">
                       <img 
                         :src="getOptimizedImageUrl(selectedTrade.seller_product.images[0])" 
                         :alt="selectedTrade.seller_product?.name"
@@ -216,7 +207,6 @@
                       </div>
                     </div>
                   </div>
-                  
                   <!-- Product details with improved typography -->
                   <div class="w-full md:w-2/3">
                     <h4 class="font-semibold text-lg leading-tight">{{ selectedTrade.seller_product?.name }}</h4>
@@ -232,7 +222,6 @@
                   </div>
                 </div>
               </div>
-              
               <!-- Offered Items with improved rendering -->
               <div class="space-y-4">
                 <h3 class="text-lg font-semibold">Offered Items</h3>
@@ -257,7 +246,7 @@
                       <!-- Thumbnail grid -->
                       <div v-if="item.images && item.images.length > 1" class="grid grid-cols-4 gap-2">
                         <div
-                          v-for="(image, idx) in item.images.slice(1, 5)" 
+                          v-for="(image, idx) in item.images.slice(1, 5)"
                           :key="idx"
                           class="aspect-square rounded-md overflow-hidden bg-white border border-gray-200 cursor-pointer"
                           @click="previewImage(image)"
@@ -272,7 +261,6 @@
                         </div>
                       </div>
                     </div>
-                    
                     <!-- Item details with improved typography -->
                     <div class="w-full md:w-2/3">
                       <div class="flex justify-between">
@@ -286,7 +274,6 @@
                     </div>
                   </div>
                 </div>
-                
                 <!-- Additional Cash -->
                 <div v-if="selectedTrade.additional_cash > 0" class="bg-blue-50 p-4 rounded-lg">
                   <div class="flex justify-between items-center">
@@ -294,7 +281,6 @@
                     <p class="text-primary font-semibold">{{ formatPrice(selectedTrade.additional_cash) }}</p>
                   </div>
                 </div>
-                
                 <!-- Total Value -->
                 <div class="border-t pt-4 mt-4">
                   <div class="flex justify-between items-center">
@@ -303,13 +289,12 @@
                   </div>
                 </div>
               </div>
-              
+                
               <!-- Notes -->
               <div v-if="selectedTrade.notes" class="bg-gray-50 p-4 rounded-lg">
                 <h3 class="text-lg font-semibold mb-2">Notes</h3>
                 <p class="italic">{{ selectedTrade.notes }}</p>
               </div>
-              
               <!-- Trade Timeline -->
               <div>
                 <h3 class="text-lg font-semibold mb-2">Trade Timeline</h3>
@@ -324,7 +309,6 @@
                   </div>
                 </div>
               </div>
-              
               <!-- Meetup Details -->
               <div v-if="selectedTrade.meetup_location || selectedTrade.meetup_schedule" class="space-y-3">
                 <h3 class="text-lg font-semibold">Meetup Details</h3>
@@ -346,7 +330,6 @@
                       </div>
                     </div>
                   </div>
-                  
                   <div v-if="selectedTrade.meetup_schedule" class="flex items-start gap-2">
                     <div class="rounded-full p-1 bg-blue-100">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -360,7 +343,6 @@
                   </div>
                 </div>
               </div>
-              
               <!-- Trade Negotiations -->
               <div class="space-y-3">
                 <h3 class="text-lg font-semibold">Chat</h3>
@@ -376,7 +358,6 @@
                       Refresh
                     </Button>
                   </div>
-                  
                   <!-- Messages container with auto-scroll -->
                   <div 
                     ref="messagesContainer" 
@@ -385,7 +366,6 @@
                     <div v-if="isLoadingMessages" class="flex justify-center items-center h-full">
                       <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
                     </div>
-                    
                     <div v-else-if="messages.length === 0" class="flex justify-center items-center h-full">
                       <p class="text-gray-500">No messages yet. Start the conversation!</p>
                     </div>
@@ -395,8 +375,7 @@
                         v-for="message in messages" 
                         :key="message.id" 
                         class="flex gap-3"
-                        :class="message.user.id === user.id ? 'justify-end' : ''"
-                      >
+                        :class="message.user.id === user.id ? 'justify-end' : ''">
                         <!-- Message from other user -->
                         <template v-if="message.user.id !== user.id">
                           <div class="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
@@ -418,7 +397,6 @@
                             </div>
                           </div>
                         </template>
-                        
                         <!-- Message from current user -->
                         <template v-else>
                           <div class="flex-1 max-w-[75%]">
@@ -434,7 +412,6 @@
                       </div>
                     </template>
                   </div>
-                  
                   <!-- Message input -->
                   <div class="p-3 border-t bg-white">
                     <form @submit.prevent="sendMessage" class="flex gap-2">
@@ -463,21 +440,39 @@
                   </div>
                 </div>
               </div>
-              
+              <!-- After the existing trade details sections, add the seller reviews component -->
+              <div v-if="selectedTrade.status === 'completed'" class="border-t pt-6 mt-6">
+                <SellerReviews
+                  :seller-code="selectedTrade.seller_code"
+                  :seller-name="selectedTrade.seller?.name || 'Seller'"
+                  :transaction-id="selectedTrade.id"
+                  transaction-type="trade"
+                  :is-completed="selectedTrade.status === 'completed'"
+                />
+              </div>
             </div>
-
+            <!-- Remove the embedded SellerReviews component and add a button -->
             <div class="flex justify-end space-x-4 pt-4">
               <Button variant="outline" @click="closeTradeDetails">Close</Button>
-              <!-- Add Edit button in trade details view -->
+              <!-- Add Review button for completed trades -->
               <Button 
-                v-if="selectedTrade.status === 'pending'"
+                v-if="selectedTrade && selectedTrade.status === 'completed'"
+                variant="secondary"
+                @click="openReviewDialog"
+              >
+                <StarIcon class="w-4 h-4 mr-2" />
+                View/Write Review
+              </Button>
+              <!-- Existing Edit/Cancel buttons -->
+              <Button 
+                v-if="selectedTrade && selectedTrade.status === 'pending'"
                 variant="default"
                 @click="editTrade(selectedTrade)"
               >
                 Edit Trade
               </Button>
               <Button 
-                v-if="selectedTrade.status === 'pending'"
+                v-if="selectedTrade && selectedTrade.status === 'pending'"
                 variant="destructive"
                 @click="promptCancelTrade(selectedTrade.id)"
               >
@@ -548,12 +543,12 @@
       @update:open="showEditTradeDialog = $event"
     />
 
-    <!-- Add an Image Preview Dialog -->
+    <!-- Fix the image preview dialog -->
     <Dialog :open="!!previewImageUrl" @update:open="previewImageUrl = null" class="image-preview-dialog">
       <DialogContent class="max-w-5xl max-h-[90vh]">
         <div class="relative">
           <Button 
-            class="absolute top-2 right-2 rounded-full bg-black/50 hover:bg-black/70" 
+            class="absolute top-2 right-2 rounded-full bg-black/50 hover:bg-black/70"
             size="sm"
             @click="previewImageUrl = null"
           >
@@ -562,7 +557,7 @@
           <div class="flex items-center justify-center bg-white rounded-lg overflow-hidden p-2">
             <img 
               :src="previewImageUrl" 
-              class="max-h-[80vh] max-w-full object-contain"
+              class="max-h-[80vh] max-w-full object-contain" 
               style="image-rendering: -webkit-optimize-contrast; transform: translateZ(0); backface-visibility: hidden;"
               @error="handleImageError"
             />
@@ -570,32 +565,56 @@
         </div>
       </DialogContent>
     </Dialog>
+
+    <!-- Add the Reviews Dialog -->
+    <Dialog :open="showReviewsDialog" @update:open="showReviewsDialog = $event">
+      <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Seller Reviews</DialogTitle>
+          <DialogDescription v-if="selectedTrade">
+            Reviews for {{ selectedTrade.seller?.name || 'Seller' }}
+          </DialogDescription>
+        </DialogHeader>
+        <SellerReviews
+          v-if="selectedTrade"
+          :seller-code="selectedTrade.seller_code"
+          :seller-name="selectedTrade.seller?.name || 'Seller'"
+          :transaction-id="selectedTrade.id"
+          transaction-type="trade"
+          :is-completed="selectedTrade.status === 'completed'"
+          @review-submitted="handleReviewSubmitted"
+        />
+        <DialogFooter>
+          <Button variant="outline" @click="showReviewsDialog = false">Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </DashboardLayout>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import { router, usePage } from '@inertiajs/vue3'
-import DashboardLayout from './DashboardLayout.vue'
-import { Link } from '@inertiajs/vue3'
-import { Button } from '@/Components/ui/button'
-import { Toaster } from '@/Components/ui/toast'
-import {
+import { ref, computed, watch, nextTick } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import DashboardLayout from './DashboardLayout.vue';
+import { Link } from '@inertiajs/vue3';
+import { Button } from '@/Components/ui/button';
+import { Toaster } from '@/Components/ui/toast';
+import { 
   Card,
   CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/Components/ui/card'
-import {
+} from '@/Components/ui/card';
+import { 
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/Components/ui/tabs'
-import { Dialog, DialogContent } from '@/Components/ui/dialog'
-import { useToast } from '@/Components/ui/toast/use-toast'
+} from '@/Components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
+import { useToast } from '@/Components/ui/toast/use-toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -605,21 +624,24 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/Components/ui/alert-dialog'
+} from '@/Components/ui/alert-dialog';
 import axios from 'axios';
+import { X } from "lucide-vue-next";
 
-// Add new imports for edit form
-import { Calendar } from "@/Components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover"
-import { Select } from "@/Components/ui/select"
-import { Label } from "@/Components/ui/label"
-import { Textarea } from "@/Components/ui/textarea"
-import { CalendarIcon } from "lucide-vue-next"
-import { format } from "date-fns"
-import { X } from "lucide-vue-next"
+// Add imports for edit form
+import { Calendar } from "@/Components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
+import { Select } from "@/Components/ui/select";
+import { Label } from "@/Components/ui/label";
+import { Textarea } from "@/Components/ui/textarea";
+import { CalendarIcon, StarIcon } from "lucide-vue-next";
+import { format } from "date-fns";
 
 // Import the EditTrade component
-import EditTrade from '@/Components/EditTrade.vue'
+import EditTrade from '@/Components/EditTrade.vue';
+
+// Import the SellerReviews component
+import SellerReviews from '@/Components/SellerReviews.vue';
 
 const props = defineProps({
   user: Object,
@@ -628,30 +650,30 @@ const props = defineProps({
     type: Object,
     required: true
   }
-})
+});
 
 // Toast handling
-const page = usePage()
-const { toast } = useToast()
+const page = usePage();
+const { toast } = useToast();
 
 // Watch for flash messages from the server and show toasts
 watch(() => page.props.flash, (flash) => {
-  console.log('Flash message detected:', flash) // Debug log
+  console.log('Flash message detected:', flash); // Debug log
   
   if (flash?.success) {
     toast({
       title: 'Success',
       description: flash.success,
       variant: 'default'
-    })
+    });
   } else if (flash?.error) {
     toast({
       title: 'Error',
       description: flash.error,
       variant: 'destructive'
-    })
+    });
   }
-}, { deep: true, immediate: true })
+}, { deep: true, immediate: true });
 
 // Also watch for flash messages at the root level
 watch(() => page.props, (props) => {
@@ -660,26 +682,29 @@ watch(() => page.props, (props) => {
       title: 'Success',
       description: props.success,
       variant: 'default'
-    })
+    });
   }
-  
   if (props.error) {
     toast({
       title: 'Error',
       description: props.error,
       variant: 'destructive'
-    })
+    });
   }
-}, { immediate: true })
+}, { immediate: true });
 
-const searchQuery = ref('')
-const selectedTrade = ref(null)
-const showTradeDetails = ref(false)
-const showCancelAlert = ref(false)
-const showDeleteAlert = ref(false)
-const showBulkDeleteAlert = ref(false)
-const tradeToCancel = ref(null)
-const tradeToDelete = ref(null)
+const searchQuery = ref('');
+const selectedTrade = ref(null);
+const showTradeDetails = ref(false);
+const showCancelAlert = ref(false);
+const showDeleteAlert = ref(false);
+const showBulkDeleteAlert = ref(false);
+const tradeToCancel = ref(null);
+const tradeToDelete = ref(null);
+// Add these missing ref declarations
+const tradeToEdit = ref(null);
+const availableMeetupLocations = ref([]);
+const showEditTradeDialog = ref(false);
 
 const groupedTrades = computed(() => {
   // First, filter trades where the current user is the buyer
@@ -695,24 +720,24 @@ const groupedTrades = computed(() => {
     rejected: buyerTrades.filter(t => t.status === 'rejected'),
     completed: buyerTrades.filter(t => t.status === 'completed'),
     canceled: buyerTrades.filter(t => t.status === 'canceled'),
-  }
+  };
   
   // Filter by search query if present
   if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
+    const query = searchQuery.value.toLowerCase();
     Object.keys(groups).forEach(key => {
       groups[key] = groups[key].filter(trade => 
-        trade.id.toString().includes(query) ||
+        trade.id.toString().includes(query) || 
         (trade.seller_product && trade.seller_product.name.toLowerCase().includes(query)) ||
         (trade.offered_items && trade.offered_items.some(item => item.name.toLowerCase().includes(query)))
-      )
-    })
+      );
+    });  
   }
   
-  return groups
-})
+  return groups;
+});
 
-const formatPrice = (price) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price)
+const formatPrice = (price) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price);
 
 const formatDateTime = (date, includeTime = false) => {
   if (!date) return '';
@@ -747,16 +772,12 @@ const calculateTotalValue = (trade) => {
   const itemsTotal = trade.offered_items ? trade.offered_items.reduce((sum, item) => {
     return sum + (item.estimated_value * item.quantity);
   }, 0) : 0;
-
+  
   // Add additional cash
   return itemsTotal + (trade.additional_cash || 0);
 };
 
 // Add new functions for image handling
-const getImageUrl = (image, fallbackImage = '/images/placeholder-product.jpg') => {
-  return getOptimizedImageUrl(image, fallbackImage);
-};
-
 const handleImageError = (event) => {
   event.target.src = '/images/placeholder-product.jpg';
 };
@@ -784,6 +805,9 @@ const getOptimizedImageUrl = (image, fallbackImage = '/images/placeholder-produc
   return `/storage/${image}`;
 };
 
+// Add state for image preview
+const previewImageUrl = ref(null);
+
 // Preview image function with proper high-resolution handling
 const previewImage = (imageUrl) => {
   // Clean the URL to ensure we're not using a cached thumbnail version
@@ -805,6 +829,7 @@ const previewImage = (imageUrl) => {
     if (img.complete) {
       const currentUrl = previewImageUrl.value;
       previewImageUrl.value = null;
+      previewImageUrl.value = url;
       setTimeout(() => {
         previewImageUrl.value = currentUrl;
       }, 10);
@@ -812,9 +837,6 @@ const previewImage = (imageUrl) => {
   };
   img.src = url;
 };
-
-// Add state for image preview
-const previewImageUrl = ref(null)
 
 /**
  * Function to fetch detailed information about a trade
@@ -831,8 +853,6 @@ const fetchTradeDetails = (tradeId) => {
       // Get trade data from the page props
       const tradeData = page.props.trade;
       
-      console.log('Inertia response received:', page.props);
-      
       if (tradeData) {
         // Update the selectedTrade with the fetched detailed data
         selectedTrade.value = tradeData;
@@ -841,6 +861,7 @@ const fetchTradeDetails = (tradeId) => {
         if (selectedTrade.value.seller_product && !selectedTrade.value.seller_product.images) {
           selectedTrade.value.seller_product.images = [];
         }
+        
         if (selectedTrade.value.offered_items) {
           selectedTrade.value.offered_items.forEach(item => {
             if (!item.images) {
@@ -907,30 +928,30 @@ const viewTradeDetails = (trade) => {
 const closeTradeDetails = () => {
   selectedTrade.value = null;
   showTradeDetails.value = false;
-}
+};
 
 // Check if there are any trades eligible for deletion
 const hasDeleteEligibleTrades = computed(() => {
-  return props.trades.data?.some(trade => isTradeEligibleForDelete(trade)) || false
-})
+  return props.trades.data?.some(trade => isTradeEligibleForDelete(trade)) || false;
+});
 
 // Function to get all eligible trade IDs for bulk deletion
 const getEligibleTradeIds = () => {
   return props.trades.data
     ?.filter(trade => isTradeEligibleForDelete(trade))
-    ?.map(trade => trade.id) || []
-}
+    ?.map(trade => trade.id) || [];
+};
 
 // Delete trade functions
 const promptDeleteTrade = (tradeId) => {
-  tradeToDelete.value = tradeId
-  showDeleteAlert.value = true
-}
+  tradeToDelete.value = tradeId;
+  showDeleteAlert.value = true;
+};
 
 const confirmDeleteTrade = () => {
   if (tradeToDelete.value) {
     // Close the dialog immediately to prevent it from staying visible
-    showDeleteAlert.value = false
+    showDeleteAlert.value = false;
     
     router.delete(route('trades.delete', tradeToDelete.value), {
       onSuccess: (page) => {
@@ -938,29 +959,29 @@ const confirmDeleteTrade = () => {
           title: 'Success',
           description: page.props.flash?.success || 'Trade deleted successfully',
           variant: 'default'
-        })
+        });
         
         // Reset state
-        tradeToDelete.value = null
+        tradeToDelete.value = null;
       },
       onError: (errors) => {
         toast({
           title: 'Error',
           description: errors.message || 'Failed to delete trade',
           variant: 'destructive'
-        })
-        tradeToDelete.value = null
+        });
+        tradeToDelete.value = null;
       }
-    })
+    });
   }
-}
+};
 
 // Bulk delete function
 const confirmBulkDelete = () => {
-  const tradeIds = getEligibleTradeIds()
+  const tradeIds = getEligibleTradeIds();
   
   if (tradeIds.length > 0) {
-    showBulkDeleteAlert.value = false
+    showBulkDeleteAlert.value = false;
     
     router.delete(route('trades.bulk-delete'), {
       data: { trade_ids: tradeIds },
@@ -969,62 +990,62 @@ const confirmBulkDelete = () => {
           title: 'Success',
           description: page.props.flash?.success || 'Trades deleted successfully',
           variant: 'default'
-        })
+        });
       },
       onError: (errors) => {
         toast({
           title: 'Error',
           description: errors.message || 'Failed to delete trades',
           variant: 'destructive'
-        })
+        });
       }
-    })
+    });
   }
-}
-
-// Add edit form state variables
-const showEditTradeDialog = ref(false)
-const tradeToEdit = ref(null)
-const availableMeetupLocations = ref([])
+};
 
 /**
  * Open edit trade dialog and initialize form with trade data
  */
 const editTrade = async (trade) => {
   // Close other dialogs if open
-  showTradeDetails.value = false
+  showTradeDetails.value = false;
   
   // Set the trade to edit
-  tradeToEdit.value = trade
+  tradeToEdit.value = trade;
   
   // Load available meetup locations for this seller
   try {
-    const response = await axios.get(`/trades/product/${trade.seller_product_id}/meetup-locations`)
+    const response = await axios.get(`/trades/product/${trade.seller_product_id}/meetup-locations`);
     if (response.data.success) {
-      availableMeetupLocations.value = response.data.meetup_locations || []
+      availableMeetupLocations.value = response.data.meetup_locations || [];
     } else {
-      availableMeetupLocations.value = []
+      availableMeetupLocations.value = [];
       toast({
         title: 'Warning',
         description: 'Could not load meetup locations',
         variant: 'default'
-      })
+      });
     }
   } catch (error) {
-    console.error('Error loading meetup locations:', error)
-    availableMeetupLocations.value = []
+    console.error('Error loading meetup locations:', error);
+    availableMeetupLocations.value = [];
+    toast({
+      title: 'Warning',
+      description: 'Could not load meetup locations',
+      variant: 'default'
+    });
   }
   
   // Show the edit trade dialog
-  showEditTradeDialog.value = true
-}
+  showEditTradeDialog.value = true;
+};
 
 /**
  * Show modal for editing trade from a button click
  */
 const showEditTradeModal = (trade) => {
   editTrade(trade);
-}
+};
 
 /**
  * Close edit trade dialog and reset form
@@ -1037,14 +1058,14 @@ const closeEditTradeModal = () => {
   if (selectedTrade.value && showTradeDetails.value) {
     fetchTradeDetails(selectedTrade.value.id);
   }
-}
+};
 
 // Add new state variables for chat
-const newMessage = ref('')
-const messages = ref([])
-const isLoadingMessages = ref(false)
-const isSendingMessage = ref(false)
-const messagesContainer = ref(null)
+const newMessage = ref('');
+const messages = ref([]);
+const isLoadingMessages = ref(false);
+const isSendingMessage = ref(false);
+const messagesContainer = ref(null);
 
 // Function to format message time
 const formatMessageTime = (timestamp) => {
@@ -1059,7 +1080,7 @@ const formatMessageTime = (timestamp) => {
   if (date.toDateString() === today.toDateString()) {
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
-      minute: '2-digit'
+      minute: '2-digit' 
     });
   }
   
@@ -1072,11 +1093,11 @@ const formatMessageTime = (timestamp) => {
   }
   
   // Otherwise show the full date
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit' 
   });
 };
 
@@ -1097,7 +1118,6 @@ const fetchMessages = async (tradeId) => {
   
   try {
     const response = await axios.get(route('trades.messages.get', tradeId));
-    
     if (response.data.success) {
       messages.value = response.data.data;
       scrollToBottom();
@@ -1187,14 +1207,14 @@ const confirmCancelTrade = () => {
             title: 'Success',
             description: page.props.flash.success,
             variant: 'default'
-          })
+          });
         } else {
           // Default success message if none provided
           toast({
             title: 'Success',
             description: 'Trade offer cancelled successfully',
             variant: 'default'
-          })
+          });
         }
         
         // Reset all dialog-related state
@@ -1207,17 +1227,58 @@ const confirmCancelTrade = () => {
           title: 'Error',
           description: 'Failed to cancel trade offer',
           variant: 'destructive'
-        })
+        });
         tradeToCancel.value = null;
       }
-    })
+    });
   }
-}
+};
 
 // Check if a trade is eligible for deletion (completed, cancelled, or rejected)
 const isTradeEligibleForDelete = (trade) => {
-  return ['completed', 'canceled', 'rejected'].includes(trade.status)
-}
+  return ['completed', 'canceled', 'rejected'].includes(trade.status);
+};
+
+// Add state for reviews dialog
+const showReviewsDialog = ref(false);
+
+/**
+ * Opens the reviews dialog
+ */
+const openReviewDialog = () => {
+  showReviewsDialog.value = true;
+};
+
+/**
+ * Handle review submission completion
+ */
+const handleReviewSubmitted = () => {
+  toast({
+    title: 'Review Submitted',
+    description: 'Thank you for your feedback!',
+    variant: 'default'
+  });
+  
+  // Close the dialog after a short delay
+  setTimeout(() => {
+    showReviewsDialog.value = false;
+  }, 1500);
+};
+
+/**
+ * Opens the reviews dialog directly from a trade card
+ */
+const openReviewDialogForTrade = (trade) => {
+  // First, set the selected trade (if not already set)
+  if (!selectedTrade.value || selectedTrade.value.id !== trade.id) {
+    selectedTrade.value = trade;
+    // Fetch complete trade details to ensure we have all data
+    fetchTradeDetails(trade.id);
+  }
+  
+  // Open the reviews dialog
+  showReviewsDialog.value = true;
+};
 </script>
 
 <style scoped>
@@ -1228,11 +1289,11 @@ const isTradeEligibleForDelete = (trade) => {
 /* Improve image rendering quality */
 img {
   -webkit-backface-visibility: hidden;
-  -ms-transform: translateZ(0); /* IE 9 */
+  backface-visibility: hidden;
   -webkit-transform: translateZ(0); /* Chrome, Safari, Opera */
+  -ms-transform: translateZ(0); /* IE 9 */
   transform: translateZ(0);
   image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
 }
 
 /* Fix for Chromium-based browsers */
@@ -1255,13 +1316,6 @@ img {
   object-fit: contain !important;
   width: 100% !important;
   height: 100% !important;
-  image-rendering: -webkit-optimize-contrast;
-}
-
-/* Fix Safari image rendering */
-img {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
 }
 
 /* Smooth scrolling for better user experience */
@@ -1269,12 +1323,30 @@ img {
   scroll-behavior: smooth;
 }
 
-/* Improve image preview dialog */
+/* Fix dialog rendering */
+:deep(.DialogOverlay),
+:deep(.DialogContent),
+:deep(.AlertDialogOverlay),
+:deep(.AlertDialogContent) {
+  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes overlayShow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes contentShow {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Better preview dialog styling */
 .image-preview-dialog :deep(.DialogContent) {
   padding: 8px;
   background-color: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(5px);
-  max-width: 95vw;
+  max-width: 90vw;
   width: auto;
   height: auto;
 }
@@ -1285,61 +1357,5 @@ img {
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;
-}
-
-/* Fix dialog rendering */
-:deep(.DialogOverlay),
-:deep(.AlertDialogOverlay) {
-  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-:deep(.DialogContent),
-:deep(.AlertDialogContent) {
-  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes overlayShow {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes contentShow {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -48%) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-/* Enhanced image quality settings */
-img {
-  -webkit-backface-visibility: hidden;
-  -ms-transform: translateZ(0); /* IE 9 */
-  -webkit-transform: translateZ(0); /* Chrome, Safari, Opera */
-  transform: translateZ(0);
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
-  max-height: 100%;
-  width: auto;
-  margin: 0 auto;
-}
-
-/* Use higher quality rendering for 2x displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  img {
-    image-rendering: auto;
-  }
-}
-
-/* Better preview dialog styling */
-.image-preview-dialog :deep(.DialogContent) {
-  padding: 8px;
-  background-color: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(5px);
-  max-width: 90vw;
-  width: auto;
 }
 </style>
