@@ -183,7 +183,24 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function getAverageRatingAttribute()
     {
-        return $this->receivedReviews()->avg('rating') ?: 0;
+        // Get the count of reviews for each rating value
+        $ratingCounts = $this->receivedReviews()
+            ->select('rating', \DB::raw('COUNT(*) as count'))
+            ->groupBy('rating')
+            ->pluck('count', 'rating')
+            ->toArray();
+        
+        // Calculate total number of reviews
+        $totalReviews = array_sum($ratingCounts);
+        
+        // Calculate sum of (rating × count) for each rating
+        $weightedSum = 0;
+        foreach ($ratingCounts as $rating => $count) {
+            $weightedSum += $rating * $count;
+        }
+        
+        // Return the average using the correct formula
+        return $totalReviews > 0 ? $weightedSum / $totalReviews : 0;
     }
 
     /**
@@ -192,8 +209,8 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getReviewsCountAttribute()
     {
         return $this->receivedReviews()->count();
-    } // Added missing closing curly brace here
-    
+    }
+
     public function walletTransactions()
     {
         return $this->hasMany(WalletTransaction::class);

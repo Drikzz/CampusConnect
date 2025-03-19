@@ -169,9 +169,29 @@ class SellerReviewController extends Controller
     {
         $seller = User::where('seller_code', $sellerCode)->firstOrFail();
         
+        // Get the count of reviews for each rating value (1-5)
+        $ratingCounts = SellerReview::where('seller_code', $sellerCode)
+            ->select('rating', \DB::raw('COUNT(*) as count'))
+            ->groupBy('rating')
+            ->pluck('count', 'rating')
+            ->toArray();
+        
+        // Calculate total number of reviews
+        $totalReviews = array_sum($ratingCounts);
+        
+        // Calculate sum of (rating × count) for each rating
+        $weightedSum = 0;
+        foreach ($ratingCounts as $rating => $count) {
+            $weightedSum += $rating * $count;
+        }
+        
+        // Calculate the average using the correct formula
+        $avgRating = $totalReviews > 0 ? $weightedSum / $totalReviews : 0;
+        
         $stats = [
-            'avg_rating' => SellerReview::where('seller_code', $sellerCode)->avg('rating') ?: 0,
-            'total_reviews' => SellerReview::where('seller_code', $sellerCode)->count(),
+            'avg_rating' => round($avgRating, 1),
+            'total_reviews' => $totalReviews,
+            'rating_counts' => $ratingCounts,
         ];
         
         return response()->json([
