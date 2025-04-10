@@ -5,6 +5,7 @@ import axios from 'axios';
 import { HeartIcon as HeartIconOutline } from '@heroicons/vue/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/vue/24/solid';
 import TradeForm from '@/Components/TradeForm.vue';
+import { usePage } from '@inertiajs/vue3'; // Add this import
 
 const props = defineProps({
     product: {
@@ -141,8 +142,19 @@ const categoryName = computed(() => {
 // Add state for trade modal
 const showTradeModal = ref(false);
 
+// Add auth check computed property
+const isAuthenticated = computed(() => {
+    return usePage().props.auth?.user != null;
+});
+
 // Function to open trade modal
 const openTradeModal = () => {
+    if (!isAuthenticated.value) {
+        // Redirect to login page if not authenticated
+        window.location.href = '/login';
+        return;
+    }
+    
     showTradeModal.value = true;
 };
 </script>
@@ -193,15 +205,11 @@ const openTradeModal = () => {
                 class="py-2 px-3 bg-black rounded-lg hover:opacity-80 transition-all focus:opacity-60">
                 <button class="font-Satoshi text-white">Buy Now!</button>
             </Link>
-            <button v-if="product.is_tradable && showTradeButton" 
+            <button v-if="product.is_tradable" 
                 @click.prevent="openTradeModal"
                 class="py-2 px-3 bg-black rounded-lg hover:opacity-80 transition-all focus:opacity-60">
                 <span class="font-Satoshi text-white">Trade Now!</span>
             </button>
-            <Link v-else-if="product.is_tradable" :href="route('trade')"
-                class="py-2 px-3 bg-black rounded-lg hover:opacity-80 transition-all focus:opacity-60">
-                <button class="font-Satoshi text-white">Trade Now!</button>
-            </Link>
             <span v-if="!product.is_buyable && !product.is_tradable" class="font-Satoshi text-gray-500">
                 Not available for purchase or trade
             </span>
@@ -209,8 +217,9 @@ const openTradeModal = () => {
             <span class="text-xs text-gray-500">{{ categoryName }}</span>
         </div>
 
-        <!-- Add Trade Form Modal -->
+        <!-- Modify TradeForm implementation -->
         <TradeForm 
+            v-if="showTradeModal"
             :product="product" 
             :open="showTradeModal"
             @close="showTradeModal = false"

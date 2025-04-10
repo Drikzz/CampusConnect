@@ -75,6 +75,14 @@ class MeetupLocation extends Model
     return implode(', ', $parts);
   }
 
+  public function getFullNameAttribute()
+  {
+    if ($this->location) {
+        return $this->location->name;
+    }
+    return $this->custom_location;
+  }
+
   public function isAvailableOn($date)
   {
     $dayOfWeek = date('l', strtotime($date));
