@@ -42,7 +42,12 @@ class Product extends Model
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'seller_code', 'seller_code');
+        return $this->belongsTo(User::class, 'seller_code', 'seller_code')
+            ->select(['id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture'])
+            ->with(['meetupLocations' => function($query) {
+                $query->where('is_active', true)
+                      ->with('location');
+            }]);
     }
 
     public function orderItems(): HasMany

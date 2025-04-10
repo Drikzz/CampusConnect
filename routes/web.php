@@ -175,6 +175,10 @@ Route::middleware('auth')->group(function () {
         });
 
         // Trade related routes
+
+        Route::patch('trades/{id}/update', [DashboardController::class, 'updateTrade'])->name('trades.update');
+        Route::patch('trades/{id}/cancel', [DashboardController::class, 'cancelTrade'])->name('trades.cancel');
+
         Route::prefix('trades')->group(function () {
             Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
             Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
@@ -185,7 +189,8 @@ Route::middleware('auth')->group(function () {
             
             // Add new route to get meetup locations for a product
             Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
-                ->name('trades.product.meetup-locations');
+                ->name('trades.product.meetup-locations')
+                ->withoutMiddleware('auth'); // Add this to make it publicly accessible
 
             // Add this route where other trade routes are defined:
             Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');

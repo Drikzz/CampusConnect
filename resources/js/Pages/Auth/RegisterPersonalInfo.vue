@@ -132,6 +132,27 @@ const isOldEnough = (birthDate) => {
     return age >= minAge;
 };
 
+const handleDateChange = (newDate) => {
+    if (!newDate) {
+        date.value = null;
+        form.date_of_birth = '';
+        return;
+    }
+
+    try {
+        const dateObj = new Date(newDate.toString());
+        if (!isNaN(dateObj.getTime())) {
+            date.value = newDate;
+            form.date_of_birth = format(dateObj, 'yyyy-MM-dd');
+        }
+    } catch (error) {
+        console.error('Error handling date change:', error);
+    }
+};
+
+// Add this watch to properly handle date changes
+watch(() => date.value, handleDateChange);
+
 const submit = () => {
     // Basic validation before submission
     let hasErrors = false;
@@ -512,8 +533,6 @@ function clearFormData(force = false) {
                                 </div>
                             </div>
 
-                            <!-- Replace the corrupted gender dropdown section with this fixed version -->
-
                             <div>
                                 <label class="block mb-2 text-sm font-medium text-black">Gender*</label>
                                 <Popover v-model:open="genderOpen">
@@ -586,7 +605,11 @@ function clearFormData(force = false) {
                                             :fromDate="minDate"
                                             :toDate="maxDate"
                                             @update:model-value="(newDate) => {
-                                                form.date_of_birth = format(new Date(newDate.toString()), 'yyyy-MM-dd');
+                                                if (newDate) {
+                                                    form.date_of_birth = format(new Date(newDate.toString()), 'yyyy-MM-dd');
+                                                } else {
+                                                    form.date_of_birth = '';
+                                                }
                                             }"
                                         />
                                         <div class="px-4 py-2 text-xs text-gray-500">
