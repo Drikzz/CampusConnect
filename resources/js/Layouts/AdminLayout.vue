@@ -1,9 +1,8 @@
 <template>
   <div>
-   
     <!-- Main Content Layout -->
     <div class="w-full mt-10 mb-64 px-4 md:px-16">
-      <!-- Flash Messages (can be added if needed) -->
+      <!-- Flash Messages -->
       <div v-if="$page.props.flash?.success" 
            class="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
         {{ $page.props.flash.success }}
@@ -26,7 +25,7 @@
                   <Link 
                     :href="route('admin.dashboard')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.dashboard') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/Dashboard') }">
                     <HomeIcon class="w-5 h-5" />
                     <span>Dashboard</span>
                   </Link>
@@ -42,7 +41,7 @@
                   <Link 
                     :href="route('admin.users')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.users') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/admin-userManagement') }">
                     <UsersIcon class="w-5 h-5" />
                     <span>Users</span>
                   </Link>
@@ -58,7 +57,7 @@
                   <Link 
                     :href="route('admin.products')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.products') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/admin-productManagement') }">
                     <ShoppingBagIcon class="w-5 h-5" />
                     <span>Products</span>
                   </Link>
@@ -67,7 +66,7 @@
                   <Link 
                     :href="'#'"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.categories') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/categories') }">
                     <TagIcon class="w-5 h-5" />
                     <span>Categories & Tags</span>
                   </Link>
@@ -83,7 +82,7 @@
                   <Link 
                     :href="route('admin.orders')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.orders') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/admin-transactions') }">
                     <CurrencyDollarIcon class="w-5 h-5" />
                     <span>Transactions</span>
                   </Link>
@@ -92,16 +91,16 @@
                   <Link 
                     :href="route('admin.wallet-requests')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.wallet-requests') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/WalletRequests') }">
                     <WalletIcon class="w-5 h-5" />
                     <span>Wallet Requests</span>
                   </Link>
                 </li>
                 <li>
                   <Link 
-                    :href="route('admin.wallet')"
+                    :href="route('admin.test')" 
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.wallet') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/test') || $page.component.includes('Admin/Wallet') }">
                     <BanknotesIcon class="w-5 h-5" />
                     <span>Wallet & Fees</span>
                   </Link>
@@ -117,7 +116,7 @@
                   <Link 
                     :href="'#'"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.reports') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/reports') }">
                     <ChartBarIcon class="w-5 h-5" />
                     <span>Reports & Complaints</span>
                   </Link>
@@ -126,7 +125,7 @@
                   <Link 
                     :href="'#'"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red': isCurrentRoute('admin.locations') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/locations') }">
                     <MapPinIcon class="w-5 h-5" />
                     <span>Meetup Locations</span>
                   </Link>
@@ -176,17 +175,4 @@ const logout = () => {
   router.post(route('admin.logout'))
 }
 
-// Updated helper function to check current route with support for route groups
-const isCurrentRoute = (routeName) => {
-  // Handle special cases for wallet-related routes
-  if (routeName === 'admin.wallet-requests' && route().current('admin.wallet-requests*')) {
-    return true
-  }
-  if (routeName === 'admin.wallet' && route().current('admin.wallet') && !route().current('admin.wallet-requests*')) {
-    return true
-  }
-  
-  // Default route matching
-  return route().current(routeName)
-}
 </script>

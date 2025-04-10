@@ -150,6 +150,33 @@
           </p>
         </div>
 
+        <!-- Add QR Code Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 class="text-lg font-medium mb-4">Scan to Pay via GCash</h3>
+          <div class="flex items-start space-x-6">
+            <div class="flex-shrink-0">
+              <img src="../../../../../public/storage/images/campus-connect-qr.jpg" alt="GCash QR Code" class="w-48 h-48 object-cover rounded-lg shadow-sm" />
+            </div>
+            <div class="flex-grow space-y-3">
+              <div>
+                <h4 class="font-medium text-gray-700">Steps to Add Funds:</h4>
+                <ol class="list-decimal list-inside text-gray-600 space-y-2 mt-2">
+                  <li>Open your GCash app</li>
+                  <li>Scan the QR code or send to the number below</li>
+                  <li>Enter the amount you want to add</li>
+                  <li>Complete the payment</li>
+                  <li>Copy the reference number</li>
+                  <li>Click "Add Funds" and submit the details</li>
+                </ol>
+              </div>
+              <div class="pt-2">
+                <p class="text-gray-600"><span class="font-medium">GCash Number:</span> 09123456789</p>
+                <p class="text-gray-600"><span class="font-medium">Account Name:</span> Campus Connect</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Wallet Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="bg-white p-6 rounded-lg shadow-md border border-primary-color/20">
@@ -202,7 +229,12 @@
             <DataTable :columns="transactionColumns" :data="filteredTransactions" :get-actions="getTransactionActions"
               :selectable="false" :items-per-page="transactionItemsPerPage"
               @update:items-per-page="transactionItemsPerPage = $event" search-placeholder="Search transactions..."
-              reset-button-label="Reset Filters" :show-reset-button="true" :show-custom-buttons="true">
+              reset-button-label="Reset Filters" :show-reset-button="true" :show-custom-buttons="true"
+              :empty-state="{ 
+                message: 'No Transactions Yet',
+                description: 'You haven\'t made any transactions yet. Start by adding funds to your wallet to begin your seller journey.',
+                icon: 'WalletIcon'
+              }">
               <!-- Pass the custom buttons as a slot -->
               <template #custom-buttons>
                 <Button @click="showWithdrawModal = true" variant="outline" class="flex items-center">
@@ -215,25 +247,6 @@
                 </Button>
               </template>
             </DataTable>
-          </div>
-
-          <!-- Empty state for no transactions -->
-          <div v-if="!hasNonVerificationTransactions" class="p-8 text-center">
-            <div class="flex flex-col items-center justify-center space-y-3">
-              <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
-              <p class="text-gray-500 text-lg font-medium">No Transactions Yet</p>
-              <p class="text-gray-400 max-w-md">
-                You haven't made any transactions yet. Start by adding funds to your wallet
-                to begin your seller journey.
-              </p>
-              <Button variant="outline" @click="showRefillModal = true" class="mt-2">
-                <PlusIcon class="w-4 h-4 mr-2" />
-                Add Funds
-              </Button>
-            </div>
           </div>
         </div>
       </div>

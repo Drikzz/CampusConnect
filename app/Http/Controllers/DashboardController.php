@@ -10,13 +10,16 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Wishlist;
 use App\Models\SellerWallet;
+use App\Models\TradeTransaction;
+use App\Models\TradeOfferItem;
+use App\Models\MeetupLocation; // Add this import
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
-use App\Models\TradeTransaction;
+
 class DashboardController extends Controller
 {
     public function index()
@@ -516,57 +519,181 @@ class DashboardController extends Controller
     public function trades()
     {
         $user = auth()->user();
-        
-        // Get the user's trades - both as buyer and seller
-        $trades = TradeTransaction::where('buyer_id', $user->id)
-            ->orWhere('seller_id', $user->id)
-            ->orWhere('seller_code', $user->seller_code)
-            ->with([
-                'sellerProduct', 
-                'offeredItems', 
-                'buyer:id,first_name,last_name,username,profile_picture', 
-                'seller:id,first_name,last_name,username,profile_picture,seller_code'
-            ])
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
-        
-        // Format trades for the frontend
-        $trades->through(function ($trade) {
-            return [
-                'id' => $trade->id,
-                'buyer_id' => $trade->buyer_id,
-                'seller_id' => $trade->seller_id,
-                'seller_code' => $trade->seller_code,
-                'seller_product_id' => $trade->seller_product_id,
-                'additional_cash' => $trade->additional_cash,
-                'notes' => $trade->notes,
-                'status' => $trade->status,
-                'created_at' => $trade->created_at,
-                'updated_at' => $trade->updated_at,
-                'seller_product' => $trade->sellerProduct,
-                'offered_items' => $trade->offeredItems,
-                'buyer' => $trade->buyer ? [
-                    'id' => $trade->buyer->id,
-                    'name' => $trade->buyer->first_name . ' ' . $trade->buyer->last_name,
-                    'profile_picture' => $trade->buyer->profile_picture ? 
-                        asset('storage/' . $trade->buyer->profile_picture) : null
-                ] : null,
-                'seller' => $trade->seller ? [
-                    'id' => $trade->seller->id,
-                    'name' => $trade->seller->first_name . ' ' . $trade->seller->last_name,
-                    'profile_picture' => $trade->seller->profile_picture ? 
-                        asset('storage/' . $trade->seller->profile_picture) : null
-                ] : null,
-            ];
-        });
-        
-        // Get user stats
         $stats = $this->getDashboardStats($user);
-        
+
+        // Get available meetup locations with proper data structure
+        $meetupLocations = MeetupLocation::with('location')
+            ->where('is_active', true)
+            ->get()
+            ->map(function($meetupLocation) {
+                return [
+                    'id' => $meetupLocation->id,
+                    'name' => $meetupLocation->location 
+                        ? $meetupLocation->location->name 
+                        : $meetupLocation->custom_location,
+                    'available_days' => $meetupLocation->available_days, // Add this
+                    'description' => $meetupLocation->description,
+                    'available_from' => $meetupLocation->available_from,
+                    'available_until' => $meetupLocation->available_until,
+                    'max_daily_meetups' => $meetupLocation->max_daily_meetups
+                ];
+            });
+
+        // Get trades with relationships
+        $trades = TradeTransaction::where('buyer_id', $user->id)
+            ->with([
+                'sellerProduct',
+                'seller:id,first_name,last_name,seller_code',
+                'offeredItems',
+                'meetupLocation.location',
+                'negotiations' => fn($query) => $query->with('user:id,first_name,last_name')
+                    ->orderBy('created_at', 'desc')
+                    ->select('id', 'trade_transaction_id', 'user_id', 'message', 'created_at')
+            ])
+            ->latest()
+            ->get();
+
         return Inertia::render('Dashboard/MyTrades', [
-            'user' => $user,
+            'auth' => ['user' => $user],
             'stats' => $stats,
-            'trades' => $trades
+            'trades' => ['data' => $trades],
+            'availableMeetupLocations' => $meetupLocations,
+            'flash' => session()->get('flash', [])
         ]);
+    }
+
+    /**
+     * Get trade messages
+     */
+    public function getTradeMessages($id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            $messages = $trade->negotiations()
+                ->with('user:id,first_name,last_name,profile_picture')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $messages
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load messages'
+            ], 500);
+        }
+    }
+
+    /**
+     * Send a trade message
+     */
+    public function sendTradeMessage(Request $request, $id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            $message = $trade->negotiations()->create([
+                'user_id' => auth()->id(),
+                'message' => $request->message
+            ]);
+
+            $message->load('user:id,first_name,last_name,profile_picture');
+
+            return response()->json([
+                'success' => true,
+                'data' => $message
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send message'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update trade details
+     */
+    public function updateTrade(Request $request, $id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            
+            // Validate user owns the trade
+            if ($trade->buyer_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized action'
+                ], 403);
+            }
+
+            // Validate request
+            $validated = $request->validate([
+                'additional_cash' => 'nullable|numeric|min:0',
+                'notes' => 'nullable|string',
+                'meetup_location_id' => 'nullable|exists:meetup_locations,id',
+                'meetup_date' => 'nullable|date|after:today'
+            ]);
+
+            // Update trade
+            $trade->additional_cash = $validated['additional_cash'] ?? $trade->additional_cash;
+            $trade->notes = $validated['notes'] ?? $trade->notes;
+            
+            if (isset($validated['meetup_location_id']) && isset($validated['meetup_date'])) {
+                $location = MeetupLocation::find($validated['meetup_location_id']);
+                
+                // Verify date is available for this location
+                if (!$location->isAvailableOn($validated['meetup_date'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Selected date is not available for this location'
+                    ], 422);
+                }
+
+                $trade->meetup_location_id = $validated['meetup_location_id'];
+                $trade->meetup_schedule = $validated['meetup_date'];
+            }
+
+            $trade->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Trade updated successfully',
+                'trade' => $trade
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update trade: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel a trade
+     */
+    public function cancelTrade($id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            
+            if ($trade->buyer_id !== auth()->id()) {
+                return back()->with('error', 'Unauthorized action');
+            }
+
+            if ($trade->status !== 'pending') {
+                return back()->with('error', 'Only pending trades can be cancelled');
+            }
+
+            $trade->status = 'canceled';
+            $trade->save();
+
+            return back()->with('success', 'Trade cancelled successfully');
+
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to cancel trade: ' . $e->getMessage());
+        }
     }
 }

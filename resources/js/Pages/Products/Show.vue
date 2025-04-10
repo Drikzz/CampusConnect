@@ -4,10 +4,16 @@ import ProductCard from '@/Components/ProductCard.vue';
 import { Button } from "@/Components/ui/button";
 import { Card, CardContent } from "@/Components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/Components/ui/tabs";
+import { Link, router } from '@inertiajs/vue3';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/Components/ui/dialog";
+import { useToast } from "@/Components/ui/toast/use-toast";
+
+const { toast } = useToast();
 
 const props = defineProps({
     product: Object,
-    randomProducts: Array
+    randomProducts: Array,
+    userProducts: Array // Add this to receive user's products for trade
 });
 
 const currentImageIndex = ref(0);
@@ -49,6 +55,71 @@ const toggleBookmark = () => {
 
 // Add tab functionality
 const currentTab = ref('ProductDetails');
+
+// Add trade modal state and form
+const showTradeModal = ref(false);
+const tradeForm = ref({
+    offered_product_id: null,
+    message: '',
+    target_product_id: props.product?.id
+});
+
+const selectedTradeProduct = ref(null);
+
+const openTradeModal = () => {
+    if (!props.userProducts || props.userProducts.length === 0) {
+        toast({
+            title: "No Products Available",
+            description: "You don't have any products to offer for trade",
+            variant: "destructive"
+        });
+        return;
+    }
+    
+    showTradeModal.value = true;
+};
+
+const selectTradeProduct = (product) => {
+    tradeForm.value.offered_product_id = product.id;
+    selectedTradeProduct.value = product;
+};
+
+const submitTradeOffer = () => {
+    if (!tradeForm.value.offered_product_id) {
+        toast({
+            title: "Selection Required",
+            description: "Please select a product to offer for trade",
+            variant: "destructive"
+        });
+        return;
+    }
+
+    router.post(route('product.trade.submit'), tradeForm.value, {
+        onSuccess: () => {
+            showTradeModal.value = false;
+            toast({
+                title: "Trade Offer Sent",
+                description: "Your trade offer has been submitted successfully",
+            });
+        },
+        onError: (errors) => {
+            toast({
+                title: "Error",
+                description: Object.values(errors)[0] || "Failed to submit trade offer",
+                variant: "destructive"
+            });
+        }
+    });
+};
+
+const getImageUrl = (image) => {
+    if (!image) return '/images/placeholder.jpg';
+    return image.startsWith('http') ? image : `/storage/${image}`;
+};
+
+const handleImageError = (e) => {
+    e.target.src = '/images/placeholder.jpg';
+};
 </script>
 
 <template>
@@ -64,18 +135,19 @@ const currentTab = ref('ProductDetails');
                     <div v-for="(image, index) in product.images" 
                          :key="index"
                          @click="changeImage(index)"
-                         class="w-28 h-28 cursor-pointer">
-                        <img :src="image" 
+                         class="w-20 h-20 cursor-pointer">
+                        <img :src="getImageUrl(image)" 
                              :class="['w-full h-full aspect-square object-cover hover:outline hover:outline-black',
                                      { 'outline outline-black': currentImageIndex === index }]"
-                             :alt="product.name">
+                             :alt="product.name"
+                             @error="handleImageError">
                     </div>
                 </div>
 
                 <!-- Main Image -->
                 <div class="h-full w-[80%] bg-black relative">
                     <img :src="product.images[currentImageIndex]" 
-                         class="object-cover aspect-square w-full h-full"
+                         class="object-contain aspect-square w-full h-full max-h-[500px]"
                          :alt="product.name">
                     
                     <!-- Navigation Buttons -->
@@ -142,13 +214,16 @@ const currentTab = ref('ProductDetails');
                 <!-- Product Price, Sale, Stock -->
                 <div class="flex justify-start items-center gap-4 mt-4">
                     <p class="font-Satoshi-bold text-2xl">{{ formattedDiscountedPrice }}</p>
-                    <p class="font-Satoshi-bold text-2xl line-through text-gray-400">{{ formattedPrice }}</p>
-                    <p class="font-Satoshi-bold text-2xl text-red">-{{ Math.round(product.discount * 100) }}%</p>
+                    <template v-if="product.discount > 0">
+                        <p class="font-Satoshi-bold text-2xl line-through text-gray-400">{{ formattedPrice }}</p>
+                        <p class="font-Satoshi-bold text-2xl text-red">-{{ Math.round(product.discount * 100) }}%</p>
+                    </template>
                     <p class="font-Satoshi text-xl">In stock: <span>{{ product.stock }}</span> pc</p>
                 </div>
 
                 <!-- Product Owner Info -->
                 <div class="flex justify-start items-center gap-4 mt-4">
+
                     <div v-if="product.seller.profile_picture" 
                          class="w-10 h-10 rounded-full overflow-hidden">
                         <img :src="product.seller.profile_picture" 
@@ -163,7 +238,6 @@ const currentTab = ref('ProductDetails');
                         <p class="font-Satoshi-bold text-base">{{ product.seller.username }}</p>
                         <p class="text-xs text-gray-500">{{ product.seller.first_name }} {{ product.seller.last_name }}</p>
                     </div>
-
                     <!-- Rating Stars -->
                     <div class="flex justify-center items-center gap-1">
                         <svg v-for="i in 5" :key="i" class="w-5 h-5 fill-yellow-400" viewBox="0 0 24 24">
@@ -226,18 +300,18 @@ const currentTab = ref('ProductDetails');
 
                 <!-- Action Buttons -->
                 <div class="flex justify-evenly items-center mt-4 w-full">
-                    <Button 
-                         v-if="product.is_buyable" 
-                        variant="default" 
-                        size="lg" 
-                        :href="route('checkout.show', product.id)" 
+                    <Link 
+                        v-if="product.is_buyable" 
+                        :href="route('checkout.show', product.id)"
                         class="px-20">
-                        Buy Now
+                        <Button variant="default" size="lg">
+                            Buy Now
                         </Button>
+                    </Link>
                     <Button v-if="product.is_tradable" 
                             variant="default" 
                             size="lg" 
-                            href="#" 
+                            @click="openTradeModal"
                             class="px-20">
                         Trade Now
                     </Button>
@@ -288,6 +362,103 @@ const currentTab = ref('ProductDetails');
                            :product="product" />
             </div>
         </div>
+        
+        <!-- Trade Modal -->
+        <Dialog :open="showTradeModal" @update:open="showTradeModal = false">
+            <DialogContent class="sm:max-w-[600px]">
+                <DialogHeader>
+                    <DialogTitle>Trade Offer</DialogTitle>
+                </DialogHeader>
+                
+                <div class="grid gap-4 py-4">
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-medium">You want to trade for:</h3>
+                        <div class="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
+                            <img 
+                                :src="product.images?.[0]" 
+                                :alt="product.name" 
+                                class="w-16 h-16 object-cover rounded-md"
+                            />
+                            <div>
+                                <p class="font-medium">{{ product.name }}</p>
+                                <p class="text-sm text-gray-500">{{ formattedDiscountedPrice }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-medium">Select a product to offer:</h3>
+                        <div class="max-h-[300px] overflow-y-auto space-y-2">
+                            <div 
+                                v-for="userProduct in userProducts" 
+                                :key="userProduct.id"
+                                @click="selectTradeProduct(userProduct)"
+                                :class="[
+                                    'flex items-center space-x-4 p-3 rounded-md cursor-pointer border',
+                                    tradeForm.offered_product_id === userProduct.id 
+                                        ? 'border-primary-color bg-primary-color/5' 
+                                        : 'border-gray-200 hover:bg-gray-50'
+                                ]"
+                            >
+                                <img 
+                                    :src="userProduct.images?.[0]" 
+                                    :alt="userProduct.name" 
+                                    class="w-16 h-16 object-cover rounded-md"
+                                />
+                                <div>
+                                    <p class="font-medium">{{ userProduct.name }}</p>
+                                    <p class="text-sm text-gray-500">
+                                        {{ new Intl.NumberFormat('en-PH', {
+                                            style: 'currency',
+                                            currency: 'PHP'
+                                        }).format(userProduct.discounted_price) }}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <p v-if="!userProducts || userProducts.length === 0" class="text-center py-8 text-gray-500">
+                                You don't have any products available for trade
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="trade-message" class="text-sm font-medium">Message (Optional):</label>
+                        <textarea
+                            id="trade-message"
+                            v-model="tradeForm.message"
+                            rows="3"
+                            placeholder="Add a message to the product owner..."
+                            class="w-full p-2 border rounded-md"
+                        ></textarea>
+                    </div>
+                </div>
+                
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        @click="showTradeModal = false"
+                        class="mr-2"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="default"
+                        @click="submitTradeOffer"
+                        :disabled="!tradeForm.offered_product_id"
+                    >
+                        Submit Trade Offer
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        
+        <!-- View Order Details Link (hidden but available for programmatic navigation) -->
+        <Link 
+            :href="route('orders.details', { order: 0 })" 
+            class="hidden"
+            id="order-details-link"
+        />
     </div>
 </template>
 

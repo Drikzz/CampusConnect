@@ -41,4 +41,13 @@ class SellerReview extends Model
     {
         return $this->belongsTo(Order::class);
     }
+    
+    /**
+     * Alias relationship for the reviewer as buyer.
+     * This ensures compatibility with code expecting a 'buyer' relationship.
+     */
+    public function buyer()
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
 }

@@ -33,6 +33,10 @@ class AdminController extends Controller
         return redirect()->route('login');
     }
 
+    public function test (){
+        return Inertia::render('Admin/test');
+    }
+
     public function dashboard()
     {
 
