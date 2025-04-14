@@ -25,17 +25,11 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamp('meetup_schedule')->nullable();  // Add scheduled meetup time
             $table->timestamps();
+            $table->softDeletes();
+            // Add foreign key constraint for buyer_id
             
             // Add index on seller_code for performance
             $table->index('seller_code');
-        });
-
-        Schema::create('trade_negotiations', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('trade_transaction_id')->constrained('trade_transactions')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // User sending negotiation
-            $table->text('message');
-            $table->timestamps();
         });
 
         Schema::create('trade_offered_items', function (Blueprint $table) {
@@ -68,7 +62,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('trade_messages');
         Schema::dropIfExists('trade_offered_items');
-        Schema::dropIfExists('trade_negotiations');
         Schema::dropIfExists('trade_transactions');
     }
 };

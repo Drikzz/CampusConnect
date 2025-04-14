@@ -19,7 +19,10 @@
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg space-y-4 sm:space-y-0">
                   <!-- Product Image and Name -->
                   <div class="flex items-center gap-4 w-full sm:w-auto">
-                    <img :src="'/storage/' + product.images[0]" :alt="product.name" class="w-16 h-16 object-cover rounded-md flex-shrink-0">
+                    <img :src="product.images[0]" 
+                         :alt="product.name" 
+                         class="w-16 h-16 object-cover rounded-md flex-shrink-0"
+                         @error="handleImageError">
                     <h3 class="font-Satoshi-bold">{{ capitalizeFirst(product.name) }}</h3>
                   </div>
 
@@ -124,7 +127,7 @@
                              :value="schedule.id"
                              class="mr-3">
                       <div>
-                        <div class="font-medium">{{ schedule.location }}</div>
+                        <div class="font-medium">{{ schedule.location || 'Location Not Available' }}</div>
                         <div class="text-sm text-gray-600">
                           {{ schedule.day }} | {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
                         </div>
@@ -188,6 +191,8 @@ const props = defineProps({
     }
 });
 
+console.log('Meetup Locations:', props.meetupLocations); // Debug log
+
 const quantity = ref(1);
 const form = ref({
     product_id: props.product.id,
@@ -222,7 +227,17 @@ const updateQuantity = (value) => {
 };
 
 const submitForm = () => {
-    router.post(route('checkout.process'), form.value);
+    router.post(route('checkout.process'), form.value, {
+        onSuccess: () => {
+            router.visit(route('dashboard.orders'), { 
+                preserveScroll: true,
+                preserveState: true
+            });
+        },
+        onError: (errors) => {
+            console.error('Checkout error:', errors);
+        }
+    });
 };
 
 // Function to format time from 24h to 12h format
@@ -242,11 +257,12 @@ const availableSchedules = computed(() => {
     const schedules = [];
     
     props.meetupLocations.forEach(location => {
+        console.log('Processing location:', location); // Debug log
         const availableDays = location.available_days || [];
         availableDays.forEach(day => {
             schedules.push({
                 id: `${location.id}_${day}`,
-                location: location.full_name,
+                location: location.location?.name || 'Location Not Available', // Use the relationship
                 day: day,
                 timeFrom: formatTime(location.available_from),
                 timeUntil: formatTime(location.available_until),
@@ -256,6 +272,7 @@ const availableSchedules = computed(() => {
         });
     });
 
+    console.log('Generated schedules:', schedules); // Debug log
     return schedules;
 });
 
@@ -289,6 +306,11 @@ const decrementQuantity = () => {
     if (quantity.value > 1) {
         updateQuantity(quantity.value - 1);
     }
+};
+
+// Add in script setup section
+const handleImageError = (e) => {
+    e.target.src = '/images/placeholder.jpg';
 };
 </script>
 

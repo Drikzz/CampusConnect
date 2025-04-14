@@ -73,7 +73,7 @@
                     'bg-yellow-100 text-yellow-800': transaction.status === 'pending',
                     'bg-blue-100 text-blue-800': transaction.status === 'in_process',
                     'bg-green-100 text-green-800': transaction.status === 'completed',
-                    'bg-red-100 text-red-800': transaction.status === 'rejected'
+                    'bg-red/20 text-red': transaction.status === 'rejected'
                   }
                 ]">
                   {{ formatStatus(transaction.status) }}
@@ -86,7 +86,7 @@
                           @click="approveRequest(transaction.id)">
                     Approve
                   </button>
-                  <button class="px-2 py-1 bg-red-100 text-red-700 rounded text-sm" 
+                  <button class="px-2 py-1 bg-red/20 text-red/85 rounded text-sm" 
                           @click="rejectRequest(transaction.id)">
                     Reject
                   </button>
