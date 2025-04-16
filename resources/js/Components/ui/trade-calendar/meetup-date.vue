@@ -73,7 +73,7 @@ watch(() => props.modelValue, (newValue) => {
     // Handle both Date objects and ISO strings
     let dateValue;
     if (typeof newValue === 'string') {
-      dateValue = parseISO(newValue);
+      dateValue = new Date(newValue);
     } else if (newValue instanceof Date) {
       dateValue = newValue;
     } else {
@@ -81,10 +81,11 @@ watch(() => props.modelValue, (newValue) => {
       return;
     }
       
-    if (isValid(dateValue)) {
+    if (!isNaN(dateValue.getTime())) {
       displayDate.value = dateValue;
       // Also update default month to match the selected date
       defaultMonth.value = new Date(dateValue);
+      // console.log("Set displayDate to:", displayDate.value);
     } else {
       console.error('Invalid date value:', newValue);
       displayDate.value = null;
@@ -253,6 +254,7 @@ const handleDateSelect = (newDate) => {
         :default-month="defaultMonth"
         :initial-focus="true"
         :disabled-dates="disableDate"
+        :selected-date="displayDate"
         mode="single"
         @update:model-value="handleDateSelect"
       />
