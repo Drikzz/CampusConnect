@@ -40,6 +40,7 @@ return new class extends Migration
             $table->decimal('estimated_value', 10, 2);
             $table->json('images')->nullable();
             $table->text('description')->nullable();
+            $table->enum('condition', ['new', 'used_like_new', 'used_good', 'used_fair'])->default('new');
             $table->timestamps();
         });
 

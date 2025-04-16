@@ -12,6 +12,15 @@ import { Toaster } from '@/Components/ui/toast';
 import { format } from "date-fns";
 import MeetupDate from '@/Components/ui/trade-calendar/meetup-date.vue';
 import { cn } from '@/lib/utils';
+// Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
+// Import tooltip components
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/Components/ui/tooltip";
 
 const props = defineProps({
     product: {
@@ -38,6 +47,7 @@ const form = useForm({
     meetup_location_id: '',
     meetup_schedule: '', // This will hold the schedule ID in format: location_id_dayname
     meetup_date: '', // This will hold the actual date string
+    preferred_time: '', // New field for preferred time
     additional_cash: 0,
     notes: '',
     offered_items: [
@@ -46,10 +56,19 @@ const form = useForm({
             quantity: 1,
             estimated_value: 0,
             description: '',
-            images: []
+            images: [],
+            condition: 'new' // Add default condition
         }
     ]
 });
+
+// Condition options for offered items
+const conditionOptions = [
+    { value: 'new', label: 'New' },
+    { value: 'used_like_new', label: 'Used - Like New' },
+    { value: 'used_good', label: 'Used - Good' },
+    { value: 'used_fair', label: 'Used - Fair' }
+];
 
 // Computed properties for product and seller information
 const productImageUrl = computed(() => {
@@ -97,6 +116,70 @@ const selectedScheduleDay = computed(() => {
     if (!form.meetup_schedule) return '';
     const schedule = availableSchedules.value.find(s => s.id === form.meetup_schedule);
     return schedule?.day || '';
+});
+
+// Calculate time slots based on available_from and available_until
+const availableTimeSlots = computed(() => {
+    if (!selectedSchedule.value) return [];
+    
+    const slots = [];
+    const fromTime = selectedSchedule.value.timeFrom;
+    const untilTime = selectedSchedule.value.timeUntil;
+    
+    // Parse the times
+    const fromParts = fromTime.match(/(\d+):(\d+)\s*([ap]m)?/i);
+    const untilParts = untilTime.match(/(\d+):(\d+)\s*([ap]m)?/i);
+    
+    if (!fromParts || !untilParts) return [];
+    
+    // Create a date object for start time
+    let startHour = parseInt(fromParts[1]);
+    const startMinute = parseInt(fromParts[2]);
+    const startPeriod = fromParts[3]?.toLowerCase();
+    
+    // Adjust for 12-hour format
+    if (startPeriod === 'pm' && startHour < 12) startHour += 12;
+    if (startPeriod === 'am' && startHour === 12) startHour = 0;
+    
+    // Create a date object for end time
+    let endHour = parseInt(untilParts[1]);
+    const endMinute = parseInt(untilParts[2]);
+    const endPeriod = untilParts[3]?.toLowerCase();
+    
+    // Adjust for 12-hour format
+    if (endPeriod === 'pm' && endHour < 12) endHour += 12;
+    if (endPeriod === 'am' && endHour === 12) endHour = 0;
+    
+    // Generate time slots in 30-minute intervals
+    const startDate = new Date(2000, 0, 1, startHour, startMinute);
+    const endDate = new Date(2000, 0, 1, endHour, endMinute);
+    
+    let currentTime = new Date(startDate);
+    
+    while (currentTime < endDate) {
+        const hour = currentTime.getHours();
+        const minute = currentTime.getMinutes();
+        
+        // Format as HH:MM 24-hour format for value
+        const timeValue = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        
+        // Format as readable time for display
+        const timeDisplay = currentTime.toLocaleTimeString('en-US', { 
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        }).toLowerCase();
+        
+        slots.push({
+            value: timeValue,
+            display: timeDisplay
+        });
+        
+        // Increment by 30 minutes
+        currentTime.setMinutes(currentTime.getMinutes() + 30);
+    }
+    
+    return slots;
 });
 
 // Fetch meetup locations for the product's seller
@@ -160,6 +243,7 @@ const handleDialogClose = (isOpen) => {
 watch(() => form.meetup_schedule, (newSchedule) => {
     // Reset the date when schedule changes
     form.meetup_date = ''; 
+    form.preferred_time = '';
     
     if (newSchedule) {
         const schedule = availableSchedules.value.find(s => s.id === newSchedule);
@@ -179,37 +263,28 @@ watch(() => form.meetup_schedule, (newSchedule) => {
 // Handle file uploads with validation
 const handleDateSelection = (date) => {
   try {
-    // console.log('TradeForm received date:', date);
-    
     if (!date) {
       form.meetup_date = '';
       return;
     }
 
-    // If date is already a string in YYYY-MM-DD format, use it directly
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       form.meetup_date = date;
-    //   console.log("Selected date (from string):", form.meetup_date);
       return;
     }
     
-    // Otherwise create a date object and format it
     const selectedDate = new Date(date);
     
-    // Additional validation
     if (isNaN(selectedDate.getTime())) {
       console.error('Invalid date selected', date);
       form.meetup_date = '';
       return;
     }
     
-    // Format as ISO date string for form submission (YYYY-MM-DD)
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const day = String(selectedDate.getDate()).padStart(2, '0');
     form.meetup_date = `${year}-${month}-${day}`;
-    
-    // console.log("Selected date (converted):", form.meetup_date);
   } catch (error) {
     console.error('Error formatting date:', error);
     form.meetup_date = '';
@@ -228,7 +303,8 @@ const addOfferedItem = () => {
         quantity: 1,
         estimated_value: 0,
         description: '',
-        images: []
+        images: [],
+        condition: 'new' // Add default condition
     });
 };
 
@@ -246,12 +322,9 @@ const removeImage = (itemIndex, imageIndex) => {
       return;
     }
     
-    // Create a new array without the removed image
     const updatedImages = [...form.offered_items[itemIndex].images];
     updatedImages.splice(imageIndex, 1);
     form.offered_items[itemIndex].images = updatedImages;
-    
-    // console.log(`Image ${imageIndex} removed from item ${itemIndex}`);
   } catch (error) {
     console.error('Error removing image:', error);
   }
@@ -264,7 +337,6 @@ const getImagePreviewUrl = (image) => {
       return image;
     }
     
-    // Safely access global URL object 
     if (window.URL && image instanceof File) {
       return window.URL.createObjectURL(image);
     }
@@ -287,9 +359,7 @@ const handleFileUpload = (files, itemIndex) => {
       return;
     }
     
-    // Validate each file
     const validFiles = Array.from(files).filter(file => {
-      // Check file type (only images)
       if (!file.type.startsWith('image/')) {
         toast({
           title: "Invalid file type",
@@ -299,7 +369,6 @@ const handleFileUpload = (files, itemIndex) => {
         return false;
       }
       
-      // Check file size (max 5MB)
       const maxSizeMB = 5;
       const maxSizeBytes = maxSizeMB * 1024 * 1024;
       
@@ -319,27 +388,21 @@ const handleFileUpload = (files, itemIndex) => {
       return;
     }
     
-    // Add the files to the appropriate item
     if (!form.offered_items[itemIndex]) {
       console.error(`Item index ${itemIndex} not found`);
       return;
     }
     
-    // Initialize images array if it doesn't exist
     if (!form.offered_items[itemIndex].images) {
       form.offered_items[itemIndex].images = [];
     }
     
-    // Add new files to the images array
     form.offered_items[itemIndex].images = [
       ...form.offered_items[itemIndex].images,
       ...validFiles
     ];
     
-    // Reset the file input to allow selecting the same files again if needed
     document.getElementById(`file-upload-${itemIndex}`).value = '';
-    
-    // console.log(`Added ${validFiles.length} images to item ${itemIndex}`);
   } catch (error) {
     console.error('Error handling file upload:', error);
     toast({
@@ -352,7 +415,6 @@ const handleFileUpload = (files, itemIndex) => {
 
 // Submit the trade offer
 const submitTradeOffer = () => {
-    // Validate meetup date
     if (!form.meetup_date) {
         errors.value = { 
             ...errors.value,
@@ -366,31 +428,49 @@ const submitTradeOffer = () => {
         return;
     }
 
+    if (!form.preferred_time) {
+        errors.value = { 
+            ...errors.value,
+            preferred_time: ['Please select a preferred time']
+        };
+        toast({
+            title: "Error",
+            description: "Please select a preferred time for the meetup",
+            variant: "destructive"
+        });
+        return;
+    }
+
     loading.value = true;
     const formData = new FormData();
     
-    // Append form fields to FormData
     formData.append('meetup_date', form.meetup_date);
+    
+    const scheduleParts = [
+        form.meetup_date,
+        form.preferred_time + ':00',
+        selectedScheduleDay.value
+    ];
+    formData.append('meetup_schedule', scheduleParts.join(', '));
+    
     formData.append('seller_product_id', form.seller_product_id);
     formData.append('meetup_location_id', form.meetup_location_id);
-    formData.append('meetup_schedule', form.meetup_schedule);
+    formData.append('preferred_time', form.preferred_time);
     formData.append('additional_cash', form.additional_cash || 0);
     formData.append('notes', form.notes || '');
 
-    // Add offered items
     form.offered_items.forEach((item, index) => {
         formData.append(`offered_items[${index}][name]`, item.name);
         formData.append(`offered_items[${index}][quantity]`, item.quantity);
         formData.append(`offered_items[${index}][estimated_value]`, item.estimated_value);
         formData.append(`offered_items[${index}][description]`, item.description);
+        formData.append(`offered_items[${index}][condition]`, item.condition); // Add condition to form data
         
-        // Append image files
         item.images.forEach((image, imageIndex) => {
             formData.append(`offered_items[${index}][images][${imageIndex}]`, image);
         });
     });
 
-    // Submit the form using Inertia
     router.post(route('product.trade.submit'), formData, {
         forceFormData: true,
         preserveScroll: true,
@@ -444,6 +524,11 @@ const formatPrice = (price) => {
 const capitalizeFirst = (str) => {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+// Add a method to set preferred time
+const setPreferredTime = (timeValue) => {
+  form.preferred_time = timeValue;
 };
 </script>
 
@@ -552,7 +637,7 @@ const capitalizeFirst = (str) => {
                     <p v-if="errors.meetup_schedule" class="text-red-500 text-sm mt-2">{{ errors.meetup_schedule }}</p>
                 </div>
 
-                <!-- Meetup Date Selection -->
+                <!-- Meetup Date Selection with Tooltip -->
                 <div class="mb-6">
                     <h3 class="font-Satoshi-bold mb-2">Select Meetup Date</h3>
                     <p class="text-sm text-gray-500 mb-2">
@@ -561,14 +646,107 @@ const capitalizeFirst = (str) => {
                             : 'Please select a meetup schedule first to enable date selection.' }}
                     </p>
                     <div class="relative">
-                        <MeetupDate
-                            :model-value="form.meetup_date"
-                            :selected-day="selectedScheduleDay"
-                            :is-date-disabled="!form.meetup_schedule"
-                            @update:model-value="handleDateSelection"
-                        />
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger as="div" class="w-full">
+                                    <MeetupDate
+                                        :model-value="form.meetup_date"
+                                        :selected-day="selectedScheduleDay"
+                                        :is-date-disabled="!form.meetup_schedule"
+                                        @update:model-value="handleDateSelection"
+                                        :class="{'opacity-50 pointer-events-none': !form.meetup_schedule}"
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent v-if="!form.meetup_schedule" class="bg-gray-800 text-white p-2 rounded shadow-lg max-w-xs">
+                                    You need to select a meetup schedule first to enable date selection
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                     <p v-if="errors.meetup_date" class="text-red-500 text-sm mt-2">{{ errors.meetup_date }}</p>
+                </div>
+
+                <!-- Preferred Time Selection - Modified to hide quick select after selection -->
+                <div class="mb-6">
+                    <h3 class="font-Satoshi-bold mb-2">Select Preferred Time</h3>
+                    <p class="text-sm text-gray-500 mb-2">
+                        {{ selectedSchedule 
+                            ? `Choose a time between ${selectedSchedule.timeFrom} and ${selectedSchedule.timeUntil}.`
+                            : 'Please select a meetup schedule and date first.' }}
+                    </p>
+                    
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger as="div" class="w-full">
+                                <div class="relative w-full">
+                                    <Select 
+                                        :model-value="form.preferred_time" 
+                                        @update:model-value="setPreferredTime"
+                                        :disabled="!form.meetup_date || !selectedSchedule"
+                                    >
+                                        <SelectTrigger 
+                                            class="w-full"
+                                            :class="{'opacity-50 cursor-not-allowed': !form.meetup_date || !selectedSchedule}"
+                                        >
+                                            <SelectValue>
+                                                <template v-if="form.preferred_time">
+                                                    <div class="flex items-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                                        </svg>
+                                                        {{ availableTimeSlots.find(slot => slot.value === form.preferred_time)?.display || form.preferred_time }}
+                                                    </div>
+                                                </template>
+                                                <template v-else>Select a time</template>
+                                            </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent position="popper">
+                                            <div class="max-h-[200px] overflow-y-auto p-1">
+                                                <SelectItem value="placeholder" disabled>Select a time</SelectItem>
+                                                <SelectItem 
+                                                    v-for="slot in availableTimeSlots" 
+                                                    :key="slot.value" 
+                                                    :value="slot.value"
+                                                >
+                                                    {{ slot.display }}
+                                                </SelectItem>
+                                            </div>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent v-if="!form.meetup_date || !selectedSchedule" class="bg-gray-800 text-white p-2 rounded shadow-lg max-w-xs z-50">
+                                {{ !form.meetup_schedule 
+                                    ? 'You need to select a meetup schedule first' 
+                                    : 'You need to select a meetup date before choosing a time' }}
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    
+                    <!-- Quick select buttons - Only show if no time is selected -->
+                    <div v-if="form.meetup_date && selectedSchedule && !form.preferred_time" class="mt-3 flex flex-wrap gap-2">
+                        <p class="text-xs text-gray-500 w-full mb-1">Quick select:</p>
+                        <button 
+                            v-for="slot in availableTimeSlots.slice(0, 4)" 
+                            :key="slot.value"
+                            type="button"
+                            @click="setPreferredTime(slot.value)"
+                            :class="[
+                                'inline-flex items-center px-3 py-1 text-sm rounded-full transition-colors',
+                                form.preferred_time === slot.value 
+                                    ? 'bg-primary text-white' 
+                                    : 'bg-gray-100 text-gray-800 hover:bg-primary hover:text-white'
+                            ]"
+                        >
+                            {{ slot.display }}
+                        </button>
+                        <span v-if="availableTimeSlots.length > 4" class="text-xs text-gray-500 self-center">
+                            +{{ availableTimeSlots.length - 4 }} more options
+                        </span>
+                    </div>
+
+                    <p v-if="errors.preferred_time" class="text-red-500 text-sm mt-2">{{ errors.preferred_time }}</p>
                 </div>
 
                 <!-- Additional cash - clearly marked as optional -->
@@ -657,6 +835,30 @@ const capitalizeFirst = (str) => {
                                     {{ errors['item_' + index + '_value'] }}
                                 </p>
                             </div>
+                            <!-- New Condition field using Select component -->
+                            <div class="space-y-2">
+                                <Label :for="`item_condition_${index}`">Condition*</Label>
+                                <Select 
+                                    v-model="item.condition"
+                                    required
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select condition" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem 
+                                            v-for="option in conditionOptions" 
+                                            :key="option.value" 
+                                            :value="option.value"
+                                        >
+                                            {{ option.label }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p v-if="errors[`item_${index}_condition`]" class="text-red-500 text-sm">
+                                    {{ errors[`item_${index}_condition`] }}
+                                </p>
+                            </div>
                             <!-- Description - clearly marked as optional -->
                             <div class="space-y-2">
                                 <Label :for="`item_description_${index}`">Description <span class="text-gray-400 text-sm">(Optional)</span></Label>
@@ -669,7 +871,6 @@ const capitalizeFirst = (str) => {
                             <!-- File Upload -->
                             <div class="space-y-2 md:col-span-2">
                                 <Label>Upload Images*</Label>
-                                <!-- Replace the FileUpload component with native file input -->
                                 <div class="border rounded-md p-2 bg-background">
                                     <input 
                                         type="file"
@@ -690,7 +891,6 @@ const capitalizeFirst = (str) => {
                                     {{ errors[`item_${index}_images`] }}
                                 </p>
                                                             
-                                <!-- Keep your custom image previews - this part is good -->
                                 <div v-if="item.images && item.images.length > 0" class="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
                                     <div v-for="(image, imgIndex) in item.images" :key="`img-${index}-${imgIndex}`" 
                                         class="relative group border rounded-md overflow-hidden h-24">
@@ -745,13 +945,11 @@ const capitalizeFirst = (str) => {
   -ms-user-select: none !important;
 }
 
-/* Update the label styles to ensure clickability */
 label.select-none {
   cursor: pointer !important;
   pointer-events: auto !important;
 }
 
-/* Prevent any transform or filter effects that could cause blur */
 .hover\:bg-gray-50:hover,
 .hover\:bg-gray-50 {
   background-color: rgb(249 250 251);
@@ -760,10 +958,28 @@ label.select-none {
   transition: background-color 0.2s ease;
 }
 
-/* Ensure text remains sharp */
 * {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Add these styles to help with select dropdown positioning */
+.select-popup {
+  z-index: 100;
+}
+
+:deep(.select-content) {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Add these styles to help with tooltip positioning and visibility */
+:deep(.tooltip-content) {
+  z-index: 100;
+}
+
+.pointer-events-none {
+  pointer-events: none;
 }
 </style>
