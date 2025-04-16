@@ -90,7 +90,7 @@ class ProductTradeController extends Controller
     public function submitTradeOffer(Request $request)
     {
 
-        // dd($request);
+        dd($request);
 
         // Add detailed logging
         Log::info('Trade offer submission started', [
