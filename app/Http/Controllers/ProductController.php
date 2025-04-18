@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\Location;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\Request;
@@ -92,94 +93,6 @@ class ProductController extends Controller
             });
 
         return Inertia::render('Products/Index', [
-            'products' => $products,
-            'filters' => [
-                'category' => $request->category,
-                'price' => $request->price,
-                'matchingType' => $matchingType,
-            ],
-        ]);
-    }
-
-    public function trade(Request $request)
-    {
-        $query = Product::query()
-            ->where('is_tradable', true)
-            ->where('status', 'Active')
-            ->with(['seller' => function($query) {
-                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture')
-                    ->with(['meetupLocations' => function($q) {
-                        $q->where('is_active', true)
-                          ->with('location');
-                    }]);
-            }, 'category']);
-
-        // Apply category filter
-        if ($request->category) {
-            $query->whereHas('category', function ($q) use ($request) {
-                $q->where('name', $request->category);
-            });
-        }
-
-        // Apply price range filter
-        if ($request->price) {
-            if (!empty($request->price['min'])) {
-                $query->where('price', '>=', $request->price['min']);
-            }
-            if (!empty($request->price['max'])) {
-                $query->where('price', '<=', $request->price['max']);
-            }
-        }
-
-        // Handle matching type (any/all) for other filters if needed
-        $matchingType = $request->input('matchingType', 'any');
-
-        // Get paginated results and transform the data
-        $products = $query->paginate(12)
-            ->through(function ($product) {
-                $meetupLocations = $product->seller ? $product->seller->meetupLocations->map(function($loc) {
-                    return [
-                        'id' => $loc->id,
-                        'name' => $loc->location ? $loc->location->name : null,
-                        'description' => $loc->description,
-                        'available_days' => $loc->available_days,
-                        'available_from' => $loc->available_from,
-                        'available_until' => $loc->available_until,
-                        'is_default' => $loc->is_default
-                    ];
-                }) : [];
-
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'description' => $product->description,
-                    'price' => (float)$product->price,
-                    'discounted_price' => (float)$product->discounted_price,
-                    'discount' => (float)$product->discount,
-                    'stock' => $product->stock,
-                    'images' => array_map(function ($image) {
-                        return $image; // The full path will be constructed in the frontend
-                    }, $product->images ?? []),
-                    'category' => $product->category ? [
-                        'id' => $product->category->id,
-                        'name' => $product->category->name
-                    ] : null,
-                    'seller' => $product->seller ? [
-                        'id' => $product->seller->id,
-                        'first_name' => $product->seller->first_name,
-                        'last_name' => $product->seller->last_name,
-                        'username' => $product->seller->username,
-                        'seller_code' => $product->seller->seller_code,
-                        'profile_picture' => $product->seller->profile_picture,
-                        'meetup_locations' => $meetupLocations
-                    ] : null,
-                    'is_buyable' => (bool)$product->is_buyable,
-                    'is_tradable' => (bool)$product->is_tradable,
-                    'status' => $product->status,
-                ];
-            });
-
-        return Inertia::render('Products/Trade', [
             'products' => $products,
             'filters' => [
                 'category' => $request->category,

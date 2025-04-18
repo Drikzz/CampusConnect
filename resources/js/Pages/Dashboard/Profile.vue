@@ -1,10 +1,6 @@
 <template>
   <DashboardLayout :user="user" :stats="stats">
-    <!-- Add Toaster component -->
-    <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-      <Toaster />
-    </div>
-
+  
     <div class="space-y-8">
       <h2 class="text-2xl font-bold">Profile Settings</h2>
 
@@ -314,7 +310,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted, inject } from 'vue'
 import { Link, useForm, usePage } from '@inertiajs/vue3'
 import DashboardLayout from './DashboardLayout.vue'
 import { Input } from '@/Components/ui/input'
@@ -326,8 +322,6 @@ import { cn } from "@/lib/utils"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/Components/ui/select'
 import CustomCalendar from '@/Components/ui/custom-calendar.vue'
 import { today, getLocalTimeZone, parseDate } from '@internationalized/date'
-import { Toaster } from '@/Components/ui/toast'
-import { useToast } from '@/Components/ui/toast/use-toast'
 
 const props = defineProps({
   user: Object,
@@ -336,6 +330,8 @@ const props = defineProps({
   gradeLevels: Array,
   errors: Object // Add this prop
 })
+
+const toast = inject('globalToast', null);
 
 const flash = computed(() => usePage().props.flash || {})
 
@@ -405,20 +401,7 @@ watch(() => form.date_of_birth, (newValue) => {
     }
 }, { immediate: true })
 
-// Add toast setup
-const { toast } = useToast()
 const page = usePage()
-
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-  if (flashToast) {
-    toast({
-      variant: flashToast.variant,
-      title: flashToast.title,
-      description: flashToast.description,
-    })
-  }
-}, { immediate: true })
 
 // Add this computed property to properly handle errors
 const formErrors = computed(() => usePage().props.errors)

@@ -1,6 +1,6 @@
 <script setup>
 import { useForm, usePage, router } from '@inertiajs/vue3';
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed, onMounted, inject } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
 import { CalendarIcon, Check, ChevronsUpDown } from "lucide-vue-next";
@@ -11,14 +11,15 @@ import { ScrollArea } from "@/Components/ui/scroll-area";
 import CustomCalendar from '@/Components/ui/custom-calendar.vue';
 import { today, getLocalTimeZone, parseDate } from '@internationalized/date';
 import { Input } from "@/Components/ui/input"; // Add this import
-import { Toaster } from '@/Components/ui/toast';
-import { useToast } from '@/Components/ui/toast/use-toast';
 
 const props = defineProps({
     userTypes: Array,
     departments: Array,
     gradeLevels: Array
 });
+
+// For client-side validation only, get the global toast function
+const toast = inject('globalToast', null);
 
 const form = useForm({
     user_type_id: '',
@@ -196,7 +197,8 @@ const submit = () => {
         hasErrors = true;
     }
 
-    if (hasErrors) {
+    if (hasErrors && toast) {
+        // Only use the toast directly for client-side validation
         toast({
             variant: 'destructive',
             title: 'Validation Error',
@@ -207,7 +209,6 @@ const submit = () => {
 
     // Use standard form submission with preserveState: false to ensure a fresh page load
     form.post(route('register.step1'), {
-        // Don't use manual redirection - let the controller handle the redirect
         onError: (errors) => {
             console.error("Form submission errors:", errors);
         }
@@ -268,18 +269,6 @@ const getGenderDisplay = computed(() => {
 });
 
 const page = usePage();
-const { toast } = useToast();
-
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-    if (flashToast) {
-        toast({
-            variant: flashToast.variant,
-            title: flashToast.title,
-            description: flashToast.description,
-        });
-    }
-}, { immediate: true });
 
 // Function to clear registration form data with explicit force parameter
 function clearFormData(force = false) {
@@ -314,9 +303,6 @@ function clearFormData(force = false) {
 <template>
     <!-- Add toast container at the top level -->
     <div class="relative">
-        <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-            <Toaster />
-        </div>
 
         <!-- Existing template content -->
         <div class="background w-full h-full absolute z-0"></div>

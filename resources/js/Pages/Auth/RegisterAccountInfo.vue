@@ -1,14 +1,12 @@
 <script setup>
 import { useForm, usePage, router } from '@inertiajs/vue3';
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, inject } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { Progress } from "@/Components/ui/progress";
 import { Card, CardContent } from "@/Components/ui/card";
 import { Label } from "@/Components/ui/label";
 import { Link } from '@inertiajs/vue3';
-import { Toaster } from '@/Components/ui/toast';
-import { useToast } from '@/Components/ui/toast/use-toast';
 
 const props = defineProps({
     registrationData: Object
@@ -177,26 +175,12 @@ const submit = () => {
 };
 
 const page = usePage();
-const { toast } = useToast();
 
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-    if (flashToast) {
-        toast({
-            variant: flashToast.variant,
-            title: flashToast.title,
-            description: flashToast.description,
-        });
-    }
-}, { immediate: true });
 </script>
 
 <template>
     <!-- Add toast container at the top level -->
     <div class="relative">
-        <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-            <Toaster />
-        </div>
 
         <!-- Existing template content -->
         <div class="background w-full h-full absolute z-0"></div>

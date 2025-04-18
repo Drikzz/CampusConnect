@@ -1,10 +1,9 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
+import { inject } from 'vue';
 import { Card, CardContent } from "@/Components/ui/card";
 import { Button } from "@/Components/ui/button";
 import { usePage } from '@inertiajs/vue3';
-import { Toaster } from '@/Components/ui/toast';
-import { useToast } from '@/Components/ui/toast/use-toast';
 import { watch } from 'vue';
 
 const form = useForm({});
@@ -19,29 +18,16 @@ const submit = () => {
 };
 
 const page = usePage();
-const { toast } = useToast();
-
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-    if (flashToast) {
-        toast({
-            variant: flashToast.variant,
-            title: flashToast.title,
-            description: flashToast.description,
-        });
-    }
-}, { immediate: true });
+const toast = inject('globalToast', null);
 
 // Also check for simple message
-watch(() => page.props.flash.message, (message) => {
-    if (message) {
-        toast({
-            variant: 'default',
-            title: 'Notification',
-            description: message,
-        });
-    }
-}, { immediate: true });
+if (page.props.flash.message) {
+    toast({
+        variant: 'default',
+        title: 'Notification',
+        description: page.props.flash.message,
+    });
+}
 
 // Add this form for logout
 const logoutForm = useForm({});
@@ -54,9 +40,6 @@ const handleLogout = () => {
 <template>
     <!-- Add toast container at the top level -->
     <div class="relative">
-        <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-            <Toaster />
-        </div>
 
         <!-- Background and main layout -->
         <div class="background w-full h-full absolute z-0"></div>
