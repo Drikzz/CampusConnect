@@ -15,15 +15,15 @@ class TradeTransaction extends Model
         'seller_id',
         'seller_code',
         'seller_product_id',
-        'meetup_location_id',
+        'meetup_location_id',  // ✓ This is correctly defined
         'additional_cash',
         'notes',
         'status',
-        'meetup_schedule',
+        'meetup_schedule',     // ✓ This is correctly defined
     ];
     
     protected $casts = [
-        'meetup_schedule' => 'datetime',
+        'meetup_schedule' => 'datetime',  // ✓ Properly cast to datetime
     ];
     
     /**
@@ -78,6 +78,25 @@ class TradeTransaction extends Model
      */
     public function meetupLocation()
     {
-        return $this->belongsTo(MeetupLocation::class);
+        return $this->belongsTo(MeetupLocation::class, 'meetup_location_id');  // ✓ Correct relationship
+    }
+
+    /**
+     * Get the formatted meetup schedule.
+     */
+    public function getFormattedMeetupDateAttribute()
+    {
+        if (!$this->meetup_schedule) {
+            return null;
+        }
+        return $this->meetup_schedule->format('F j, Y \a\t h:i A');  // ✓ Formats the date correctly
+    }
+
+    /**
+     * Get the meetup location name.
+     */
+    public function getMeetupLocationNameAttribute()
+    {
+        return $this->meetupLocation?->location?->name ?? $this->meetupLocation?->custom_location ?? null;  // ✓ Gets location name
     }
 }

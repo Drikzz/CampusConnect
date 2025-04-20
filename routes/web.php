@@ -33,12 +33,8 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
-Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
-Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
-
-// Trade routes
-Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
-Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit')->middleware('auth');
+Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
+// Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -179,6 +175,10 @@ Route::middleware('auth')->group(function () {
         });
 
         // Trade related routes
+
+        Route::patch('trades/{id}/update', [DashboardController::class, 'updateTrade'])->name('trades.update');
+        Route::patch('trades/{id}/cancel', [DashboardController::class, 'cancelTrade'])->name('trades.cancel');
+
         Route::prefix('trades')->group(function () {
             Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
             Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
@@ -189,7 +189,8 @@ Route::middleware('auth')->group(function () {
             
             // Add new route to get meetup locations for a product
             Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
-                ->name('trades.product.meetup-locations');
+                ->name('trades.product.meetup-locations')
+                ->withoutMiddleware('auth'); // Add this to make it publicly accessible
 
             // Add this route where other trade routes are defined:
             Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');
@@ -198,6 +199,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
             Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
         });
+
+        // Trade routes - moved to auth middleware group
+        Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
+        Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
 
         // Seller Reviews Routes
         Route::middleware(['auth', 'verified'])->group(function () {

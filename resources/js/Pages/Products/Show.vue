@@ -111,6 +111,15 @@ const submitTradeOffer = () => {
         }
     });
 };
+
+const getImageUrl = (image) => {
+    if (!image) return '/images/placeholder.jpg';
+    return image.startsWith('http') ? image : `/storage/${image}`;
+};
+
+const handleImageError = (e) => {
+    e.target.src = '/images/placeholder.jpg';
+};
 </script>
 
 <template>
@@ -127,10 +136,11 @@ const submitTradeOffer = () => {
                          :key="index"
                          @click="changeImage(index)"
                          class="w-20 h-20 cursor-pointer">
-                        <img :src="image" 
+                        <img :src="getImageUrl(image)" 
                              :class="['w-full h-full aspect-square object-cover hover:outline hover:outline-black',
                                      { 'outline outline-black': currentImageIndex === index }]"
-                             :alt="product.name">
+                             :alt="product.name"
+                             @error="handleImageError">
                     </div>
                 </div>
 
@@ -290,14 +300,14 @@ const submitTradeOffer = () => {
 
                 <!-- Action Buttons -->
                 <div class="flex justify-evenly items-center mt-4 w-full">
-                    <Button 
+                    <Link 
                         v-if="product.is_buyable" 
-                        variant="default" 
-                        size="lg" 
-                        :href="route('checkout.show', product.id)" 
+                        :href="route('checkout.show', product.id)"
                         class="px-20">
-                        Buy Now
-                    </Button>
+                        <Button variant="default" size="lg">
+                            Buy Now
+                        </Button>
+                    </Link>
                     <Button v-if="product.is_tradable" 
                             variant="default" 
                             size="lg" 

@@ -18,7 +18,13 @@ class ProductController extends Controller
     {
         $query = Product::query()
             ->where('status', 'Active')
-            ->with(['category', 'images']);
+            ->with(['seller' => function($query) {
+                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture')
+                    ->with(['meetupLocations' => function($q) {
+                        $q->where('is_active', true)
+                          ->with('location');
+                    }]);
+            }, 'category']);
 
         // Apply category filter
         if ($request->category) {
@@ -43,6 +49,18 @@ class ProductController extends Controller
         // Get paginated results and transform the data
         $products = $query->paginate(12)
             ->through(function ($product) {
+                $meetupLocations = $product->seller ? $product->seller->meetupLocations->map(function($loc) {
+                    return [
+                        'id' => $loc->id,
+                        'name' => $loc->location ? $loc->location->name : null,
+                        'description' => $loc->description,
+                        'available_days' => $loc->available_days,
+                        'available_from' => $loc->available_from,
+                        'available_until' => $loc->available_until,
+                        'is_default' => $loc->is_default
+                    ];
+                }) : [];
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -57,6 +75,15 @@ class ProductController extends Controller
                     'category' => $product->category ? [
                         'id' => $product->category->id,
                         'name' => $product->category->name
+                    ] : null,
+                    'seller' => $product->seller ? [
+                        'id' => $product->seller->id,
+                        'first_name' => $product->seller->first_name,
+                        'last_name' => $product->seller->last_name,
+                        'username' => $product->seller->username,
+                        'seller_code' => $product->seller->seller_code,
+                        'profile_picture' => $product->seller->profile_picture,
+                        'meetup_locations' => $meetupLocations
                     ] : null,
                     'is_buyable' => (bool)$product->is_buyable,
                     'is_tradable' => (bool)$product->is_tradable,
@@ -79,7 +106,13 @@ class ProductController extends Controller
         $query = Product::query()
             ->where('is_tradable', true)
             ->where('status', 'Active')
-            ->with(['category', 'images']);
+            ->with(['seller' => function($query) {
+                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture')
+                    ->with(['meetupLocations' => function($q) {
+                        $q->where('is_active', true)
+                          ->with('location');
+                    }]);
+            }, 'category']);
 
         // Apply category filter
         if ($request->category) {
@@ -104,6 +137,18 @@ class ProductController extends Controller
         // Get paginated results and transform the data
         $products = $query->paginate(12)
             ->through(function ($product) {
+                $meetupLocations = $product->seller ? $product->seller->meetupLocations->map(function($loc) {
+                    return [
+                        'id' => $loc->id,
+                        'name' => $loc->location ? $loc->location->name : null,
+                        'description' => $loc->description,
+                        'available_days' => $loc->available_days,
+                        'available_from' => $loc->available_from,
+                        'available_until' => $loc->available_until,
+                        'is_default' => $loc->is_default
+                    ];
+                }) : [];
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -118,6 +163,15 @@ class ProductController extends Controller
                     'category' => $product->category ? [
                         'id' => $product->category->id,
                         'name' => $product->category->name
+                    ] : null,
+                    'seller' => $product->seller ? [
+                        'id' => $product->seller->id,
+                        'first_name' => $product->seller->first_name,
+                        'last_name' => $product->seller->last_name,
+                        'username' => $product->seller->username,
+                        'seller_code' => $product->seller->seller_code,
+                        'profile_picture' => $product->seller->profile_picture,
+                        'meetup_locations' => $meetupLocations
                     ] : null,
                     'is_buyable' => (bool)$product->is_buyable,
                     'is_tradable' => (bool)$product->is_tradable,

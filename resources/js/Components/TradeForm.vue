@@ -7,15 +7,11 @@ import { Input } from "@/Components/ui/input";
 import { Label } from "@/Components/ui/label";
 import { Textarea } from "@/Components/ui/textarea";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
 import { ScrollArea } from '@/Components/ui/scroll-area';
-import FileUpload from '@/Components/FileUpload.vue';
 import { Toaster } from '@/Components/ui/toast';
-// Import date picker components
-import { Calendar } from "@/Components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-vue-next";
+import MeetupDate from '@/Components/ui/trade-calendar/meetup-date.vue';
+import { cn } from '@/lib/utils';
 
 const props = defineProps({
     product: {
@@ -34,72 +30,14 @@ const loading = ref(false);
 const errors = ref({});
 const meetupLocations = ref([]);
 const isLoadingMeetupLocations = ref(false);
-const sellerData = ref(null); 
-const selectedDate = ref(null); // Add selected date ref
-const selectedSchedule = ref(null); // Track selected schedule for availability
+const selectedSchedule = ref(null);
 
-// Enhanced seller name computation to handle more data structures
-const sellerName = computed(() => {
-    console.log("Computing sellerName with:", props.product?.seller);
-    
-    // First try to get combined name (from seller.name)
-    if (props.product?.seller?.name) {
-        return props.product.seller.name;
-    }
-    
-    // Try first_name + last_name combination (from database)
-    if (props.product?.seller?.first_name) {
-        const firstName = props.product.seller.first_name;
-        const lastName = props.product.seller.last_name || '';
-        return lastName ? `${firstName} ${lastName}`.trim() : firstName;
-    }
-    
-    // Try username
-    if (props.product?.seller?.username) {
-        return props.product.seller.username;
-    }
-    
-    // Try seller_code (on product or in seller object)
-    if (props.product?.seller_code) {
-        return `Seller #${props.product.seller_code}`;
-    }
-    
-    if (props.product?.seller?.seller_code) {
-        return `Seller #${props.product.seller.seller_code}`;
-    }
-    
-    // Last resort fallback
-    return 'Unknown Seller';
-});
-
-// Properly format the product image URL
-const productImageUrl = computed(() => {
-    if (!props.product || !props.product.images || !props.product.images[0]) {
-        return '/images/placeholder-product.jpg';
-    }
-    
-    const image = props.product.images[0];
-    
-    // Check if image is already a full URL
-    if (image.startsWith('http://') || image.startsWith('https://')) {
-        return image;
-    }
-    
-    // Check if image starts with storage/
-    if (image.startsWith('storage/')) {
-        return '/' + image;
-    }
-    
-    // Otherwise assume it needs /storage/ prefix
-    return `/storage/${image}`;
-});
-
-// Form for trade submission using Inertia
+// Form data with reactive state
 const form = useForm({
     seller_product_id: props.product.id,
     meetup_location_id: '',
-    meetup_schedule: '',
-    meetup_date: '', // Add meetup_date field
+    meetup_schedule: '', // This will hold the schedule ID in format: location_id_dayname
+    meetup_date: '', // This will hold the actual date string
     additional_cash: 0,
     notes: '',
     offered_items: [
@@ -113,148 +51,177 @@ const form = useForm({
     ]
 });
 
-// Enhanced meetup location fetching using the product ID directly
-const fetchMeetupLocations = async () => {
-    // Make sure we have a product ID
-    if (!props.product?.id) {
-        console.error("Product ID is missing");
-        toast({
-            title: "Error",
-            description: "Could not identify the product. Please refresh the page.",
-            variant: "destructive"
+// Computed properties for product and seller information
+const productImageUrl = computed(() => {
+  return props.product?.images?.[0] 
+    ? `/storage/${props.product.images[0]}` 
+    : '/images/placeholder-product.jpg';
+});
+
+const sellerName = computed(() => {
+  return props.product?.seller 
+    ? `${props.product.seller.first_name} ${props.product.seller.last_name}`
+    : 'Unknown Seller';
+});
+
+const sellerProfilePicture = computed(() => {
+  return props.product?.seller?.profile_picture
+    ? `/storage/${props.product.seller.profile_picture}`
+    : '/images/placeholder-avatar.jpg';
+});
+
+// Computed property to get available schedules from meetup locations
+const availableSchedules = computed(() => {
+    const schedules = [];
+    if (meetupLocations.value.length > 0) {
+        meetupLocations.value.forEach(location => {
+            const availableDays = location.available_days || [];
+            availableDays.forEach(day => {
+                schedules.push({
+                    id: `${location.id}_${day}`,
+                    location: location.name || 'Location Not Available',
+                    day: day,
+                    timeFrom: formatTime(location.available_from),
+                    timeUntil: formatTime(location.available_until),
+                    description: location.description || '',
+                    maxMeetups: location.max_daily_meetups
+                });
+            });
         });
-        return;
     }
-    
-    // Avoid redundant API calls if already loading
-    if (isLoadingMeetupLocations.value) return;
+    return schedules;
+});
+
+// Computed property to get selected day from meetup schedule
+const selectedScheduleDay = computed(() => {
+    if (!form.meetup_schedule) return '';
+    const schedule = availableSchedules.value.find(s => s.id === form.meetup_schedule);
+    return schedule?.day || '';
+});
+
+// Fetch meetup locations for the product's seller
+const fetchMeetupLocations = async () => {
+    if (!props.product?.id || isLoadingMeetupLocations.value) return;
     
     try {
         isLoadingMeetupLocations.value = true;
-        console.log("Fetching meetup locations for product ID:", props.product.id);
-        
-        // Use the product ID to fetch meetup locations - similar to Checkout.vue approach
         const response = await fetch(`/trades/product/${props.product.id}/meetup-locations`);
+        const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+            throw new Error(data.message || `HTTP error! Status: ${response.status}`);
         }
         
-        const data = await response.json();
-        console.log("Meetup locations response:", data);
-        
-        if (data?.success === false) {
+        if (data.success === false) {
             throw new Error(data.message || "Failed to load meetup locations");
         }
         
-        // Store enhanced seller data from the API if available
-        if (data?.product?.seller) {
-            sellerData.value = data.product.seller;
-            console.log("Enhanced seller data loaded:", sellerData.value);
-        }
+        meetupLocations.value = data.meetup_locations || [];
         
-        if (data && data.meetup_locations) {
-            if (data.meetup_locations.length === 0) {
-                toast({
-                    title: "No Meetup Locations",
-                    description: "This seller has no meetup locations set up. You can still place a trade offer.",
-                    variant: "default"
-                });
-            }
-            
-            meetupLocations.value = data.meetup_locations;
-            console.log("Meetup locations loaded:", meetupLocations.value);
-            
-            // If there's a default meetup location, select it automatically
-            const defaultLocation = data.default_location || data.meetup_locations.find(location => location.is_default);
-            if (defaultLocation) {
-                form.meetup_location_id = defaultLocation.id.toString();
-                console.log("Selected default meetup location:", defaultLocation.id);
-            }
-        } else {
-            meetupLocations.value = [];
+        if (meetupLocations.value.length === 0) {
+            toast({
+                title: "Notice",
+                description: "This seller has no meetup locations set up.",
+                variant: "warning"
+            });
         }
     } catch (error) {
         console.error('Failed to fetch meetup locations:', error);
         toast({
             title: "Error",
-            description: `Failed to load meetup locations: ${error.message}`,
+            description: error.message || "Failed to load meetup locations",
             variant: "destructive"
         });
-        meetupLocations.value = [];
     } finally {
         isLoadingMeetupLocations.value = false;
     }
 };
 
-// Watch both product changes AND dialog open state
+// Watch for dialog open/close and product changes
 watch(
-    [() => props.product?.id, () => props.open], 
-    ([newProductId, isOpen]) => {
-        console.log("TradeForm watchers triggered:", {newProductId, isOpen});
-        if (isOpen && newProductId) {
+    [() => props.open, () => props.product?.id], 
+    ([isOpen, productId]) => {
+        if (isOpen && productId) {
+            form.seller_product_id = productId;
             fetchMeetupLocations();
         }
     },
-    { immediate: true } // Important: Changed to true to run immediately when component mounts
+    { immediate: true }
 );
 
-// Load meetup locations when component mounts if dialog is open
-onMounted(() => {
-    console.log("TradeForm mounted, open state:", props.open);
-    console.log("Product data:", props.product);
-    console.log("Seller data:", props.product?.seller);
-    if (props.open) {
-        fetchMeetupLocations();
+// Handle dialog close
+const handleDialogClose = (isOpen) => {
+    if (!isOpen) {
+        closeDialog();
+    }
+};
+
+// Update schedule when meetup location selection changes
+watch(() => form.meetup_schedule, (newSchedule) => {
+    // Reset the date when schedule changes
+    form.meetup_date = ''; 
+    
+    if (newSchedule) {
+        const schedule = availableSchedules.value.find(s => s.id === newSchedule);
+        selectedSchedule.value = schedule || null;
+        
+        if (schedule) {
+            // Extract location_id from the schedule ID (format: location_id_day)
+            const [locationId] = schedule.id.split('_');
+            form.meetup_location_id = locationId;
+        }
+    } else {
+        selectedSchedule.value = null;
+        form.meetup_location_id = '';
     }
 });
 
-// Watch for open prop changes and initialize form
-watch(
-    () => props.open,
-    (isOpen) => {
-        if (isOpen) {
-            console.log("Dialog opened, product:", props.product);
-            // Reset form when opening
-            form.seller_product_id = props.product.id;
-            // Initialize form with product data
-            fetchMeetupLocations();
-        }
+// Handle file uploads with validation
+const handleDateSelection = (date) => {
+  try {
+    // console.log('TradeForm received date:', date);
+    
+    if (!date) {
+      form.meetup_date = '';
+      return;
     }
-);
 
-// Watch selected schedule to reset date when schedule changes
-watch(
-    () => form.meetup_schedule,
-    (newSchedule) => {
-        if (newSchedule) {
-            // Reset the date when schedule changes
-            selectedDate.value = null;
-            form.meetup_date = '';
-            
-            // Find and store the selected schedule details
-            const [locationId, day] = newSchedule.split('_');
-            selectedSchedule.value = availableSchedules.value.find(s => s.id === newSchedule);
-            
-            console.log("Selected new schedule:", selectedSchedule.value);
-        }
+    // If date is already a string in YYYY-MM-DD format, use it directly
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      form.meetup_date = date;
+    //   console.log("Selected date (from string):", form.meetup_date);
+      return;
     }
-);
-
-// Watch selected date to update form
-watch(
-    () => selectedDate.value,
-    (newDate) => {
-        if (newDate) {
-            form.meetup_date = format(newDate, 'yyyy-MM-dd');
-            console.log("Selected date:", form.meetup_date);
-        } else {
-            form.meetup_date = '';
-        }
+    
+    // Otherwise create a date object and format it
+    const selectedDate = new Date(date);
+    
+    // Additional validation
+    if (isNaN(selectedDate.getTime())) {
+      console.error('Invalid date selected', date);
+      form.meetup_date = '';
+      return;
     }
-);
+    
+    // Format as ISO date string for form submission (YYYY-MM-DD)
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    form.meetup_date = `${year}-${month}-${day}`;
+    
+    // console.log("Selected date (converted):", form.meetup_date);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    form.meetup_date = '';
+    toast({
+      title: "Error",
+      description: "Invalid date selection. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
 
-// Methods to manipulate offered items
+// Methods for offered items
 const addOfferedItem = () => {
     form.offered_items.push({
         name: '',
@@ -271,168 +238,177 @@ const removeOfferedItem = (index) => {
     }
 };
 
-// Handle file uploads for each offered item
-const handleFileUpload = (files, index) => {
-    if (!Array.isArray(files)) {
-        console.error('Files must be an array');
-        return;
+// Update the removeImage method to be more robust
+const removeImage = (itemIndex, imageIndex) => {
+  try {
+    if (!form.offered_items[itemIndex] || !form.offered_items[itemIndex].images) {
+      console.error(`No images array found for item ${itemIndex}`);
+      return;
     }
     
-    console.log(`Received ${files.length} files for item ${index}:`, files);
+    // Create a new array without the removed image
+    const updatedImages = [...form.offered_items[itemIndex].images];
+    updatedImages.splice(imageIndex, 1);
+    form.offered_items[itemIndex].images = updatedImages;
     
-    // Make sure we're setting a valid array of files
-    form.offered_items[index].images = files;
-    
-    // Add this debugging line to verify files were properly set
-    console.log(`After setting: item ${index} now has ${form.offered_items[index].images.length} images`);
+    // console.log(`Image ${imageIndex} removed from item ${itemIndex}`);
+  } catch (error) {
+    console.error('Error removing image:', error);
+  }
 };
 
-// Basic validation - updated to require images and date
-const validate = () => {
-    errors.value = {};
-    let isValid = true;
+// Image handling methods
+const getImagePreviewUrl = (image) => {
+  try {
+    if (typeof image === 'string') {
+      return image;
+    }
     
-    // Check if all required fields are filled
-    form.offered_items.forEach((item, index) => {
-        if (!item.name.trim()) {
-            errors.value[`item_${index}_name`] = 'Item name is required';
-            isValid = false;
-        }
-        
-        if (item.quantity < 1) {
-            errors.value[`item_${index}_quantity`] = 'Quantity must be at least 1';
-            isValid = false;
-        }
-        
-        if (item.estimated_value < 0) {
-            errors.value[`item_${index}_value`] = 'Value cannot be negative';
-            isValid = false;
-        }
-        
-        // Check if images exist and have at least one item
-        if (!item.images || item.images.length === 0) {
-            errors.value[`item_${index}_images`] = 'At least one image is required';
-            isValid = false;
-        }
+    // Safely access global URL object 
+    if (window.URL && image instanceof File) {
+      return window.URL.createObjectURL(image);
+    }
+    
+    return '/images/placeholder-product.jpg';
+  } catch (error) {
+    console.error('Error creating object URL:', error);
+    return '/images/placeholder-product.jpg';
+  }
+};
+
+const handleImageError = (e) => {
+  e.target.src = '/images/placeholder-product.jpg';
+};
+
+// Handle file uploads for offered items
+const handleFileUpload = (files, itemIndex) => {
+  try {
+    if (!files || files.length === 0) {
+      return;
+    }
+    
+    // Validate each file
+    const validFiles = Array.from(files).filter(file => {
+      // Check file type (only images)
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload only image files",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      // Check file size (max 5MB)
+      const maxSizeMB = 5;
+      const maxSizeBytes = maxSizeMB * 1024 * 1024;
+      
+      if (file.size > maxSizeBytes) {
+        toast({
+          title: "File too large",
+          description: `Maximum file size is ${maxSizeMB}MB`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      return true;
     });
     
-    // Additional cash can be zero now (optional)
-    if (form.additional_cash < 0) {
-        errors.value.additional_cash = 'Additional cash cannot be negative';
-        isValid = false;
+    if (validFiles.length === 0) {
+      return;
     }
     
-    // Validate meetup schedule
-    if (meetupLocations.value.length > 0 && !form.meetup_schedule) {
-        errors.value.meetup_schedule = 'Please select a meetup schedule';
-        isValid = false;
+    // Add the files to the appropriate item
+    if (!form.offered_items[itemIndex]) {
+      console.error(`Item index ${itemIndex} not found`);
+      return;
     }
     
-    // Validate meetup date
-    if (form.meetup_schedule && !form.meetup_date) {
-        errors.value.meetup_date = 'Please select a meetup date';
-        isValid = false;
+    // Initialize images array if it doesn't exist
+    if (!form.offered_items[itemIndex].images) {
+      form.offered_items[itemIndex].images = [];
     }
     
-    return isValid;
+    // Add new files to the images array
+    form.offered_items[itemIndex].images = [
+      ...form.offered_items[itemIndex].images,
+      ...validFiles
+    ];
+    
+    // Reset the file input to allow selecting the same files again if needed
+    document.getElementById(`file-upload-${itemIndex}`).value = '';
+    
+    // console.log(`Added ${validFiles.length} images to item ${itemIndex}`);
+  } catch (error) {
+    console.error('Error handling file upload:', error);
+    toast({
+      title: "Error",
+      description: "Failed to process uploaded files",
+      variant: "destructive"
+    });
+  }
 };
 
-// Submit the trade offer using Inertia.js
+// Submit the trade offer
 const submitTradeOffer = () => {
-    if (!validate()) {
+    // Validate meetup date
+    if (!form.meetup_date) {
+        errors.value = { 
+            ...errors.value,
+            meetup_date: ['Please select a valid meetup date']
+        };
         toast({
-            title: "Validation Error",
-            description: "Please check the form for errors",
+            title: "Error",
+            description: "Please select a valid meetup date",
             variant: "destructive"
         });
         return;
     }
-    
+
     loading.value = true;
-    
-    // Create FormData for file uploads
     const formData = new FormData();
+    
+    // Append form fields to FormData
+    formData.append('meetup_date', form.meetup_date);
     formData.append('seller_product_id', form.seller_product_id);
-    formData.append('additional_cash', form.additional_cash);
-    formData.append('notes', form.notes);
-    
-    // Parse the meetup schedule ID to extract location ID and day
-    if (form.meetup_schedule) {
-        // The meetup_schedule value is in format "location_id_day"
-        const [locationId, day] = form.meetup_schedule.split('_');
-        
-        // Add the parsed location ID
-        formData.append('meetup_location_id', locationId);
-        
-        // Add the meetup schedule day
-        formData.append('meetup_schedule', day);
-        
-        // Add the meetup date (new field)
-        formData.append('meetup_date', form.meetup_date);
-        
-        console.log('Sending location ID:', locationId, 'day:', day, 'date:', form.meetup_date);
-    }
-    
+    formData.append('meetup_location_id', form.meetup_location_id);
+    formData.append('meetup_schedule', form.meetup_schedule);
+    formData.append('additional_cash', form.additional_cash || 0);
+    formData.append('notes', form.notes || '');
+
     // Add offered items
     form.offered_items.forEach((item, index) => {
         formData.append(`offered_items[${index}][name]`, item.name);
         formData.append(`offered_items[${index}][quantity]`, item.quantity);
         formData.append(`offered_items[${index}][estimated_value]`, item.estimated_value);
-        formData.append(`offered_items[${index}][description]`, item.description || '');
+        formData.append(`offered_items[${index}][description]`, item.description);
         
-        // Add images - ensure we're only appending File objects
-        if (item.images && item.images.length) {
-            item.images.forEach((image, imageIndex) => {
-                if (image instanceof File) {
-                    formData.append(`offered_items[${index}][images][${imageIndex}]`, image);
-                }
-            });
-        }
+        // Append image files
+        item.images.forEach((image, imageIndex) => {
+            formData.append(`offered_items[${index}][images][${imageIndex}]`, image);
+        });
     });
-    
-    // Use Inertia.js to post the form data
+
+    // Submit the form using Inertia
     router.post(route('product.trade.submit'), formData, {
+        forceFormData: true,
         preserveScroll: true,
-        onSuccess: (page) => {
-            console.log("Trade submission response:", page?.props?.flash);
-            
-            // Always show success toast, with enhanced information if available
-            let successMessage = "Trade offer submitted successfully!";
-            let tradeIdInfo = "";
-            
-            // Try to get enhanced info from flash message
-            if (page?.props?.flash?.success) {
-                successMessage = page.props.flash.success;
-            }
-            
-            if (page?.props?.flash?.trade_id) {
-                tradeIdInfo = ` (Trade ID: #${page.props.flash.trade_id})`;
-            }
-            
-            // Show the success toast with the most information available
+        onSuccess: () => {
             toast({
-                title: "Trade Offer Submitted!",
-                description: successMessage + tradeIdInfo,
-                variant: "success",
-                duration: 6000, // Show for 6 seconds for better visibility
+                title: "Success",
+                description: "Trade offer submitted successfully!",
+                variant: "success"
             });
-            
-            // Close modal and reset form
             closeDialog();
-            form.reset();
         },
-        onError: (errorResponse) => {
-            console.error("Trade submission error:", errorResponse);
-            
+        onError: (validationErrors) => {
+            errors.value = validationErrors;
             toast({
                 title: "Error",
-                description: "Failed to submit trade offer. Please check the form.",
-                variant: "destructive",
-                duration: 6000,
+                description: "Please check the form for errors",
+                variant: "destructive"
             });
-            
-            // Set form errors
-            errors.value = errorResponse;
         },
         onFinish: () => {
             loading.value = false;
@@ -440,24 +416,16 @@ const submitTradeOffer = () => {
     });
 };
 
-// Improved dialog closing mechanism with multiple methods
-const handleDialogClose = (isOpen) => {
-    console.log("Dialog update:open event received:", isOpen);
-    if (!isOpen) {
-        closeDialog();
-    }
-};
-
-// Separate method to ensure consistent closing behavior
+// Close dialog and reset form
 const closeDialog = () => {
-    console.log("Closing trade dialog explicitly");
     form.reset();
     errors.value = {};
+    selectedSchedule.value = null;
     emit('close');
     emit('update:open', false);
 };
 
-// Format time from 24h to 12h format - copied from Checkout.vue
+// Utility functions
 const formatTime = (time) => {
     if (!time) return '';
     const [hours, minutes] = time.split(':');
@@ -465,90 +433,17 @@ const formatTime = (time) => {
     return date.toLocaleTimeString('en-US', { 
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
     }).toLowerCase();
 };
 
-// Computed property to get available schedules from meetup locations - same as Checkout.vue
-const availableSchedules = computed(() => {
-    const schedules = [];
-    
-    meetupLocations.value.forEach(location => {
-        const availableDays = location.available_days || [];
-        availableDays.forEach(day => {
-            schedules.push({
-                id: `${location.id}_${day}`,
-                location: location.full_name,
-                day: day,
-                timeFrom: formatTime(location.available_from),
-                timeUntil: formatTime(location.available_until),
-                description: location.description || '',
-                maxMeetups: location.max_daily_meetups
-            });
-        });
-    });
-
-    return schedules;
-});
-
-// Get seller profile picture with appropriate fallback
-const sellerProfilePicture = computed(() => {
-    if (props.product?.seller?.profile_picture) {
-        return '/storage/' + props.product.seller.profile_picture;
-    }
-    return '/images/placeholder-avatar.jpg'; // Default fallback avatar
-});
-
-// Enhanced seller location computation to match Checkout.vue
-const sellerLocation = computed(() => {
-    // First try from enhanced seller data
-    if (sellerData.value?.location) {
-        return sellerData.value.location;
-    }
-    
-    // Then try from product.seller
-    return props.product?.seller?.location || 'Location N/A';
-});
-
-// Format price helper function - copied from Checkout.vue
 const formatPrice = (price) => {
     return new Intl.NumberFormat().format(price);
 };
 
-// Capitalize first letter helper - copied from Checkout.vue
 const capitalizeFirst = (str) => {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1);
-};
-
-// Calculate disabled dates for the date picker based on selected schedule
-const disabledDates = computed(() => {
-    if (!selectedSchedule.value) return [];
-    
-    const disabledDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        .filter(day => day !== selectedSchedule.value.day.toLowerCase());
-        
-    // Function to determine if a date is disabled
-    return (date) => {
-        // Get day name from date
-        const dayName = format(date, 'EEEE').toLowerCase();
-        
-        // Disable dates in the past
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Disable dates more than 30 days in the future
-        const maxDate = new Date();
-        maxDate.setDate(maxDate.getDate() + 30);
-        
-        return date < today || date > maxDate || disabledDays.includes(dayName);
-    };
-});
-
-// Format date function
-const formatSelectedDate = (date) => {
-    if (!date) return '';
-    return format(date, 'MMMM d, yyyy');
 };
 </script>
 
@@ -565,7 +460,6 @@ const formatSelectedDate = (date) => {
                     Offer your items in exchange for this product. The seller will review your offer.
                 </DialogDescription>
             </DialogHeader>
-
             <form @submit.prevent="submitTradeOffer" class="space-y-6">
                 <!-- Product being traded for -->
                 <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
@@ -578,25 +472,45 @@ const formatSelectedDate = (date) => {
                     </div>
                     <div>
                         <h3 class="font-Satoshi-bold text-lg">{{ capitalizeFirst(product.name) }}</h3>
-                        <p class="text-gray-600">₱{{ formatPrice(product.price) }}</p>
+                        <p class="text-gray-600">
+                          <span v-if="product.discounted_price && product.discounted_price < product.price">
+                            <span class="line-through text-gray-400 mr-1">₱{{ formatPrice(product.price) }}</span>
+                            ₱{{ formatPrice(product.discounted_price) }}
+                          </span>
+                          <span v-else>₱{{ formatPrice(product.price) }}</span>
+                        </p>
                     </div>
                 </div>
 
-                <!-- Seller Information - Now exactly like Checkout.vue -->
+                <!-- Seller Information Section -->
                 <div class="border-t border-gray-100 py-4">
                     <h4 class="font-Satoshi-bold mb-2">Seller Information</h4>
-                    <div class="flex items-center gap-3">
-                        <img :src="sellerProfilePicture" class="w-8 h-8 rounded-full object-cover">
-                        <div>
+                    <div v-if="props.product?.seller" class="flex items-start gap-3">
+                        <img :src="sellerProfilePicture" class="w-12 h-12 rounded-full object-cover flex-shrink-0">
+                        <div class="space-y-1">
                             <p class="font-medium">{{ sellerName }}</p>
-                            <p class="text-sm text-gray-500">{{ sellerLocation }}</p>
+                            <div class="text-sm text-gray-500 space-y-0.5">
+                                <p class="flex items-center gap-2">
+                                    <span class="font-medium">@{{ props.product.seller.username }}</span>
+                                </p>
+                                <p v-if="props.product.seller.phone" class="flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    </svg>
+                                    {{ props.product.seller.phone }}
+                                </p>
+                            </div>
                         </div>
+                    </div>
+                    <div v-else class="text-gray-500">
+                        Seller information not available
                     </div>
                 </div>
 
-                <!-- Meetup Schedule - Updated to match Checkout.vue -->
+                <!-- Meetup Schedule Section -->
                 <div class="mb-6">
                     <h3 class="font-Satoshi-bold mb-4">Available Meetup Schedules</h3>
+                    <p class="text-sm text-gray-500 mb-2">Select a meetup schedule first to enable date selection.</p>
                     <ScrollArea class="h-[200px] rounded-md border p-4">
                         <div v-if="isLoadingMeetupLocations" class="flex justify-center items-center h-[160px]">
                             <div class="text-gray-400">Loading available meetup schedules...</div>
@@ -605,59 +519,62 @@ const formatSelectedDate = (date) => {
                             <div class="text-amber-600">No meetup locations available. Contact the seller for arrangements.</div>
                         </div>
                         <div v-else class="space-y-2">
-                            <label v-for="schedule in availableSchedules" 
+                            <div 
+                                v-for="schedule in availableSchedules" 
                                 :key="schedule.id"
-                                class="flex p-3 border rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="radio" 
+                                class="relative"
+                            >
+                            <label 
+                                :class="[
+                                    form.meetup_schedule === schedule.id ? 'bg-accent/10' : 'hover:bg-gray-50',
+                                    'flex p-3 border rounded cursor-pointer select-none'
+                                ]"
+                            >
+                                <input 
+                                    type="radio" 
                                     v-model="form.meetup_schedule"
                                     :value="schedule.id"
-                                    class="mr-3">
-                                <div>
-                                    <div class="font-medium">{{ schedule.location }}</div>
+                                    class="mr-3 mt-1"
+                                />
+                                <div class="flex-1">
+                                    <div class="font-medium text-gray-900">{{ schedule.location }}</div>
                                     <div class="text-sm text-gray-600">
-                                        {{ schedule.day }} | {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
+                                        {{ capitalizeFirst(schedule.day) }} | {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
                                     </div>
                                     <div v-if="schedule.description" class="text-sm text-gray-500 mt-1">
                                         {{ schedule.description }}
                                     </div>
                                 </div>
                             </label>
+                            </div>
                         </div>
                     </ScrollArea>
                     <p v-if="errors.meetup_schedule" class="text-red-500 text-sm mt-2">{{ errors.meetup_schedule }}</p>
                 </div>
 
-                <!-- Meetup Date Selection - New Component -->
-                <div class="mb-6" v-if="form.meetup_schedule">
+                <!-- Meetup Date Selection -->
+                <div class="mb-6">
                     <h3 class="font-Satoshi-bold mb-2">Select Meetup Date</h3>
                     <p class="text-sm text-gray-500 mb-2">
-                        Choose a specific date for your meetup. 
-                        Only {{ selectedSchedule?.day || '' }} dates are available.
+                        {{ form.meetup_schedule 
+                            ? `Choose a ${selectedScheduleDay} date for your meetup.`
+                            : 'Please select a meetup schedule first to enable date selection.' }}
                     </p>
-                    
-                    <Popover>
-                        <PopoverTrigger as-child>
-                            <Button variant="outline" class="w-full justify-start text-left font-normal">
-                                <CalendarIcon class="mr-2 h-4 w-4" />
-                                {{ selectedDate ? formatSelectedDate(selectedDate) : 'Select a date' }}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent class="w-auto p-0">
-                            <Calendar 
-                                v-model="selectedDate" 
-                                :disabled-dates="disabledDates" 
-                                initialFocus
-                                mode="single"
-                            />
-                        </PopoverContent>
-                    </Popover>
+                    <div class="relative">
+                        <MeetupDate
+                            :model-value="form.meetup_date"
+                            :selected-day="selectedScheduleDay"
+                            :is-date-disabled="!form.meetup_schedule"
+                            @update:model-value="handleDateSelection"
+                        />
+                    </div>
                     <p v-if="errors.meetup_date" class="text-red-500 text-sm mt-2">{{ errors.meetup_date }}</p>
                 </div>
 
-                <!-- Additional cash - now clearly marked as optional -->
+                <!-- Additional cash - clearly marked as optional -->
                 <div class="space-y-2">
                     <Label for="additional_cash">Additional Cash (₱) <span class="text-gray-400 text-sm">(Optional)</span></Label>
-                    <Input
+                    <Input 
                         id="additional_cash"
                         type="number"
                         v-model="form.additional_cash"
@@ -667,10 +584,10 @@ const formatSelectedDate = (date) => {
                     <p v-if="errors.additional_cash" class="text-red-500 text-sm">{{ errors.additional_cash }}</p>
                 </div>
 
-                <!-- Notes - now clearly marked as optional -->
+                <!-- Notes - clearly marked as optional -->
                 <div class="space-y-2">
                     <Label for="notes">Notes for Seller <span class="text-gray-400 text-sm">(Optional)</span></Label>
-                    <Textarea
+                    <Textarea 
                         id="notes"
                         v-model="form.notes"
                         placeholder="Add any details about your trade offer here..."
@@ -685,7 +602,6 @@ const formatSelectedDate = (date) => {
                             Add Another Item
                         </Button>
                     </div>
-
                     <div v-for="(item, index) in form.offered_items" :key="index" class="p-4 border rounded-lg space-y-4">
                         <div class="flex justify-between">
                             <h4 class="font-Satoshi-medium">Item {{ index + 1 }}</h4>
@@ -695,17 +611,15 @@ const formatSelectedDate = (date) => {
                                 variant="ghost" 
                                 size="sm" 
                                 @click="removeOfferedItem(index)"
-                                class="text-red-500"
                             >
                                 Remove
                             </Button>
                         </div>
-
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Item name - required field -->
                             <div class="space-y-2">
                                 <Label :for="`item_name_${index}`">Item Name*</Label>
-                                <Input
+                                <Input 
                                     :id="`item_name_${index}`"
                                     v-model="item.name"
                                     required
@@ -714,7 +628,6 @@ const formatSelectedDate = (date) => {
                                     {{ errors[`item_${index}_name`] }}
                                 </p>
                             </div>
-
                             <!-- Quantity - required field -->
                             <div class="space-y-2">
                                 <Label :for="`item_quantity_${index}`">Quantity*</Label>
@@ -729,61 +642,89 @@ const formatSelectedDate = (date) => {
                                     {{ errors[`item_${index}_quantity`] }}
                                 </p>
                             </div>
-                        </div>
+                            <!-- Estimated value - required field -->
+                            <div class="space-y-2">
+                                <Label :for="`item_value_${index}`">Estimated Value (₱)*</Label>
+                                <Input 
+                                    :id="`item_value_${index}`" 
+                                    type="number" 
+                                    v-model="item.estimated_value"
+                                    min="0" 
+                                    step="0.01" 
+                                    required
+                                />
+                                <p v-if="errors['item_' + index + '_value']" class="text-red-500 text-sm">
+                                    {{ errors['item_' + index + '_value'] }}
+                                </p>
+                            </div>
+                            <!-- Description - clearly marked as optional -->
+                            <div class="space-y-2">
+                                <Label :for="`item_description_${index}`">Description <span class="text-gray-400 text-sm">(Optional)</span></Label>
+                                <Textarea 
+                                    :id="`item_description_${index}`" 
+                                    v-model="item.description"
+                                    placeholder="Describe the item..."
+                                />
+                            </div>
+                            <!-- File Upload -->
+                            <div class="space-y-2 md:col-span-2">
+                                <Label>Upload Images*</Label>
+                                <!-- Replace the FileUpload component with native file input -->
+                                <div class="border rounded-md p-2 bg-background">
+                                    <input 
+                                        type="file"
+                                        :id="`file-upload-${index}`"
+                                        @change="(e) => handleFileUpload(e.target.files, index)"
+                                        multiple
+                                        accept="image/*"
+                                        class="block w-full text-sm text-gray-500 
+                                            file:mr-4 file:py-2 file:px-4
+                                            file:rounded-md file:border-0
+                                            file:text-sm file:font-semibold
+                                            file:bg-accent file:text-accent-foreground
+                                            hover:file:bg-accent/80"
+                                    />
+                                </div>
 
-                        <!-- Estimated value - required field -->
-                        <div class="space-y-2">
-                            <Label :for="`item_value_${index}`">Estimated Value (₱)*</Label>
-                            <Input 
-                                :id="`item_value_${index}`" 
-                                type="number" 
-                                v-model="item.estimated_value"
-                                min="0" 
-                                step="0.01" 
-                                required
-                            />
-                            <p v-if="errors[`item_${index}_value`]" class="text-red-500 text-sm">
-                                {{ errors[`item_${index}_value`] }}
-                            </p>
-                        </div>
-
-                        <!-- Description - clearly marked as optional -->
-                        <div class="space-y-2">
-                            <Label :for="`item_description_${index}`">Description <span class="text-gray-400 text-sm">(Optional)</span></Label>
-                            <Textarea 
-                                :id="`item_description_${index}`" 
-                                v-model="item.description"
-                                placeholder="Describe the item..."
-                            />
-                        </div>
-
-                        <!-- File Upload - now required with asterisk -->
-                        <div class="space-y-2">
-                            <Label>Upload Images*</Label>
-                            <FileUpload 
-                                :multiple="true" 
-                                :onUpload="(files) => handleFileUpload(files, index)"
-                                :key="`file-upload-${index}`"
-                            />
-                            <p v-if="errors[`item_${index}_images`]" class="text-red-500 text-sm">
-                                {{ errors[`item_${index}_images`] }}
-                            </p>
-                            <div v-if="item.images && item.images.length > 0" class="mt-2">
-                                <p class="text-sm text-green-600">{{ item.images.length }} image(s) selected</p>
+                                <p v-if="errors[`item_${index}_images`]" class="text-red-500 text-sm">
+                                    {{ errors[`item_${index}_images`] }}
+                                </p>
+                                                            
+                                <!-- Keep your custom image previews - this part is good -->
+                                <div v-if="item.images && item.images.length > 0" class="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <div v-for="(image, imgIndex) in item.images" :key="`img-${index}-${imgIndex}`" 
+                                        class="relative group border rounded-md overflow-hidden h-24">
+                                        <img 
+                                            :src="getImagePreviewUrl(image)" 
+                                            class="w-full h-full object-cover"
+                                            @error="handleImageError"
+                                        />
+                                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                            <button 
+                                                type="button" 
+                                                class="bg-white/70 p-1 rounded-full hover:bg-white"
+                                                @click.prevent="removeImage(index, imgIndex)"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <DialogFooter class="flex justify-between">
                     <Button 
-                        type="button"
+                        type="button" 
                         variant="outline" 
                         @click="closeDialog"
                     >
                         Cancel
                     </Button>
-                    <Button
+                    <Button 
                         type="submit" 
                         :disabled="loading"
                     >
@@ -793,7 +734,36 @@ const formatSelectedDate = (date) => {
             </form>
         </DialogContent>
     </Dialog>
-    
-    <!-- Add Toaster component to display toast notifications -->
     <Toaster />
 </template>
+
+<style scoped>
+.select-none {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
+/* Update the label styles to ensure clickability */
+label.select-none {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+/* Prevent any transform or filter effects that could cause blur */
+.hover\:bg-gray-50:hover,
+.hover\:bg-gray-50 {
+  background-color: rgb(249 250 251);
+  backdrop-filter: none !important;
+  transform: none !important;
+  transition: background-color 0.2s ease;
+}
+
+/* Ensure text remains sharp */
+* {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+}
+</style>
