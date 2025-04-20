@@ -123,9 +123,9 @@
                 </li>
                 <li>
                   <Link 
-                    :href="'#'"
+                    :href="route('admin.locations')"
                     class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/locations') }">
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/admin-meetuploc') }">
                     <MapPinIcon class="w-5 h-5" />
                     <span>Meetup Locations</span>
                   </Link>

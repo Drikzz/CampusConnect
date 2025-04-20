@@ -23,6 +23,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ProductTradeController;
+use App\Http\Controllers\AdminLocationController;
 
 
 // Public routes should be at the top, before any middleware groups
@@ -295,10 +296,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
 
     //Meetup Location Routes
-    Route::get('/locations', [AdminMeetupLocController::class, 'index'])->name('locations');
-    Route::post('/locations', [AdminMeetupLocController::class, 'store'])->name('locations.store');
-    Route::put('/locations/{location}', [AdminMeetupLocController::class, 'update'])->name('locations.update');
-    Route::delete('/locations/{location}', [AdminMeetupLocController::class, 'destroy'])->name('locations.destroy');
+    Route::get('/locations', [AdminLocationController::class, 'index'])->name('locations');
+    Route::post('/locations', [AdminLocationController::class, 'store'])->name('locations.store');
+    Route::put('/locations/{location}', [AdminLocationController::class, 'update'])->name('locations.update');
+    Route::delete('/locations/{location}', [AdminLocationController::class, 'destroy'])->name('locations.destroy');
 
 
     // Wallet Management Routes
@@ -311,6 +312,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('wallet-requests.approve-refund');
     Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
         ->name('wallet-requests.reject-refund');
+
+    // Chart data routes
+    Route::prefix('api/charts')->group(function () {
+        Route::get('users', [AdminDashboardController::class, 'getUserChartDataFiltered']);
+        Route::get('products', [AdminDashboardController::class, 'getProductChartDataFiltered']);
+        Route::get('transactions', [AdminDashboardController::class, 'getTransactionChartDataFiltered']);
+    });
 });
 
 Route::fallback(function () {
