@@ -179,7 +179,7 @@ watch(() => form.meetup_schedule, (newSchedule) => {
 // Handle file uploads with validation
 const handleDateSelection = (date) => {
   try {
-    console.log('TradeForm received date:', date);
+    // console.log('TradeForm received date:', date);
     
     if (!date) {
       form.meetup_date = '';
@@ -189,7 +189,7 @@ const handleDateSelection = (date) => {
     // If date is already a string in YYYY-MM-DD format, use it directly
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       form.meetup_date = date;
-      console.log("Selected date (from string):", form.meetup_date);
+    //   console.log("Selected date (from string):", form.meetup_date);
       return;
     }
     
@@ -209,7 +209,7 @@ const handleDateSelection = (date) => {
     const day = String(selectedDate.getDate()).padStart(2, '0');
     form.meetup_date = `${year}-${month}-${day}`;
     
-    console.log("Selected date (converted):", form.meetup_date);
+    // console.log("Selected date (converted):", form.meetup_date);
   } catch (error) {
     console.error('Error formatting date:', error);
     form.meetup_date = '';
@@ -251,7 +251,7 @@ const removeImage = (itemIndex, imageIndex) => {
     updatedImages.splice(imageIndex, 1);
     form.offered_items[itemIndex].images = updatedImages;
     
-    console.log(`Image ${imageIndex} removed from item ${itemIndex}`);
+    // console.log(`Image ${imageIndex} removed from item ${itemIndex}`);
   } catch (error) {
     console.error('Error removing image:', error);
   }
@@ -339,7 +339,7 @@ const handleFileUpload = (files, itemIndex) => {
     // Reset the file input to allow selecting the same files again if needed
     document.getElementById(`file-upload-${itemIndex}`).value = '';
     
-    console.log(`Added ${validFiles.length} images to item ${itemIndex}`);
+    // console.log(`Added ${validFiles.length} images to item ${itemIndex}`);
   } catch (error) {
     console.error('Error handling file upload:', error);
     toast({
