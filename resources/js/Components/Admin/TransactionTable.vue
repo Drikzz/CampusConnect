@@ -1,65 +1,65 @@
 <template>
   <div class="overflow-x-auto">
     <!-- Orders Table -->
-    <table v-if="transactionType === 'orders'" class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
+    <table v-if="transactionType === 'orders'" class="min-w-full divide-y divide-border">
+      <thead class="bg-muted">
         <tr>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Order ID
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Buyer
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Total Amount
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Status
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Date
           </th>
         </tr>
       </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="order in paginatedItems" :key="order.id" class="hover:bg-gray-50">
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+      <tbody class="bg-card divide-y divide-border">
+        <tr v-for="order in paginatedItems" :key="order.id" class="hover:bg-muted/50">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-foreground">
             {{ order.id }}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-foreground">
             <div class="flex items-center">
-              <div class="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+              <div class="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 bg-muted rounded-full flex items-center justify-center">
                 <span class="text-xs font-medium">
                   {{ order.user?.name?.charAt(0) || 'U' }}
                 </span>
               </div>
-              <div class="ml-3">
-                <div class="font-medium">{{ order.user?.name || 'N/A' }}</div>
-                <div class="text-xs text-gray-500" v-if="order.user?.seller_code">
+              <div class="ml-2 sm:ml-3">
+                <div class="font-medium text-xs sm:text-sm">{{ order.user?.name || 'N/A' }}</div>
+                <div class="text-xs text-muted-foreground" v-if="order.user?.seller_code">
                   {{ order.user.seller_code }}
                 </div>
               </div>
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-green-600">
             ₱{{ formatCurrency(order.amount) }}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" 
               :class="getStatusClasses(order.status)">
               {{ formatStatus(order.status) }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+          <td class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
             {{ formatDate(order.created_at) }}
           </td>
         </tr>
         <tr v-if="!paginatedItems || paginatedItems.length === 0">
-          <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+          <td colspan="5" class="px-3 sm:px-6 py-8 sm:py-12 text-center text-muted-foreground">
             <div class="flex flex-col items-center">
-              <ShoppingCartIcon class="w-12 h-12 text-gray-300 mb-3" />
-              <h3 class="text-lg font-medium text-gray-900 mb-1">No orders yet</h3>
-              <p class="text-sm">Orders will appear here once they are placed.</p>
+              <ShoppingCartIcon class="w-8 h-8 sm:w-12 sm:h-12 text-muted mb-3" />
+              <h3 class="text-base sm:text-lg font-medium text-foreground mb-1">No orders yet</h3>
+              <p class="text-xs sm:text-sm">Orders will appear here once they are placed.</p>
             </div>
           </td>
         </tr>
@@ -67,89 +67,89 @@
     </table>
 
     <!-- Trades Table -->
-    <table v-if="transactionType === 'trades'" class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
+    <table v-if="transactionType === 'trades'" class="min-w-full divide-y divide-border">
+      <thead class="bg-muted">
         <tr>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Trade ID
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Buyer
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Product
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Trade Breakdown
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Status
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Date
           </th>
         </tr>
       </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="trade in paginatedItems" :key="trade.id" class="hover:bg-gray-50">
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+      <tbody class="bg-card divide-y divide-border">
+        <tr v-for="trade in paginatedItems" :key="trade.id" class="hover:bg-muted/50">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-foreground">
             {{ trade.id }}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-foreground">
             <div class="flex items-center">
-              <div class="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+              <div class="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 bg-muted rounded-full flex items-center justify-center">
                 <span class="text-xs font-medium">
                   {{ trade.user?.name?.charAt(0) || 'U' }}
                 </span>
               </div>
-              <div class="ml-3">
-                <div class="font-medium">{{ trade.user?.name || 'N/A' }}</div>
-                <div class="text-xs text-gray-500" v-if="trade.user?.seller_code">
+              <div class="ml-2 sm:ml-3">
+                <div class="font-medium text-xs sm:text-sm">{{ trade.user?.name || 'N/A' }}</div>
+                <div class="text-xs text-muted-foreground" v-if="trade.user?.seller_code">
                   {{ trade.user.seller_code }}
                 </div>
               </div>
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <td class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-foreground">
             <div class="font-medium">{{ trade.product_name }}</div>
-            <div class="text-xs text-gray-500">Value: ₱{{ formatCurrency(trade.product_value) }}</div>
+            <div class="text-xs text-muted-foreground">Value: ₱{{ formatCurrency(trade.product_value) }}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
             <div class="space-y-1">
               <div class="flex justify-between">
-                <span class="text-gray-600">Product:</span>
+                <span class="text-muted-foreground">Product:</span>
                 <span class="font-medium">₱{{ formatCurrency(trade.product_value) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600">Offered Items:</span>
+                <span class="text-muted-foreground">Offered Items:</span>
                 <span class="font-medium">₱{{ formatCurrency(trade.offered_items_value) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600">Additional Cash:</span>
+                <span class="text-muted-foreground">Additional Cash:</span>
                 <span class="font-medium">₱{{ formatCurrency(trade.additional_cash) }}</span>
               </div>
               <div class="flex justify-between border-t pt-1">
-                <span class="text-gray-800 font-semibold">Total Value:</span>
+                <span class="text-foreground font-semibold">Total Value:</span>
                 <span class="font-semibold text-green-600">₱{{ formatCurrency(trade.amount) }}</span>
               </div>
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" 
               :class="getStatusClasses(trade.status)">
               {{ formatStatus(trade.status) }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+          <td class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
             {{ formatDate(trade.created_at) }}
           </td>
         </tr>
         <tr v-if="!paginatedItems || paginatedItems.length === 0">
-          <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+          <td colspan="6" class="px-3 sm:px-6 py-8 sm:py-12 text-center text-muted-foreground">
             <div class="flex flex-col items-center">
-              <ArrowsRightLeftIcon class="w-12 h-12 text-gray-300 mb-3" />
-              <h3 class="text-lg font-medium text-gray-900 mb-1">No trades yet</h3>
-              <p class="text-sm">Trades will appear here once they are initiated.</p>
+              <ArrowsRightLeftIcon class="w-8 h-8 sm:w-12 sm:h-12 text-muted mb-3" />
+              <h3 class="text-base sm:text-lg font-medium text-foreground mb-1">No trades yet</h3>
+              <p class="text-xs sm:text-sm">Trades will appear here once they are initiated.</p>
             </div>
           </td>
         </tr>
@@ -157,50 +157,50 @@
     </table>
 
     <!-- Wallet Transactions Table -->
-    <table v-if="transactionType === 'wallet'" class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
+    <table v-if="transactionType === 'wallet'" class="min-w-full divide-y divide-border">
+      <thead class="bg-muted">
         <tr>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Transaction ID
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             User
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Amount
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Type
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Status
           </th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th scope="col" class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Date
           </th>
         </tr>
       </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="transaction in paginatedItems" :key="transaction.id" class="hover:bg-gray-50">
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+      <tbody class="bg-card divide-y divide-border">
+        <tr v-for="transaction in paginatedItems" :key="transaction.id" class="hover:bg-muted/50">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-foreground">
             {{ transaction.id }}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-foreground">
             <div class="flex items-center">
-              <div class="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+              <div class="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 bg-muted rounded-full flex items-center justify-center">
                 <span class="text-xs font-medium">
                   {{ transaction.user?.name?.charAt(0) || 'U' }}
                 </span>
               </div>
-              <div class="ml-3">
-                <div class="font-medium">{{ transaction.user?.name || 'N/A' }}</div>
-                <div class="text-xs text-gray-500" v-if="transaction.user?.seller_code">
+              <div class="ml-2 sm:ml-3">
+                <div class="font-medium text-xs sm:text-sm">{{ transaction.user?.name || 'N/A' }}</div>
+                <div class="text-xs text-muted-foreground" v-if="transaction.user?.seller_code">
                   {{ transaction.user.seller_code }}
                 </div>
               </div>
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium" :class="{
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium" :class="{
             'text-green-600': transaction.type === 'credit' && transaction.reference_type !== 'withdrawal',
             'text-red-600': transaction.type === 'debit' || transaction.reference_type === 'withdrawal'
           }">
@@ -210,25 +210,25 @@
               ₱{{ formatCurrency(transaction.amount) }}
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
             {{ formatTransactionType(transaction.reference_type) }}
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+          <td class="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" 
               :class="getStatusClasses(transaction.status)">
               {{ formatStatus(transaction.status) }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+          <td class="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
             {{ formatDate(transaction.created_at) }}
           </td>
         </tr>
         <tr v-if="!paginatedItems || paginatedItems.length === 0">
-          <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+          <td colspan="6" class="px-3 sm:px-6 py-8 sm:py-12 text-center text-muted-foreground">
             <div class="flex flex-col items-center">
-              <BanknotesIcon class="w-12 h-12 text-gray-300 mb-3" />
-              <h3 class="text-lg font-medium text-gray-900 mb-1">No wallet transactions yet</h3>
-              <p class="text-sm">Wallet transactions will appear here once processed.</p>
+              <BanknotesIcon class="w-8 h-8 sm:w-12 sm:h-12 text-muted mb-3" />
+              <h3 class="text-base sm:text-lg font-medium text-foreground mb-1">No wallet transactions yet</h3>
+              <p class="text-xs sm:text-sm">Wallet transactions will appear here once processed.</p>
             </div>
           </td>
         </tr>
@@ -236,26 +236,26 @@
     </table>
 
     <!-- Pagination Controls -->
-    <div class="px-6 py-3 flex items-center justify-between border-t border-gray-200 bg-gray-50">
+    <div class="px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between border-t border-border bg-muted">
       <div class="flex-1 flex justify-between sm:hidden">
         <button 
           @click="$emit('update-page', currentPage - 1)" 
           :disabled="currentPage <= 1"
-          class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+          class="relative inline-flex items-center px-4 py-2 border border-border text-xs font-medium rounded-md text-foreground bg-card hover:bg-muted disabled:opacity-50"
         >
           Previous
         </button>
         <button 
           @click="$emit('update-page', currentPage + 1)" 
           :disabled="currentPage >= totalPages"
-          class="relative ml-3 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+          class="relative ml-3 inline-flex items-center px-4 py-2 border border-border text-xs font-medium rounded-md text-foreground bg-card hover:bg-muted disabled:opacity-50"
         >
           Next
         </button>
       </div>
       <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
         <div>
-          <p class="text-sm text-gray-700">
+          <p class="text-xs sm:text-sm text-muted-foreground">
             Showing 
             <span class="font-medium">{{ startItem }}</span>
             to
@@ -270,28 +270,28 @@
             <button
               @click="$emit('update-page', 1)"
               :disabled="currentPage <= 1"
-              class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              class="relative inline-flex items-center px-1 sm:px-2 py-2 rounded-l-md border border-border bg-card text-xs sm:text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <span class="sr-only">First Page</span>
-              <ChevronDoubleLeftIcon class="h-5 w-5" aria-hidden="true" />
+              <ChevronDoubleLeftIcon class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
             <button
               @click="$emit('update-page', currentPage - 1)"
               :disabled="currentPage <= 1"
-              class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              class="relative inline-flex items-center px-1 sm:px-2 py-2 border border-border bg-card text-xs sm:text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <span class="sr-only">Previous</span>
-              <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
+              <ChevronLeftIcon class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
             <button
               v-for="page in visiblePageNumbers"
               :key="page"
               @click="$emit('update-page', page)"
               :class="[
-                'relative inline-flex items-center px-4 py-2 border text-sm font-medium',
+                'relative inline-flex items-center px-2 sm:px-4 py-2 border text-xs sm:text-sm font-medium',
                 currentPage === page
                   ? 'z-10 bg-primary-color border-primary-color text-white'
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'bg-card border-border text-foreground hover:bg-muted'
               ]"
             >
               {{ page }}
@@ -299,18 +299,18 @@
             <button
               @click="$emit('update-page', currentPage + 1)"
               :disabled="currentPage >= totalPages"
-              class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              class="relative inline-flex items-center px-1 sm:px-2 py-2 border border-border bg-card text-xs sm:text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <span class="sr-only">Next</span>
-              <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
+              <ChevronRightIcon class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
             <button
               @click="$emit('update-page', totalPages)"
               :disabled="currentPage >= totalPages"
-              class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              class="relative inline-flex items-center px-1 sm:px-2 py-2 rounded-r-md border border-border bg-card text-xs sm:text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <span class="sr-only">Last Page</span>
-              <ChevronDoubleRightIcon class="h-5 w-5" aria-hidden="true" />
+              <ChevronDoubleRightIcon class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
           </nav>
         </div>

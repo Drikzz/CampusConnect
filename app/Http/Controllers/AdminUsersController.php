@@ -87,11 +87,11 @@ class AdminUsersController extends Controller
                     'is_admin' => $user->is_admin,
                     'created_at' => $user->created_at,
                     'updated_at' => $user->updated_at,
-                    // Remove the counts from the response since we're not querying them
-                    'products_count' => 0, // Placeholder value
-                    'orders_count' => 0,   // Placeholder value
+                    'email_verified_at' => $user->email_verified_at,
                     'status' => $user->email_verified_at ? 'Verified' : 'Unverified',
                     'role' => $user->is_admin ? 'Admin' : ($user->is_seller ? 'Seller' : 'Customer'),
+                    'is_banned' => $user->isBanned(),
+                    'ban_details' => $user->getActiveBan(),
                     'has_profile_photo' => $user->profile_photo_path ? true : false,
                     'profile_photo' => $user->profile_photo_path ? asset('storage/'.$user->profile_photo_path) : null,
                 ];

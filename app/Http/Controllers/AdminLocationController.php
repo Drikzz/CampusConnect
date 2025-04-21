@@ -79,13 +79,6 @@ class AdminLocationController extends Controller
      */
     public function destroy(Location $location)
     {
-        // Check if location is being used by meetup locations
-        $inUse = $location->meetupLocations()->exists();
-        
-        if ($inUse) {
-            return redirect()->back()->with('error', 'This location cannot be deleted because it is in use by meetup locations');
-        }
-        
         try {
             DB::beginTransaction();
             $location->delete();

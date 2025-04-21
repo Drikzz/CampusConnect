@@ -6,7 +6,8 @@ import {
     TrashIcon, 
     PencilIcon,
     XMarkIcon,
-    EyeIcon
+    EyeIcon,
+    ShieldExclamationIcon
 } from '@heroicons/vue/24/outline';
 
 // Define props to receive data from the controller
@@ -24,6 +25,7 @@ const sortDirection = ref(props.filters?.direction || 'desc');
 const showUserModal = ref(false);
 const currentUser = ref(null);
 const showEditModal = ref(false);
+const showBanModal = ref(false);
 const editForm = ref({
     id: null,
     first_name: '',
@@ -34,7 +36,15 @@ const editForm = ref({
     date_of_birth: '',
     phone: ''
 });
+const banForm = ref({
+    user_id: null,
+    username: '',
+    reason: '',
+    duration: '7_days', // Default value
+    custom_days: 14 // Default custom days
+});
 const formErrors = ref({});
+const banFormErrors = ref({});
 
 // Simple date formatter
 const formatDate = (dateString) => {
@@ -69,6 +79,16 @@ const filterOptions = [
     { value: 'customers', label: 'Customers' },
     { value: 'verified', label: 'Verified Users' },
     { value: 'unverified', label: 'Unverified Users' }
+];
+
+// Available ban durations with new Custom option
+const banDurations = [
+    { value: '1_day', label: '1 Day' },
+    { value: '7_days', label: '7 Days' },
+    { value: '30_days', label: '30 Days' },
+    { value: '90_days', label: '90 Days' },
+    { value: 'custom', label: 'Custom' },
+    { value: 'permanent', label: 'Permanent' }
 ];
 
 // Toggle select all users
@@ -177,6 +197,75 @@ const deleteUser = (id) => {
     }
 };
 
+// Show ban user modal
+const showBanUserModal = (user) => {
+    banForm.value = {
+        user_id: user.id,
+        username: user.username,
+        reason: '',
+        duration: '7_days',
+        custom_days: 14 // Default to 14 days for custom duration
+    };
+    banFormErrors.value = {};
+    showBanModal.value = true;
+};
+
+// Submit the ban
+const submitBan = () => {
+    banFormErrors.value = {};
+    
+    // Validate form
+    let hasErrors = false;
+    if (!banForm.value.reason) {
+        banFormErrors.value.reason = 'Please provide a reason for the ban';
+        hasErrors = true;
+    }
+    
+    if (banForm.value.duration === 'custom' && (!banForm.value.custom_days || banForm.value.custom_days < 1)) {
+        banFormErrors.value.custom_days = 'Please specify a valid number of days (minimum 1)';
+        hasErrors = true;
+    }
+    
+    if (hasErrors) {
+        return;
+    }
+    
+    // Prepare data for submission
+    const formData = {
+        reason: banForm.value.reason,
+        duration: banForm.value.duration,
+    };
+    
+    // Add custom_days if using custom duration
+    if (banForm.value.duration === 'custom') {
+        formData.custom_days = banForm.value.custom_days;
+    }
+
+    // Submit form via Inertia
+    router.post(route('admin.users.ban', banForm.value.user_id), formData, {
+        onSuccess: () => {
+            showBanModal.value = false;
+        },
+        onError: (errors) => {
+            banFormErrors.value = errors;
+        },
+        preserveScroll: true,
+    });
+};
+
+// Unban a user
+const unbanUser = (userId, username) => {
+    if (confirm(`Are you sure you want to unban ${username}?`)) {
+        router.post(route('admin.users.unban', userId), {}, {
+            preserveScroll: true,
+        });
+    }
+};
+
+// Close ban modal
+const closeBanModal = () => {
+    showBanModal.value = false;
+};
 
 // Handle search and filters
 const performSearch = () => {
@@ -212,24 +301,24 @@ const isAllSelected = computed(() => {
 
 <template>
     <AdminLayout>
-        <h1 class="text-2xl font-bold mb-4">User Management</h1>
+        <h1 class="text-xl md:text-2xl font-bold text-foreground mb-4">User Management</h1>
         
-        <div class="bg-white rounded-lg p-4 mb-6">
+        <div class="bg-card rounded-lg p-3 md:p-4 mb-6 shadow">
             <div class="flex flex-col md:flex-row gap-4 mb-4">
                 <div class="w-full md:w-1/3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Search</label>
                     <input 
                         type="text" 
                         v-model="search" 
-                        class="w-full p-2 border rounded"
+                        class="w-full p-2 border rounded bg-background text-foreground"
                         placeholder="Search users..."
                     />
                 </div>
                 <div class="w-full md:w-1/3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Filter</label>
                     <select 
                         v-model="filter" 
-                        class="w-full p-2 border rounded"
+                        class="w-full p-2 border rounded bg-background text-foreground"
                     >
                         <option v-for="option in filterOptions" :key="option.value" :value="option.value">
                             {{ option.label }}
@@ -238,129 +327,184 @@ const isAllSelected = computed(() => {
                 </div>
             </div>
             
-            <table class="min-w-full bg-white border">
-                <thead>
-                    <tr>
-                        <th class="py-2 px-3 border-b">
-                            <input 
-                                type="checkbox"
-                                :checked="isAllSelected" 
-                                @change="toggleSelectAll"
-                            />
-                        </th>
-                        <th 
-                            @click="sort('username')"
-                            class="py-2 px-3 border-b text-left cursor-pointer"
-                        >
-                            Username {{ sortField === 'username' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
-                        </th>
-                        <th 
-                            @click="sort('email')"
-                            class="py-2 px-3 border-b text-left cursor-pointer"
-                        >
-                            WMSU Email {{ sortField === 'email' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
-                        </th>
-                        <th class="py-2 px-3 border-b text-left">Role</th>
-                        <th 
-                            @click="sort('created_at')"
-                            class="py-2 px-3 border-b text-left cursor-pointer"
-                        >
-                            Joined {{ sortField === 'created_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
-                        </th>
-                        <th class="py-2 px-3 border-b text-left">Status</th>
-                        <th class="py-2 px-3 border-b text-left">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="user in props.users.data" :key="user.id" class="hover:bg-gray-50">
-                        <td class="py-2 px-3 border-b">
-                            <input 
-                                type="checkbox" 
-                                v-model="selectedUsers" 
-                                :value="user.id"
-                            />
-                        </td>
-                        <td class="py-2 px-3 border-b">{{ user.username || user.name || 'Unknown' }}</td>
-                        <td class="py-2 px-3 border-b">{{ user.wmsu_email || 'Not provided' }}</td>
-                        <td class="py-2 px-3 border-b">
-                            <span 
-                                :class="[
-                                    'px-2 py-1 text-xs rounded-full',
-                                    user.role === 'Admin' ? 'bg-purple-100 text-purple-800' : 
-                                    user.role === 'Seller' ? 'bg-green-100 text-green-800' : 
-                                    'bg-blue-100 text-blue-800'
-                                ]"
+            <div class="overflow-x-auto -mx-3 md:mx-0">
+                <table class="min-w-full bg-card border border-border">
+                    <thead>
+                        <tr class="bg-muted text-left">
+                            <th class="py-2 px-3 border-b border-border">
+                                <input 
+                                    type="checkbox"
+                                    :checked="isAllSelected" 
+                                    @change="toggleSelectAll"
+                                />
+                            </th>
+                            <th 
+                                @click="sort('username')"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer"
                             >
-                                {{ user.role }}
-                            </span>
-                        </td>
-                        <td class="py-2 px-3 border-b">{{ formatDate(user.created_at) }}</td>
-                        <td class="py-2 px-3 border-b">
-                            <span 
-                                :class="[
-                                    'px-2 py-1 text-xs rounded-full',
-                                    user.email_verified_at ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                ]"
+                                Username {{ sortField === 'username' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+                            </th>
+                            <th 
+                                @click="sort('email')"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer hidden md:table-cell"
                             >
-                                {{ user.status }}
-                            </span>
-                        </td>
-                        <td class="py-2 px-3 border-b">
-                            <div class="flex items-center space-x-3">
-                                <!-- View details button with eye icon -->
-                                <div class="relative group">
-                                    <button 
-                                        @click="showUserDetails(user)"
-                                        class="p-1.5 rounded hover:bg-blue-100 transition-colors duration-200"
-                                    >
-                                        <EyeIcon class="w-5 h-5 text-blue-600 group-hover:text-blue-800 transition-colors duration-200" />
-                                    </button>
-                                    <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        View User Details
-                                        <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                WMSU Email {{ sortField === 'email' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+                            </th>
+                            <th class="py-2 px-3 border-b border-border text-left">Role</th>
+                            <th 
+                                @click="sort('created_at')"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer hidden sm:table-cell"
+                            >
+                                Joined {{ sortField === 'created_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+                            </th>
+                            <th class="py-2 px-3 border-b border-border text-left">Status</th>
+                            <!-- Add column for ban status -->
+                            <th class="py-2 px-3 border-b border-border text-left">Ban Status</th>
+                            <th class="py-2 px-3 border-b border-border text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="user in props.users.data" :key="user.id" class="hover:bg-muted/50">
+                            <td class="py-2 px-3 border-b border-border">
+                                <input 
+                                    type="checkbox" 
+                                    v-model="selectedUsers" 
+                                    :value="user.id"
+                                />
+                            </td>
+                            <td class="py-2 px-3 border-b border-border">{{ user.username || user.name || 'Unknown' }}</td>
+                            <td class="py-2 px-3 border-b border-border hidden md:table-cell">{{ user.wmsu_email || 'Not provided' }}</td>
+                            <td class="py-2 px-3 border-b border-border">
+                                <span 
+                                    :class="[
+                                        'px-2 py-1 text-xs rounded-full',
+                                        user.role === 'Admin' ? 'bg-purple-100 text-purple-800' : 
+                                        user.role === 'Seller' ? 'bg-green-100 text-green-800' : 
+                                        'bg-blue-100 text-blue-800'
+                                    ]"
+                                >
+                                    {{ user.role }}
+                                </span>
+                            </td>
+                            <td class="py-2 px-3 border-b border-border hidden sm:table-cell">{{ formatDate(user.created_at) }}</td>
+                            <td class="py-2 px-3 border-b border-border">
+                                <span 
+                                    :class="[
+                                        'px-2 py-1 text-xs rounded-full',
+                                        user.email_verified_at ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    ]"
+                                >
+                                    {{ user.status }}
+                                </span>
+                            </td>
+                            <!-- New Ban Status column -->
+                            <td class="py-2 px-3 border-b border-border">
+                                <div v-if="user.is_banned" class="flex flex-col">
+                                    <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                        <span class="relative flex h-2 w-2 mr-1">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        </span>
+                                        Banned
+                                    </span>
+                                    <div v-if="user.ban_details" class="mt-1 text-xs text-gray-500">
+                                        <p v-if="user.ban_details.is_permanent">Permanent</p>
+                                        <p v-else-if="user.ban_details.expires_at">
+                                            Until {{ formatDate(user.ban_details.expires_at) }}
+                                        </p>
                                     </div>
                                 </div>
+                                <span v-else class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                    Active
+                                </span>
+                            </td>
+                            <td class="py-2 px-3 border-b border-border">
+                                <div class="flex items-center space-x-1 sm:space-x-3">
+                                    <!-- View details button with eye icon -->
+                                    <div class="relative group">
+                                        <button 
+                                            @click="showUserDetails(user)"
+                                            class="p-1.5 rounded hover:bg-blue-100 transition-colors duration-200"
+                                        >
+                                            <EyeIcon class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 group-hover:text-blue-800 transition-colors duration-200" />
+                                        </button>
+                                        <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                            View
+                                            <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                        </div>
+                                    </div>
 
-                                <!-- Edit user button with pen icon -->
-                                <div class="relative group">
-                                    <button 
-                                        @click="editUser(user)"
-                                        class="p-1.5 rounded hover:bg-green-100 transition-colors duration-200"
-                                    >
-                                        <PencilIcon class="w-5 h-5 text-green-600 group-hover:text-green-800 transition-colors duration-200" />
-                                    </button>
-                                    <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        Edit User
-                                        <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                    <!-- Edit user button with pen icon -->
+                                    <div class="relative group">
+                                        <button 
+                                            @click="editUser(user)"
+                                            class="p-1.5 rounded hover:bg-green-100 transition-colors duration-200"
+                                        >
+                                            <PencilIcon class="w-4 h-4 sm:w-5 sm:h-5 text-green-600 group-hover:text-green-800 transition-colors duration-200" />
+                                        </button>
+                                        <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                            Edit
+                                            <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <!-- Delete button with tooltip -->
-                                <div class="relative group">
-                                    <button 
-                                        @click="deleteUser(user.id)"
-                                        class="p-1.5 rounded hover:bg-red-100 transition-colors duration-200"
-                                    >
-                                        <TrashIcon class="w-5 h-5 text-red-600 transition-colors duration-200" />
-                                    </button>
-                                    <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        Delete User
-                                        <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                    <!-- Unban button - only show if user is banned -->
+                                    <div v-if="user.is_banned" class="relative group">
+                                        <button 
+                                            @click="unbanUser(user.id, user.username)"
+                                            class="p-1.5 rounded hover:bg-blue-100 transition-colors duration-200"
+                                        >
+                                            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            </svg>
+                                        </button>
+                                        <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                            Remove Ban
+                                            <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ban user button - only show if user is not banned -->
+                                    <div v-else class="relative group">
+                                        <button 
+                                            @click="showBanUserModal(user)"
+                                            class="p-1.5 rounded hover:bg-orange-100 transition-colors duration-200"
+                                        >
+                                            <ShieldExclamationIcon class="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 group-hover:text-orange-800 transition-colors duration-200" />
+                                        </button>
+                                        <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                            Ban User
+                                            <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delete button with tooltip -->
+                                    <div class="relative group">
+                                        <button 
+                                            @click="deleteUser(user.id)"
+                                            class="p-1.5 rounded hover:bg-red-100 transition-colors duration-200"
+                                        >
+                                            <TrashIcon class="w-4 h-4 sm:w-5 sm:h-5 text-red-600 transition-colors duration-200" />
+                                        </button>
+                                        <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                            Delete
+                                            <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr v-if="!props.users.data || props.users.data.length === 0">
-                        <td colspan="7" class="text-center py-4">No users found</td>
-                    </tr>
-                </tbody>
-            </table>
+                            </td>
+                        </tr>
+                        <tr v-if="!props.users.data || props.users.data.length === 0">
+                            <td colspan="8" class="text-center py-4 text-muted-foreground">No users found</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
             
             <!-- Simple Pagination -->
-            <div v-if="props.users.links && props.users.links.length > 0" class="mt-4 flex justify-between items-center">
+            <div v-if="props.users.links && props.users.links.length > 0" class="mt-4 flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
                 <div>
-                    <p class="text-sm text-gray-700">
+                    <p class="text-sm text-muted-foreground">
                         Showing {{ props.users.from || 0 }} to {{ props.users.to || 0 }} 
                         of {{ props.users.total || 0 }} results
                     </p>
@@ -369,14 +513,14 @@ const isAllSelected = computed(() => {
                     <Link 
                         v-if="props.users.prev_page_url" 
                         :href="props.users.prev_page_url"
-                        class="px-4 py-2 bg-white border rounded hover:bg-gray-50"
+                        class="px-3 sm:px-4 py-1 sm:py-2 bg-background border border-border rounded hover:bg-muted text-foreground text-sm"
                     >
                         Previous
                     </Link>
                     <Link 
                         v-if="props.users.next_page_url"
                         :href="props.users.next_page_url"
-                        class="px-4 py-2 bg-white border rounded hover:bg-gray-50"
+                        class="px-3 sm:px-4 py-1 sm:py-2 bg-background border border-border rounded hover:bg-muted text-foreground text-sm"
                     >
                         Next
                     </Link>
@@ -488,6 +632,27 @@ const isAllSelected = computed(() => {
                         <div>
                             <label class="block text-xs font-medium text-gray-500">Registered At</label>
                             <p class="text-gray-900">{{ formatDate(currentUser.created_at) }}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Add ban status to user details -->
+                    <div class="mt-2" v-if="currentUser.is_banned && currentUser.ban_details">
+                        <label class="block text-xs font-medium text-gray-500">Ban Information</label>
+                        <div class="bg-red-50 p-3 rounded-md mt-1">
+                            <p class="text-sm font-medium text-red-800">User is currently banned</p>
+                            <p class="text-xs text-gray-700 mt-1">Reason: {{ currentUser.ban_details.reason }}</p>
+                            <p class="text-xs text-gray-700 mt-1" v-if="currentUser.ban_details.is_permanent">
+                                Duration: Permanent
+                            </p>
+                            <p class="text-xs text-gray-700 mt-1" v-else-if="currentUser.ban_details.expires_at">
+                                Expires: {{ formatDate(currentUser.ban_details.expires_at) }}
+                            </p>
+                            <button 
+                                @click="unbanUser(currentUser.id, currentUser.username); closeModal();"
+                                class="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                            >
+                                Remove Ban
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -630,6 +795,98 @@ const isAllSelected = computed(() => {
                 </div>
             </div>
         </div>
+
+        <!-- Ban User Modal -->
+        <div v-if="showBanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md mx-auto overflow-hidden">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                        <ShieldExclamationIcon class="w-5 h-5 text-orange-600 mr-2" />
+                        Ban User: {{ banForm.username }}
+                    </h3>
+                    <button 
+                        @click="closeBanModal"
+                        class="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                        <XMarkIcon class="h-5 w-5" />
+                    </button>
+                </div>
+                
+                <!-- Modal Body / Ban Form -->
+                <div class="p-6 space-y-4">
+                    <!-- Ban Duration -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ban Duration</label>
+                        <select 
+                            v-model="banForm.duration"
+                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-color"
+                        >
+                            <option v-for="duration in banDurations" :key="duration.value" :value="duration.value">
+                                {{ duration.label }}
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <!-- Custom Duration Days Input (shown only when "Custom" is selected) -->
+                    <div v-if="banForm.duration === 'custom'">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Number of Days</label>
+                        <input 
+                            type="number" 
+                            v-model.number="banForm.custom_days"
+                            min="1"
+                            max="365"
+                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-color"
+                            :class="{ 'border-red-500': banFormErrors.custom_days }"
+                            placeholder="Enter number of days"
+                        />
+                        <p v-if="banFormErrors.custom_days" class="text-red-500 text-xs mt-1">
+                            {{ banFormErrors.custom_days }}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            You can ban users for 1 to 365 days
+                        </p>
+                    </div>
+                    
+                    <!-- Ban Reason -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Ban</label>
+                        <textarea 
+                            v-model="banForm.reason"
+                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-color"
+                            :class="{ 'border-red-500': banFormErrors.reason }"
+                            rows="4"
+                            placeholder="Please provide a reason for banning this user"
+                        ></textarea>
+                        <p v-if="banFormErrors.reason" class="text-red-500 text-xs mt-1">{{ banFormErrors.reason }}</p>
+                    </div>
+                    
+                    <!-- Warning Message -->
+                    <div class="bg-orange-50 p-3 rounded border border-orange-200">
+                        <p class="text-sm text-orange-800">
+                            <strong>Warning:</strong> Banning a user will prevent them from accessing the platform
+                            according to the duration you select. This action can be reversed later.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="bg-gray-50 px-4 py-3 border-t flex justify-end space-x-3">
+                    <button 
+                        @click="closeBanModal"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        @click="submitBan"
+                        class="px-4 py-2 bg-orange-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-orange-700"
+                    >
+                        Ban User
+                    </button>
+                </div>
+            </div>
+        </div>
     </AdminLayout>
 </template>
 
@@ -659,5 +916,23 @@ button:hover .text-green-600 {
 
 .group:hover button .text-green-600 ~ div {
     background-color: #dcfce7 !important; /* Tailwind green-100 */
+}
+
+/* New styles for ban button */
+button:hover .text-orange-600 {
+    color: #c2410c !important; /* Tailwind orange-700 */
+}
+
+.group:hover button .text-orange-600 ~ div {
+    background-color: #ffedd5 !important; /* Tailwind orange-100 */
+}
+
+/* New styles for unban button */
+button:hover .text-blue-600 {
+    color: #2563eb !important; /* Tailwind blue-600 */
+}
+
+.group:hover button .text-blue-600 ~ div {
+    background-color: #dbeafe !important; /* Tailwind blue-100 */
 }
 </style>

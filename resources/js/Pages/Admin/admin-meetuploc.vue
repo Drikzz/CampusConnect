@@ -1,15 +1,15 @@
 <template>
   <AdminLayout :user="auth.user">
-    <div class="container mx-auto">
+    <div class="container mx-auto px-4 md:px-6 lg:px-8">
       <!-- Page Header -->
-      <div class="mb-8">
-        <h1 class="text-2xl font-bold">Campus Locations</h1>
-        <p class="text-gray-600">Manage campus-wide meetup locations for students and sellers</p>
+      <div class="mb-6 md:mb-8">
+        <h1 class="text-xl md:text-2xl font-bold text-foreground">Campus Locations</h1>
+        <p class="text-muted-foreground">Manage campus-wide meetup locations for students and sellers</p>
       </div>
 
       <!-- Main Content -->
-      <div class="bg-white rounded-lg shadow-sm">
-        <div class="p-6">
+      <div class="bg-card rounded-lg shadow-sm border">
+        <div class="p-4 md:p-6">
           <!-- Search and Actions -->
           <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
             <div class="w-full sm:w-auto">
@@ -28,26 +28,34 @@
           </div>
 
           <!-- Locations Table -->
-          <div class="overflow-x-auto">
+          <div class="overflow-x-auto -mx-4 sm:mx-0">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Coordinates</TableHead>
+                  <TableHead class="hidden sm:table-cell">Coordinates</TableHead>
                   <TableHead class="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow v-for="location in locations.data" :key="location.id" class="hover:bg-gray-50">
-                  <TableCell class="font-medium">{{ location.name }}</TableCell>
-                  <TableCell>
+                <TableRow v-for="location in locations.data" :key="location.id" class="hover:bg-muted/5">
+                  <TableCell class="font-medium">
+                    <div>
+                      {{ location.name }}
+                      <div class="sm:hidden mt-1">
+                        <span class="text-xs text-muted-foreground">Lat: {{ location.latitude }}</span>,
+                        <span class="text-xs text-muted-foreground">Long: {{ location.longitude }}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell class="hidden sm:table-cell">
                     <div class="flex flex-col">
-                      <span class="text-xs text-gray-500">Lat: {{ location.latitude }}</span>
-                      <span class="text-xs text-gray-500">Long: {{ location.longitude }}</span>
+                      <span class="text-xs text-muted-foreground">Lat: {{ location.latitude }}</span>
+                      <span class="text-xs text-muted-foreground">Long: {{ location.longitude }}</span>
                     </div>
                   </TableCell>
                   <TableCell class="text-right">
-                    <div class="flex justify-end gap-2">
+                    <div class="flex justify-end gap-1 sm:gap-2">
                       <Button 
                         variant="ghost" 
                         size="icon"
@@ -69,19 +77,10 @@
                           variant="ghost" 
                           size="icon"
                           @click="confirmDelete(location)"
-                          :disabled="isLocationInUse(location)"
                           title="Delete location"
-                          :class="{ 'opacity-50 cursor-not-allowed bg-gray-100': isLocationInUse(location) }"
                         >
-                          <TrashIcon class="h-4 w-4" :class="isLocationInUse(location) ? 'text-gray-400' : 'text-red-500'" />
-                          <span v-if="isLocationInUse(location)" class="sr-only">Cannot delete - location in use</span>
+                          <TrashIcon class="h-4 w-4 text-destructive" />
                         </Button>
-                        <div 
-                          v-if="isLocationInUse(location)" 
-                          class="absolute -top-10 right-0 bg-black text-white text-xs p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 w-48 text-center"
-                        >
-                          Cannot delete - this location is in use
-                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -97,11 +96,11 @@
             </Table>
             
             <!-- Pagination -->
-            <div v-if="locations.data.length > 0" class="mt-4 flex justify-between items-center">
-              <div class="text-sm text-gray-500">
+            <div v-if="locations.data.length > 0" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="text-sm text-muted-foreground order-2 sm:order-1">
                 Showing {{ locations.from }} to {{ locations.to }} of {{ locations.total }} locations
               </div>
-              <div class="flex gap-2">
+              <div class="flex gap-2 order-1 sm:order-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -125,18 +124,9 @@
       </div>
     </div>
 
-    <!-- Debug Info (only visible during development) -->
-    <div v-if="isDev" class="mt-8 p-4 bg-gray-100 rounded-lg text-sm">
-      <h3 class="font-semibold mb-2">Debug Information:</h3>
-      <div v-for="location in locations.data" :key="location.id" class="mb-2">
-        <div>Location: {{ location.name }}</div>
-        <div>In Use: {{ isLocationInUse(location) ? 'Yes' : 'No' }} (meetup_locations_count: {{ location.meetup_locations_count }})</div>
-      </div>
-    </div>
-    
     <!-- Create/Edit Dialog -->
     <Dialog :open="showDialog" @update:open="showDialog = $event">
-      <DialogContent class="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent class="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{{ editingLocation ? 'Edit Location' : 'Add New Location' }}</DialogTitle>
           <DialogDescription>
@@ -156,7 +146,7 @@
               placeholder="e.g. WMSU Main Library" 
               required 
             />
-            <div v-if="errors.name" class="text-sm text-red-500 mt-1">
+            <div v-if="errors.name" class="text-sm text-destructive mt-1">
               {{ errors.name }}
             </div>
           </div>
@@ -165,7 +155,7 @@
           <div class="space-y-4">
             <div>
               <Label>Select Location on Map (or search)</Label>
-              <div class="flex space-x-2 mb-2">
+              <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-2">
                 <Input 
                   id="map-search" 
                   v-model="mapSearch" 
@@ -173,20 +163,20 @@
                   class="flex-1"
                   @keydown.enter.prevent="searchLocation"
                 />
-                <Button type="button" variant="outline" @click="searchLocation">
+                <Button type="button" variant="outline" class="w-full sm:w-auto" @click="searchLocation">
                   <SearchIcon class="h-4 w-4 mr-2" />
                   Search
                 </Button>
               </div>
             </div>
             
-            <div class="h-[250px] border rounded-md relative" ref="mapContainer">
+            <div class="h-[200px] sm:h-[250px] border border-border rounded-md relative" ref="mapContainer">
               <!-- Map will be mounted here -->
             </div>
           </div>
           
           <!-- Manual coordinate inputs -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label for="latitude">Latitude</Label>
               <Input 
@@ -199,7 +189,7 @@
                 placeholder="e.g. 6.912892" 
                 required 
               />
-              <div v-if="errors.latitude" class="text-sm text-red-500 mt-1">
+              <div v-if="errors.latitude" class="text-sm text-destructive mt-1">
                 {{ errors.latitude }}
               </div>
             </div>
@@ -215,22 +205,22 @@
                 placeholder="e.g. 122.061776" 
                 required 
               />
-              <div v-if="errors.longitude" class="text-sm text-red-500 mt-1">
+              <div v-if="errors.longitude" class="text-sm text-destructive mt-1">
                 {{ errors.longitude }}
               </div>
             </div>
           </div>
           
-          <div class="flex items-center gap-2 text-sm text-gray-500 bg-blue-50 p-3 rounded-md">
-            <InfoIcon class="h-4 w-4 text-blue-500" />
+          <div class="flex items-center gap-2 text-sm text-muted-foreground bg-accent/10 p-3 rounded-md">
+            <InfoIcon class="h-4 w-4 text-accent" />
             <span>Click on the map to set coordinates, or enter them manually. The location name must always be entered manually.</span>
           </div>
           
-          <DialogFooter>
-            <Button type="button" variant="outline" @click="showDialog = false">
+          <DialogFooter class="flex flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button type="button" variant="outline" class="w-full sm:w-auto" @click="showDialog = false">
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" class="w-full sm:w-auto">
               {{ editingLocation ? 'Update Location' : 'Add Location' }}
             </Button>
           </DialogFooter>
@@ -247,9 +237,9 @@
             Are you sure you want to delete "{{ locationToDelete?.name }}"? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" @click="deleteLocation">Delete</AlertDialogAction>
+        <AlertDialogFooter class="flex flex-col sm:flex-row gap-2 sm:gap-0">
+          <AlertDialogCancel class="w-full sm:w-auto">Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" class="w-full sm:w-auto" @click="deleteLocation">Delete</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -305,9 +295,6 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css'
 import 'leaflet-defaulticon-compatibility'
 import { OpenStreetMapProvider } from 'leaflet-geosearch'
-
-// Add this line to define the isDev ref
-const isDev = ref(import.meta.env.DEV)
 
 const props = defineProps({
   auth: Object,
@@ -498,7 +485,6 @@ const editLocation = (location) => {
 
 // Prepare delete confirmation
 const confirmDelete = (location) => {
-  if (isLocationInUse(location)) return; // Prevent deletion if in use
   locationToDelete.value = location;
   showDeleteDialog.value = true;
 }
@@ -552,5 +538,13 @@ onBeforeUnmount(() => {
 .leaflet-container {
   height: 100%;
   width: 100%;
+  z-index: 10; /* Ensure map stays below dialogs */
+}
+
+/* Add responsive styles for map controls */
+@media (max-width: 640px) {
+  .leaflet-control-zoom {
+    margin-top: 60px;
+  }
 }
 </style>

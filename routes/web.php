@@ -24,6 +24,8 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ProductTradeController;
 use App\Http\Controllers\AdminLocationController;
+use App\Http\Controllers\AdminTransactionsController;
+use App\Http\Controllers\AdminUserBanController; // Import the AdminUserBanController at the top of the file
 
 
 // Public routes should be at the top, before any middleware groups
@@ -261,6 +263,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
     Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
 
+    // Add these routes within your admin routes group
+    Route::post('/users/{id}/ban', [AdminUserBanController::class, 'banUser'])->name('users.ban');
+    Route::post('/users/{id}/unban', [AdminUserBanController::class, 'unbanUser'])->name('users.unban');
+    Route::get('/users/{id}/ban-status', [AdminUserBanController::class, 'getBanStatus'])->name('users.ban-status');
     
     // Product Management Routes
     Route::get('/products', [AdminProductsController::class, 'index'])->name('products');
@@ -319,6 +325,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('products', [AdminDashboardController::class, 'getProductChartDataFiltered']);
         Route::get('transactions', [AdminDashboardController::class, 'getTransactionChartDataFiltered']);
     });
+});
+
+// Admin transaction management routes
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/transactions', [AdminTransactionsController::class, 'index'])->name('admin.transactions');
+    Route::get('/api/admin/transactions/chart', [AdminTransactionsController::class, 'getChartData']);
 });
 
 Route::fallback(function () {

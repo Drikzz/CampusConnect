@@ -1,26 +1,26 @@
 <template>
   <AdminLayout>
-    <div class="py-6">
-      <div class="max-w-7xl mx-auto">
-        <h1 class="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h1>
+    <div class="py-4 sm:py-6">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 class="text-xl sm:text-2xl font-bold text-foreground mb-6">Dashboard Overview</h1>
         
         <!-- Dashboard Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
           <div v-for="(stat, index) in stats.dashboardStats" :key="index" 
-               class="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow duration-300">
-            <div class="p-5">
+               class="bg-card overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow duration-300">
+            <div class="p-4 sm:p-5">
               <div class="flex items-center">
-                <div class="flex-shrink-0 bg-primary-color/10 rounded-md p-3 mr-4">
+                <div class="flex-shrink-0 bg-primary/10 rounded-md p-3 mr-4">
                   <component 
                     :is="getIconForStat(stat.name)" 
-                    class="w-6 h-6 text-primary-color"
+                    class="w-5 h-5 sm:w-6 sm:h-6 text-primary"
                   />
                 </div>
                 <div class="flex-1">
-                  <div class="text-sm font-medium text-gray-500 truncate">
+                  <div class="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                     {{ stat.name }}
                   </div>
-                  <div class="mt-1 text-xl font-semibold text-gray-900">
+                  <div class="mt-1 text-lg sm:text-xl font-semibold text-foreground">
                     {{ stat.value }}
                   </div>
                 </div>
@@ -30,24 +30,24 @@
         </div>
 
         <!-- Charts Section with loading states -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <!-- User Growth Chart -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <div v-if="isLoading" class="flex items-center justify-center h-64">
+          <div class="bg-card shadow rounded-lg p-4 sm:p-6">
+            <div v-if="isLoading" class="flex items-center justify-center h-40 sm:h-64">
               <div class="text-center">
-                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-color border-r-transparent align-[-0.125em]"></div>
-                <p class="mt-2 text-gray-500">Loading user data...</p>
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em]"></div>
+                <p class="mt-2 text-muted-foreground">Loading user data...</p>
               </div>
             </div>
             <UserChart v-else :user-data="userData" @filter-change="handleUserFilterChange" />
           </div>
           
           <!-- Products Chart -->
-          <div class="bg-white shadow rounded-lg p-6">
-            <div v-if="isLoading" class="flex items-center justify-center h-64">
+          <div class="bg-card shadow rounded-lg p-4 sm:p-6">
+            <div v-if="isLoading" class="flex items-center justify-center h-40 sm:h-64">
               <div class="text-center">
-                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-color border-r-transparent align-[-0.125em]"></div>
-                <p class="mt-2 text-gray-500">Loading product data...</p>
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em]"></div>
+                <p class="mt-2 text-muted-foreground">Loading product data...</p>
               </div>
             </div>
             <ProductChart v-else :product-data="productData" @filter-change="handleProductFilterChange" />
@@ -55,33 +55,33 @@
         </div>
         
         <!-- Full Width Transaction Chart -->
-        <div class="bg-white shadow rounded-lg p-6 mb-8">
-          <div v-if="isLoading" class="flex items-center justify-center h-64">
+        <div class="bg-card shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+          <div v-if="isLoading" class="flex items-center justify-center h-40 sm:h-64">
             <div class="text-center">
-              <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-color border-r-transparent align-[-0.125em]"></div>
-              <p class="mt-2 text-gray-500">Loading transaction data...</p>
+              <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em]"></div>
+              <p class="mt-2 text-muted-foreground">Loading transaction data...</p>
             </div>
           </div>
           <TransactionChart v-else :transaction-data="transactionData" @filter-change="handleTransactionFilterChange" />
         </div>
 
         <!-- Recent Transactions -->
-        <div class="bg-white shadow rounded-lg overflow-hidden">
-          <div class="px-6 py-5 border-b border-gray-200">
-            <h3 class="text-lg font-medium text-gray-900">Recent Transactions</h3>
-            <p class="mt-1 text-sm text-gray-500">Filter transactions by type to view details.</p>
+        <div class="bg-card shadow rounded-lg overflow-hidden">
+          <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-border">
+            <h3 class="text-base sm:text-lg font-medium text-foreground">Recent Transactions</h3>
+            <p class="mt-1 text-xs sm:text-sm text-muted-foreground">Filter transactions by type to view details.</p>
             
             <!-- Transaction Type Tabs -->
-            <div class="flex space-x-1 mt-4 border-b">
+            <div class="flex flex-wrap gap-2 mt-4 border-b border-border">
               <button 
                 v-for="type in transactionTypes" 
                 :key="type.value"
                 @click="selectedTransactionType = type.value"
                 :class="[
-                  'px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none',
+                  'px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-t-lg focus:outline-none',
                   selectedTransactionType === type.value
-                    ? 'bg-primary-color text-white'
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground hover:bg-muted/80'
                 ]"
                 :aria-pressed="selectedTransactionType === type.value"
                 role="tab"

@@ -649,67 +649,67 @@ const loadImageWithFallback = (image, index) => {
 
 <template>
     <AdminLayout>
-        <h1 class="text-2xl font-bold mb-4">Product Management</h1>
+        <h1 class="text-xl md:text-2xl font-bold text-foreground mb-4">Product Management</h1>
         
-        <div class="bg-white rounded-lg p-4 mb-6">
-            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
-                <div class="w-full md:w-1/3 mb-3 md:mb-0">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+        <div class="bg-card rounded-lg p-3 md:p-4 mb-6 shadow">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-3 md:space-y-0">
+                <div class="w-full md:w-1/3">
+                    <label class="block text-sm font-medium text-muted-foreground mb-1">Search</label>
                     <input 
                         type="text" 
                         v-model="search" 
-                        class="w-full p-2 border rounded"
+                        class="w-full p-2 border rounded bg-background text-foreground"
                         placeholder="Search products..."
                     />
                 </div>
             </div>
             
-            <div class="overflow-x-auto">
-                <table class="min-w-full bg-white border">
+            <div class="overflow-x-auto -mx-3 md:mx-0">
+                <table class="min-w-full bg-card border border-border">
                     <thead>
-                        <tr class="bg-gray-50 text-left text-sm font-semibold">
-                            <th class="py-2 px-3 border-b">
+                        <tr class="bg-muted text-sm font-semibold">
+                            <th class="py-2 px-3 border-b border-border">
                                 <input 
                                     type="checkbox"
                                     :checked="isAllSelected" 
                                     @change="toggleSelectAll"
                                 />
                             </th>
-                            <th class="py-2 px-3 border-b text-left">Image</th>
+                            <th class="py-2 px-3 border-b border-border text-left">Image</th>
                             <th 
                                 @click="sort('name')"
-                                class="py-2 px-3 border-b text-left cursor-pointer"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer"
                             >
-                                Product Name {{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+                                Name {{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
                             </th>
                             <th 
                                 @click="sort('price')"
-                                class="py-2 px-3 border-b text-left cursor-pointer"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer"
                             >
                                 Price {{ sortField === 'price' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
                             </th>
-                            <th class="py-2 px-3 border-b text-left">Seller</th>
-                            <th class="py-2 px-3 border-b text-left">Status</th>
+                            <th class="py-2 px-3 border-b border-border text-left hidden md:table-cell">Seller</th>
+                            <th class="py-2 px-3 border-b border-border text-left">Status</th>
                             <th 
                                 @click="sort('created_at')"
-                                class="py-2 px-3 border-b text-left cursor-pointer"
+                                class="py-2 px-3 border-b border-border text-left cursor-pointer hidden sm:table-cell"
                             >
-                                Date Added {{ sortField === 'created_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+                                Date {{ sortField === 'created_at' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
                             </th>
-                            <th class="py-2 px-3 border-b text-left">Actions</th>
+                            <th class="py-2 px-3 border-b border-border text-left">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="product in filteredProducts" :key="product.id" class="hover:bg-gray-50">
-                            <td class="py-2 px-3 border-b">
+                        <tr v-for="product in filteredProducts" :key="product.id" class="hover:bg-muted/50">
+                            <td class="py-2 px-3 border-b border-border">
                                 <input 
                                     type="checkbox" 
                                     v-model="selectedProducts" 
                                     :value="product.id"
                                 />
                             </td>
-                            <td class="py-2 px-3 border-b">
-                                <div class="w-14 h-14 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                            <td class="py-2 px-3 border-b border-border">
+                                <div class="w-10 h-10 sm:w-14 sm:h-14 bg-muted/50 rounded overflow-hidden flex items-center justify-center">
                                     <img 
                                         v-if="hasValidImage(product)" 
                                         :src="getFirstImage(product)" 
@@ -718,15 +718,15 @@ const loadImageWithFallback = (image, index) => {
                                         @error="handleImageError"
                                         class="w-full h-full object-cover"
                                     >
-                                    <PhotoIcon v-else class="w-8 h-8 text-gray-400" />
+                                    <PhotoIcon v-else class="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
                                 </div>
                             </td>
-                            <td class="py-2 px-3 border-b">{{ product.name }}</td>
-                            <td class="py-2 px-3 border-b">{{ formatPrice(product.price) }}</td>
-                            <td class="py-2 px-3 border-b">
-                                {{ product.seller ? `${product.seller.first_name} ${product.seller.last_name}` : 'Unknown Seller' }}
+                            <td class="py-2 px-3 border-b border-border text-sm">{{ product.name }}</td>
+                            <td class="py-2 px-3 border-b border-border text-sm">{{ formatPrice(product.price) }}</td>
+                            <td class="py-2 px-3 border-b border-border text-sm hidden md:table-cell">
+                                {{ product.seller ? `${product.seller.first_name} ${product.seller.last_name}` : 'Unknown' }}
                             </td>
-                            <td class="py-2 px-3 border-b">
+                            <td class="py-2 px-3 border-b border-border">
                                 <span :class="[
                                     'px-2 py-1 text-xs rounded-full',
                                     product.status?.toLowerCase() === 'active' ? 'bg-green-100 text-green-800' : 
@@ -736,19 +736,19 @@ const loadImageWithFallback = (image, index) => {
                                     {{ product.status }}
                                 </span>
                             </td>
-                            <td class="py-2 px-3 border-b">{{ formatDate(product.created_at) }}</td>
-                            <td class="py-2 px-3 border-b">
-                                <div class="flex items-center space-x-3">
+                            <td class="py-2 px-3 border-b border-border text-sm hidden sm:table-cell">{{ formatDate(product.created_at) }}</td>
+                            <td class="py-2 px-3 border-b border-border">
+                                <div class="flex items-center space-x-1 sm:space-x-3">
                                     <!-- View details button with eye icon -->
                                     <div class="relative group">
                                         <button 
                                             @click="showProductDetails(product)"
-                                            class="p-1.5 rounded hover:bg-blue-100 transition-colors duration-200"
+                                            class="p-1 sm:p-1.5 rounded hover:bg-blue-100 transition-colors duration-200"
                                         >
-                                            <EyeIcon class="w-5 h-5 text-blue-600 group-hover:text-blue-800 transition-colors duration-200" />
+                                            <EyeIcon class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 group-hover:text-blue-800 transition-colors duration-200" />
                                         </button>
                                         <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                            View Product Details
+                                            View
                                             <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
                                         </div>
                                     </div>
@@ -757,12 +757,12 @@ const loadImageWithFallback = (image, index) => {
                                     <div class="relative group">
                                         <button 
                                             @click="editProduct(product)"
-                                            class="p-1.5 rounded hover:bg-green-100 transition-colors duration-200"
+                                            class="p-1 sm:p-1.5 rounded hover:bg-green-100 transition-colors duration-200"
                                         >
-                                            <PencilIcon class="w-5 h-5 text-green-600 group-hover:text-green-800 transition-colors duration-200" />
+                                            <PencilIcon class="w-4 h-4 sm:w-5 sm:h-5 text-green-600 group-hover:text-green-800 transition-colors duration-200" />
                                         </button>
                                         <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                            Edit Product
+                                            Edit
                                             <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
                                         </div>
                                     </div>
@@ -771,12 +771,12 @@ const loadImageWithFallback = (image, index) => {
                                     <div class="relative group">
                                         <button 
                                             @click="deleteProduct(product.id)"
-                                            class="p-1.5 rounded hover:bg-red-100 transition-colors duration-200"
+                                            class="p-1 sm:p-1.5 rounded hover:bg-red-100 transition-colors duration-200"
                                         >
-                                            <TrashIcon class="w-5 h-5 text-red-600 transition-colors duration-200" />
+                                            <TrashIcon class="w-4 h-4 sm:w-5 sm:h-5 text-red-600 transition-colors duration-200" />
                                         </button>
                                         <div class="absolute z-10 w-max bg-black text-white text-xs rounded py-1 px-2 left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                            Delete Product
+                                            Delete
                                             <svg class="absolute text-black h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon points="0,0 127.5,127.5 255,0" fill="currentColor"/></svg>
                                         </div>
                                     </div>
@@ -784,18 +784,18 @@ const loadImageWithFallback = (image, index) => {
                             </td>
                         </tr>
                         <tr v-if="!filteredProducts.length">
-                            <td colspan="7" class="text-center py-4">No products found</td>
+                            <td colspan="8" class="text-center py-4 text-muted-foreground">No products found</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             
-            <div class="mt-4 flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-3 md:mb-0">
+            <div class="mt-4 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
+                <div class="w-full sm:w-auto">
                     <button 
                         v-if="selectedProducts.length > 0"
                         @click="bulkDeleteProducts"
-                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        class="px-3 py-1 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 text-sm"
                     >
                         Delete Selected ({{ selectedProducts.length }})
                     </button>
@@ -804,8 +804,8 @@ const loadImageWithFallback = (image, index) => {
 
             
             <!-- Enhanced Pagination -->
-            <div class="mt-6 flex justify-between items-center" v-if="props.products && props.products.data">
-                <div class="text-sm text-gray-700">
+            <div class="mt-6 flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0" v-if="props.products && props.products.data">
+                <div class="text-xs sm:text-sm text-muted-foreground">
                     Showing {{ props.products.from || 1 }} 
                     to {{ props.products.to || props.products.data.length }} 
                     of {{ props.products.total || props.products.data.length }} results
@@ -816,13 +816,13 @@ const loadImageWithFallback = (image, index) => {
                     <Link 
                         v-if="props.products.prev_page_url"
                         :href="props.products.prev_page_url"
-                        class="px-4 py-2 bg-white border rounded hover:bg-gray-50"
+                        class="px-3 sm:px-4 py-1 sm:py-2 bg-background border border-border rounded hover:bg-muted text-foreground text-sm"
                     >
                         Previous
                     </Link>
                     
                     <!-- Current page indicator -->
-                    <span class="px-4 py-2 bg-gray-100 border rounded">
+                    <span class="px-3 sm:px-4 py-1 sm:py-2 bg-muted border border-border rounded text-sm">
                         Page {{ props.products.current_page || 1 }}
                     </span>
                     
@@ -830,17 +830,12 @@ const loadImageWithFallback = (image, index) => {
                     <Link 
                         v-if="props.products.next_page_url"
                         :href="props.products.next_page_url"
-                        class="px-4 py-2 bg-white border rounded hover:bg-gray-50"
+                        class="px-3 sm:px-4 py-1 sm:py-2 bg-background border border-border rounded hover:bg-muted text-foreground text-sm"
                     >
                         Next
                     </Link>
                 </div>
             </div>
-
-            <!-- Debugging info - uncomment to troubleshoot -->
-            <!-- <pre class="text-xs mt-4 p-2 bg-gray-100 overflow-auto">
-                {{ JSON.stringify(props.products, null, 2) }}
-            </pre> -->
         </div>
         
         <!-- Product Details Modal -->

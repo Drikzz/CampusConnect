@@ -2,7 +2,7 @@
   <AdminChart
     title="User Growth"
     description="Track user registration trends over time"
-    :chart-data="chartData"
+    :chart-data="processedChartData"
     chart-type="line"
     :chart-options="chartOptions"
     :show-date-filter="true"
@@ -25,6 +25,23 @@ const props = defineProps({
       labels: [],
       datasets: []
     })
+  },
+  // New props to support ShadCN-style flat data structure
+  data: {
+    type: Array,
+    default: () => []
+  },
+  index: {
+    type: String,
+    default: 'date'
+  },
+  categories: {
+    type: Array,
+    default: () => ['Total Users', 'Verified Users', 'Unverified Users']
+  },
+  yFormatter: {
+    type: Function,
+    default: (value) => value?.toString() || ''
   }
 })
 
@@ -36,7 +53,62 @@ const chartData = ref({
   datasets: []
 })
 
-// Update chartData whenever userData changes
+// Transform flat data to Chart.js format if flat data is provided
+const processedChartData = computed(() => {
+  // If the ShadCN-style flat data array is provided, use it
+  if (props.data && props.data.length > 0) {
+    const labels = props.data.map(item => item[props.index])
+    
+    // Create datasets from categories
+    const datasets = props.categories.map((category, index) => {
+      // Define friendly colors based on dataset type
+      let borderColor, backgroundColor;
+      
+      if (category === 'Total Users') {
+        borderColor = 'hsl(210, 70%, 60%)'; // Softer blue
+        backgroundColor = 'hsla(210, 70%, 60%, 0.7)';
+      } else if (category === 'Verified Users') {
+        borderColor = 'hsl(150, 65%, 60%)'; // Softer green
+        backgroundColor = 'hsla(150, 65%, 60%, 0.7)'; 
+      } else if (category === 'Unverified Users') {
+        borderColor = 'hsl(25, 90%, 65%)'; // Vibrant orange
+        backgroundColor = 'hsla(25, 90%, 65%, 0.7)';
+      } else {
+        // Default fallback colors
+        const hues = [210, 150, 25, 320, 180]; // Blue, Green, Orange, Purple, Teal
+        borderColor = `hsl(${hues[index % hues.length]}, 70%, 65%)`;
+        backgroundColor = `hsla(${hues[index % hues.length]}, 70%, 65%, 0.12)`;
+      }
+
+      // Apply dash patterns for different lines
+      const dashPatterns = [undefined, [6, 3], [2, 2]];
+      
+      return {
+        label: category,
+        data: props.data.map(item => item[category] || 0), // Keep original values
+        borderColor,
+        backgroundColor,
+        borderWidth: 2,
+        borderDash: dashPatterns[index % dashPatterns.length],
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointHitRadius: 10,
+        pointBorderWidth: 1.5,
+        pointBackgroundColor: borderColor,
+        pointBorderColor: 'white',
+        fill: false,
+        tension: 0.2,
+      };
+    });
+
+    return { labels, datasets };
+  }
+  
+  // Otherwise, fall back to the existing chart data
+  return chartData.value;
+});
+
+// Watch for changes in the userData prop (original format)
 watch(() => props.userData, (newData) => {
   if (newData && newData.labels && newData.datasets) {
     // Check if we need to add unverified users dataset
@@ -72,7 +144,8 @@ watch(() => props.userData, (newData) => {
     
     // Apply different dash patterns and widths for better visibility
     const dashPatterns = [undefined, [6, 3], [2, 2]];
-    const borderWidths = [3, 2.5, 2];
+    // Vary line widths to differentiate datasets
+    const lineWidths = [3, 2.5, 2, 1.5];
     
     // Update all dataset colors to be softer
     processedData.datasets = processedData.datasets.map((dataset, index) => {
@@ -81,14 +154,14 @@ watch(() => props.userData, (newData) => {
       
       if (dataset.label === 'Total Users') {
         borderColor = 'hsl(210, 70%, 60%)'; // Softer blue
-        backgroundColor = 'hsla(210, 70%, 60%, 0.12)';
+        backgroundColor = 'hsla(210, 70%, 60%, 0.7)'; // Increased opacity to match product chart
       } else if (dataset.label === 'Verified Users') {
         borderColor = 'hsl(150, 65%, 60%)'; // Softer green
-        backgroundColor = 'hsla(150, 65%, 60%, 0.12)';
+        backgroundColor = 'hsla(150, 65%, 60%, 0.7)'; // Increased opacity to match product chart
       } else if (dataset.label === 'Unverified Users') {
         // Updated from gold to a more vibrant orange that's easier on the eyes
         borderColor = 'hsl(25, 90%, 65%)'; 
-        backgroundColor = 'hsla(25, 90%, 65%, 0.12)';
+        backgroundColor = 'hsla(25, 90%, 65%, 0.7)'; // Increased opacity to match product chart
       } else {
         // Updated default fallback options with brighter colors
         const colorIndex = index % 5;
@@ -101,16 +174,18 @@ watch(() => props.userData, (newData) => {
         ...dataset,
         borderColor,
         backgroundColor,
-        borderWidth: borderWidths[index % borderWidths.length],
+        borderWidth: lineWidths[index % lineWidths.length], // Use varying line widths for differentiation
         borderDash: dashPatterns[index % dashPatterns.length],
-        pointRadius: 3,
-        pointBorderWidth: 2,
+        pointRadius: 0, // Changed from 4 to 0 to remove circles
+        pointHoverRadius: 6,
+        pointHitRadius: 10,
+        pointBorderWidth: 1.5,
         pointBackgroundColor: borderColor,
         pointBorderColor: 'white',
-        fill: true,
-        tension: 0.4,
-        // Add small vertical offset to prevent exact overlapping
-        data: dataset.data.map(value => value === null ? null : value + (index * 0.01)),
+        fill: false,
+        tension: 0.2,
+        // Keep original data without offsets or rounding
+        data: dataset.data,
       };
     });
     
@@ -118,7 +193,7 @@ watch(() => props.userData, (newData) => {
   }
 }, { immediate: true, deep: true })
 
-// Shadcn-styled chart options
+// Update chart options with formatter
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -134,23 +209,27 @@ const chartOptions = {
         display: false,
       },
       grid: {
-        color: 'hsla(220, 14%, 96%, 0.08)', // Even lighter grid lines
+        color: 'hsla(var(--muted), 0.08)', // Theme-based grid lines
         drawBorder: false,
       },
       ticks: {
         color: 'hsl(var(--muted-foreground))',
         padding: 8,
         font: {
-          size: 11,
+          size: window.innerWidth < 640 ? 9 : 11, // Smaller font on mobile
         },
-        maxTicksLimit: 6, // Limit the number of ticks for cleaner appearance
+        maxTicksLimit: window.innerWidth < 640 ? 4 : 6, // Fewer ticks on mobile
+        callback: function(value) {
+          // Use the formatter if provided, otherwise default to rounding
+          return props.yFormatter ? props.yFormatter(value, this.index) : Math.round(value);
+        }
       },
       title: {
         display: true,
         text: 'Number of Users',
         color: 'hsl(var(--muted-foreground))',
         font: {
-          size: 12,
+          size: window.innerWidth < 640 ? 10 : 12,
           weight: 'normal',
         },
         padding: {
@@ -170,11 +249,11 @@ const chartOptions = {
         color: 'hsl(var(--muted-foreground))',
         padding: 8,
         font: {
-          size: 11,
+          size: window.innerWidth < 640 ? 9 : 11,
         },
         maxRotation: 0, // Keep labels horizontal
         autoSkip: true, // Skip labels that would overlap
-        maxTicksLimit: 10, // Limit the number of ticks for cleaner appearance
+        maxTicksLimit: window.innerWidth < 640 ? 5 : 10, // Fewer labels on small screens
       },
       title: {
         display: true,
@@ -192,15 +271,15 @@ const chartOptions = {
   },
   elements: {
     line: {
-      tension: 0.4, // Smoother curves for softer appearance
-      borderWidth: 2.5,
+      tension: 0.2,
+      borderWidth: 2, // Standardized line width
       borderJoinStyle: 'round',
     },
     point: {
-      radius: 3, // Show small points to help distinguish overlapping lines
+      radius: 0, // Changed from 4 to 0 to remove circles
       hoverRadius: 6,
       hitRadius: 10,
-      borderWidth: 2,
+      borderWidth: 1.5,
     }
   },
   plugins: {
@@ -247,11 +326,11 @@ const chartOptions = {
           let label = context.dataset.label || '';
           if (label) label += ': ';
           
-          // Remove the small offset before displaying the value
+          // Show actual value without modification
           let value = context.parsed.y;
           if (value !== null && value !== undefined) {
-            // Round to remove the artificial offset we added
-            value = Math.floor(value * 100) / 100;
+            // Use the yFormatter if provided, otherwise show raw value
+            value = props.yFormatter ? props.yFormatter(value) : value;
           }
           return label + value;
         }
