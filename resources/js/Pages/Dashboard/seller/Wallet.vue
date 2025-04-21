@@ -835,11 +835,11 @@ const fetchWalletStatus = async () => {
       }
 
       // Log status changes for debugging
-      console.log('Wallet status updated:', {
-        status: data.status,
-        is_activated: data.is_activated,
-        previous: props.wallet.is_activated
-      });
+      // console.log('Wallet status updated:', {
+      //   status: data.status,
+      //   is_activated: data.is_activated,
+      //   previous: props.wallet.is_activated
+      // });
     }
   } catch (error) {
     retryCount++;
@@ -867,13 +867,13 @@ const setupPolling = () => {
   // Only set up polling if needed
   if (shouldPoll.value) {
     pollInterval = setInterval(fetchWalletStatus, POLL_INTERVAL);
-    console.log('Wallet status polling started');
+    // console.log('Wallet status polling started');
   }
 };
 
 // Watch for changes in the shouldPoll value to start/stop polling
 watch(shouldPoll, (newValue) => {
-  console.log('Should poll changed:', newValue);
+  // console.log('Should poll changed:', newValue);
   setupPolling();
 }, { immediate: true });
 
@@ -881,7 +881,7 @@ onUnmounted(() => {
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
-    console.log('Wallet status polling stopped');
+    //console.log('Wallet status polling stopped');
   }
 });
 

@@ -89,14 +89,15 @@ class ProductTradeController extends Controller
      */
     public function submitTradeOffer(Request $request)
     {
-
-        dd($request);
+        
+        // dd($request);
 
         // Add detailed logging
         Log::info('Trade offer submission started', [
             'request_data' => $request->all(),
             'has_meetup_date' => $request->has('meetup_date'),
             'meetup_date_value' => $request->input('meetup_date'),
+            'meetup_schedule_value' => $request->input('meetup_schedule'),
             'files' => $request->hasFile('offered_items') ? 'Yes' : 'No',
         ]);
         
@@ -107,6 +108,7 @@ class ProductTradeController extends Controller
                 'meetup_location_id' => 'required|exists:meetup_locations,id',
                 'meetup_schedule' => 'required|string',
                 'meetup_date' => 'required|date|after_or_equal:today',
+                'preferred_time' => 'required|string', // Add validation for preferred time
                 'additional_cash' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
                 'offered_items' => 'required|array|min:1',
@@ -126,8 +128,37 @@ class ProductTradeController extends Controller
             // Get the product to retrieve the seller information
             $product = Product::with('seller')->findOrFail($validated['seller_product_id']);
             
-            // Extract meetup date from the input
+            // Parse meetup date and time from the input
             $meetupDate = new Carbon($validated['meetup_date']);
+            
+            // If meetup_schedule has time information (in format "YYYY-MM-DD, HH:MM:SS, dayname")
+            if (strpos($validated['meetup_schedule'], ',') !== false) {
+                $scheduleParts = explode(',', $validated['meetup_schedule']);
+                if (count($scheduleParts) >= 2) {
+                    $timeString = trim($scheduleParts[1]);
+                    // Parse the time from the schedule
+                    try {
+                        // Set the time component on the meetup date
+                        $timeObj = Carbon::createFromFormat('H:i:s', $timeString);
+                        $meetupDate->setTime($timeObj->hour, $timeObj->minute, 0);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to parse time string: ' . $timeString, [
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
+            } else if (!empty($validated['preferred_time'])) {
+                // Use preferred_time if available and meetup_schedule doesn't contain time
+                try {
+                    // Parse time from preferred_time (expected in HH:MM format)
+                    list($hour, $minute) = explode(':', $validated['preferred_time']);
+                    $meetupDate->setTime((int)$hour, (int)$minute, 0);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to parse preferred time: ' . $validated['preferred_time'], [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
             
             // Begin database transaction
             DB::beginTransaction();

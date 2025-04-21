@@ -427,7 +427,7 @@ class AuthController extends Controller
 
         return back()
             ->with('toast', [
-                'variant' => 'success',
+                'variant' => 'default',
                 'title' => 'Sent!',
                 'description' => 'A new verification link has been sent to your email.'
             ]);
