@@ -145,6 +145,16 @@ const handleDateChange = (newDate) => {
         if (!isNaN(dateObj.getTime())) {
             date.value = newDate;
             form.date_of_birth = format(dateObj, 'yyyy-MM-dd');
+            
+            // Clear date of birth error when a valid date is selected
+            if (form.errors.date_of_birth) {
+                delete form.errors.date_of_birth;
+                
+                // Check age requirement immediately for better UX
+                if (!isOldEnough(form.date_of_birth)) {
+                    form.errors.date_of_birth = `You must be at least ${minAge} years old to register`;
+                }
+            }
         }
     } catch (error) {
         console.error('Error handling date change:', error);
@@ -153,6 +163,55 @@ const handleDateChange = (newDate) => {
 
 // Add this watch to properly handle date changes
 watch(() => date.value, handleDateChange);
+
+// Add watchers for form fields to clear errors when values change
+watch(() => form.user_type_id, () => {
+    if (form.errors.user_type_id) delete form.errors.user_type_id;
+});
+
+watch(() => form.grade_level_id, () => {
+    if (form.errors.grade_level_id) delete form.errors.grade_level_id;
+});
+
+watch(() => form.wmsu_dept_id, () => {
+    if (form.errors.wmsu_dept_id) delete form.errors.wmsu_dept_id;
+});
+
+watch(() => form.first_name, () => {
+    if (form.errors.first_name) delete form.errors.first_name;
+});
+
+watch(() => form.middle_name, () => {
+    if (form.errors.middle_name) delete form.errors.middle_name;
+});
+
+watch(() => form.last_name, () => {
+    if (form.errors.last_name) delete form.errors.last_name;
+});
+
+watch(() => form.gender, () => {
+    if (form.errors.gender) delete form.errors.gender;
+});
+
+watch(() => form.date_of_birth, () => {
+    if (form.errors.date_of_birth) delete form.errors.date_of_birth;
+});
+
+watch(() => form.phone, () => {
+    if (form.errors.phone) delete form.errors.phone;
+    
+    // Optional: Add custom validation for phone format (11 digits)
+    if (form.phone && !/^[0-9]{11}$/.test(form.phone)) {
+        form.errors.phone = 'Please enter a valid 11-digit phone number';
+    }
+});
+
+// Helper function to clear a specific field error
+const clearFieldError = (field) => {
+    if (form.errors[field]) {
+        delete form.errors[field];
+    }
+};
 
 const submit = () => {
     // Basic validation before submission
@@ -166,6 +225,9 @@ const submit = () => {
         phone: 'Phone number'
     };
 
+    // Clear all errors before re-validation
+    form.clearErrors();
+    
     // Check required fields
     Object.entries(requiredFields).forEach(([field, label]) => {
         if (!form[field]) {
@@ -305,28 +367,29 @@ function clearFormData(force = false) {
     <div class="relative">
 
         <!-- Existing template content -->
-        <div class="background w-full h-full absolute z-0"></div>
+        <div class="background w-full h-full absolute z-0 dark:bg-black dark:bg-opacity-80"></div>
 
-        <div class="w-full h-full px-16 pt-16 pb-32 flex justify-center items-center relative z-10">
-            <!-- Logo Container -->
-            <div class="w-1/2">
-                <img class="w-[30rem] h-[30rem]" src="/storage/app/public/imgs/CampusConnect.png" alt="CampusConnect Logo">
-            </div>
-
+        <!-- Center the form container -->
+        <div class="w-full min-h-screen px-4 sm:px-8 md:px-16 pt-8 sm:pt-16 pb-16 sm:pb-32 flex flex-col justify-center items-center relative z-10">
             <!-- Form Container -->
-            <div class="flex flex-col justify-center items-end">
+            <div class="flex flex-col justify-center w-full max-w-[40rem] px-4">
+                <!-- Add smaller logo here -->
+                <div class="flex justify-center mb-6">
+                    <img class="w-24 h-24 sm:w-32 sm:h-32" src="/storage/app/public/imgs/CampusConnect.png" alt="CampusConnect Logo">
+                </div>
+
                 <!-- Progress Indicator Component would go here -->
-                
+
                 <form @submit.prevent="submit">
-                    <div class="w-[40rem] h-auto bg-background p-10 rounded-sm">
+                    <div class="w-full mx-auto h-auto bg-background dark:bg-gray-900 p-6 sm:p-10 rounded-sm">
                         <div class="mb-6">
-                            <p class="font-FontSpring-bold text-3xl text-primary-color">Personal Information</p>
+                            <p class="font-FontSpring-bold text-2xl sm:text-3xl text-primary-color">Personal Information</p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                             <!-- User Type Combobox -->
-                            <div class="col-span-2">
-                                <label class="block mb-2 text-sm font-medium text-black">User Type*</label>
+                            <div class="col-span-1 sm:col-span-2">
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">User Type*</label>
                                 <Popover v-model:open="userTypeOpen">
                                     <PopoverTrigger as-child>
                                         <Button
@@ -334,16 +397,18 @@ function clearFormData(force = false) {
                                             role="combobox"
                                             :aria-expanded="userTypeOpen"
                                             :disabled="form.processing"
-                                            class="w-full h-10 justify-between bg-white border-primary-color disabled:opacity-50"
+                                            class="w-full h-10 justify-between bg-white dark:bg-gray-800 border-border dark:border-gray-700 disabled:opacity-50 dark:text-white text-left"
+                                            :class="{'ring-2 ring-destructive ring-offset-1': form.errors.user_type_id}"
+                                            @click="clearFieldError('user_type_id')"
                                         >
                                             {{ getSelectedUserType || "Select user type..." }}
                                             <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent class="w-[400px] p-0">
+                                    <PopoverContent class="w-[calc(100vw-2rem)] sm:w-[400px] p-0 dark:bg-gray-800 dark:border-gray-700">
                                         <Command>
-                                            <CommandInput placeholder="Search user type..." />
-                                            <CommandEmpty>No user type found.</CommandEmpty>
+                                            <CommandInput placeholder="Search user type..." class="dark:bg-gray-800 dark:text-white" />
+                                            <CommandEmpty class="dark:text-gray-400">No user type found.</CommandEmpty>
                                             <CommandGroup>
                                                 <ScrollArea className="h-[125px]">
                                                     <CommandItem
@@ -354,6 +419,7 @@ function clearFormData(force = false) {
                                                             form.user_type_id = type.value;
                                                             userTypeOpen = false;
                                                         }"
+                                                        class="dark:text-white dark:hover:bg-gray-700"
                                                     >
                                                         <Check
                                                             :class="cn(
@@ -368,14 +434,14 @@ function clearFormData(force = false) {
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
-                                <div v-if="form.errors.user_type_id" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.user_type_id" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.user_type_id }}
                                 </div>
                             </div>
 
                             <!-- Conditional Fields -->
-                            <div v-if="showGradeLevel" class="col-span-2">
-                                <label class="block mb-2 text-sm font-medium text-black">Select Highschool level</label>
+                            <div v-if="showGradeLevel" class="col-span-1 sm:col-span-2">
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Select Highschool level</label>
                                 <Popover v-model:open="gradeLevelOpen">
                                     <PopoverTrigger as-child>
                                         <Button
@@ -383,16 +449,18 @@ function clearFormData(force = false) {
                                             role="combobox"
                                             :aria-expanded="gradeLevelOpen"
                                             :disabled="form.processing"
-                                            class="w-full h-10 justify-between bg-white border-primary-color disabled:opacity-50"
+                                            class="w-full h-10 justify-between bg-white dark:bg-gray-800 border-border dark:border-gray-700 disabled:opacity-50 dark:text-white text-left"
+                                            :class="{'ring-2 ring-destructive ring-offset-1': form.errors.grade_level_id}"
+                                            @click="clearFieldError('grade_level_id')"
                                         >
                                             {{ getSelectedGradeLevel || "--Select highshool level--" }}
                                             <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent class="w-[400px] p-0">
+                                    <PopoverContent class="w-[calc(100vw-2rem)] sm:w-[400px] p-0 dark:bg-gray-800 dark:border-gray-700">
                                         <Command>
-                                            <CommandInput placeholder="Search grade level..." />
-                                            <CommandEmpty>No grade level found.</CommandEmpty>
+                                            <CommandInput placeholder="Search grade level..." class="dark:bg-gray-800 dark:text-white" />
+                                            <CommandEmpty class="dark:text-gray-400">No grade level found.</CommandEmpty>
                                             <CommandGroup>
                                                 <ScrollArea className="h-[125px]">
                                                     <CommandItem
@@ -403,6 +471,7 @@ function clearFormData(force = false) {
                                                             form.grade_level_id = level.value;
                                                             gradeLevelOpen = false;
                                                         }"
+                                                        class="dark:text-white dark:hover:bg-gray-700"
                                                     >
                                                         <Check
                                                             :class="cn(
@@ -417,13 +486,13 @@ function clearFormData(force = false) {
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
-                                <div v-if="form.errors.grade_level_id" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.grade_level_id" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.grade_level_id }}
                                 </div>
                             </div>
 
-                            <div v-if="showDepartment" class="col-span-2">
-                                <label class="block mb-2 text-sm font-medium text-black">Select Department</label>
+                            <div v-if="showDepartment" class="col-span-1 sm:col-span-2">
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Select Department</label>
                                 <Popover v-model:open="departmentOpen">
                                     <PopoverTrigger as-child>
                                         <Button
@@ -431,16 +500,18 @@ function clearFormData(force = false) {
                                             role="combobox"
                                             :aria-expanded="departmentOpen"
                                             :disabled="form.processing"
-                                            class="w-full h-10 justify-between bg-white border-primary-color disabled:opacity-50"
+                                            class="w-full h-10 justify-between bg-white dark:bg-gray-800 border-border dark:border-gray-700 disabled:opacity-50 dark:text-white text-left"
+                                            :class="{'ring-2 ring-destructive ring-offset-1': form.errors.wmsu_dept_id}"
+                                            @click="clearFieldError('wmsu_dept_id')"
                                         >
                                             {{ getSelectedDepartment || "--Select Department--" }}
                                             <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent class="w-[400px] p-0">
+                                    <PopoverContent class="w-[calc(100vw-2rem)] sm:w-[400px] p-0 dark:bg-gray-800 dark:border-gray-700">
                                         <Command>
-                                            <CommandInput placeholder="Search department..." />
-                                            <CommandEmpty>No department found.</CommandEmpty>
+                                            <CommandInput placeholder="Search department..." class="dark:bg-gray-800 dark:text-white" />
+                                            <CommandEmpty class="dark:text-gray-400">No department found.</CommandEmpty>
                                             <CommandGroup>
                                                 <ScrollArea className="h-[125px]">
                                                     <CommandItem
@@ -451,6 +522,7 @@ function clearFormData(force = false) {
                                                             form.wmsu_dept_id = dept.value;
                                                             departmentOpen = false;
                                                         }"
+                                                        class="dark:text-white dark:hover:bg-gray-700"
                                                     >
                                                         <Check
                                                             :class="cn(
@@ -465,62 +537,68 @@ function clearFormData(force = false) {
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
-                                <div v-if="form.errors.wmsu_dept_id" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.wmsu_dept_id" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.wmsu_dept_id }}
                                 </div>
                             </div>
 
                             <!-- Personal Information Fields -->
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">First Name*</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">First Name*</label>
                                 <Input
                                     v-model="form.first_name"
                                     type="text"
                                     autocomplete="given-name"
                                     :disabled="form.processing"
                                     placeholder="Enter your first name"
-                                    class="bg-white border-primary-color"
-                                    :class="{'ring-2 ring-red-500 ring-offset-1': form.errors.first_name}"
+                                    class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
+                                    :class="{'ring-2 ring-destructive ring-offset-1': form.errors.first_name}"
+                                    @focus="clearFieldError('first_name')"
+                                    @input="clearFieldError('first_name')"
                                 />
-                                <div v-if="form.errors.first_name" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.first_name" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.first_name }}
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">Middle Name (Optional)</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Middle Name (Optional)</label>
                                 <Input
                                     v-model="form.middle_name"
                                     type="text"
                                     autocomplete="additional-name"
                                     :disabled="form.processing"
                                     placeholder="Enter your middle name (optional)"
-                                    class="bg-white border-primary-color"
-                                    :class="{'ring-2 ring-red-500 ring-offset-1': form.errors.middle_name}"
+                                    class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
+                                    :class="{'ring-2 ring-destructive ring-offset-1': form.errors.middle_name}"
+                                    @focus="clearFieldError('middle_name')"
+                                    @input="clearFieldError('middle_name')"
                                 />
-                                <div v-if="form.errors.middle_name" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.middle_name" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.middle_name }}
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">Last Name*</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Last Name*</label>
                                 <Input
                                     v-model="form.last_name"
                                     type="text"
                                     autocomplete="family-name"
                                     :disabled="form.processing"
                                     placeholder="Enter your last name"
-                                    class="bg-white border-primary-color"
-                                    :class="{'ring-2 ring-red-500 ring-offset-1': form.errors.last_name}"
+                                    class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
+                                    :class="{'ring-2 ring-destructive ring-offset-1': form.errors.last_name}"
+                                    @focus="clearFieldError('last_name')"
+                                    @input="clearFieldError('last_name')"
                                 />
-                                <div v-if="form.errors.last_name" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.last_name" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.last_name }}
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">Gender*</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Gender*</label>
                                 <Popover v-model:open="genderOpen">
                                     <PopoverTrigger as-child>
                                         <Button
@@ -528,16 +606,18 @@ function clearFormData(force = false) {
                                             role="combobox"
                                             :aria-expanded="genderOpen"
                                             :disabled="form.processing"
-                                            class="w-full p-2.5 justify-between bg-white border-primary-color disabled:opacity-50"
+                                            class="w-full p-2.5 justify-between bg-white dark:bg-gray-800 border-border dark:border-gray-700 disabled:opacity-50 dark:text-white text-left"
+                                            :class="{'ring-2 ring-destructive ring-offset-1': form.errors.gender}"
+                                            @click="clearFieldError('gender')"
                                         >
                                             {{ getGenderDisplay }}
                                             <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent class="w-[400px] p-0">
+                                    <PopoverContent class="w-[calc(100vw-2rem)] sm:w-[400px] p-0 dark:bg-gray-800 dark:border-gray-700">
                                         <Command>
-                                            <CommandInput placeholder="Search gender..." />
-                                            <CommandEmpty>No gender options found.</CommandEmpty>
+                                            <CommandInput placeholder="Search gender..." class="dark:bg-gray-800 dark:text-white" />
+                                            <CommandEmpty class="dark:text-gray-400">No gender options found.</CommandEmpty>
                                             <CommandGroup>
                                                 <ScrollArea className="h-[125px]">
                                                     <CommandItem
@@ -548,6 +628,7 @@ function clearFormData(force = false) {
                                                             form.gender = option.value;
                                                             genderOpen = false;
                                                         }"
+                                                        class="dark:text-white dark:hover:bg-gray-700"
                                                     >
                                                         <Check
                                                             :class="cn(
@@ -562,72 +643,82 @@ function clearFormData(force = false) {
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
-                                <div v-if="form.errors.gender" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.gender" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.gender }}
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">Date of Birth*</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Date of Birth*</label>
                                 <Popover>
                                     <PopoverTrigger as-child>
                                         <Button 
                                             variant="outline" 
                                             :disabled="form.processing" 
                                             :class="cn(
-                                                'w-full p-2.5 justify-start text-left font-normal bg-white border border-primary-color text-black rounded-lg focus:ring-primary-color focus:border-primary-color',
-                                                !date && 'text-muted-foreground'
+                                                'w-full p-2.5 justify-start text-left font-normal bg-white dark:bg-gray-800 border border-border dark:border-gray-700 text-black dark:text-white rounded-lg focus:ring-secondary focus:border-secondary',
+                                                !date && 'text-muted-foreground',
+                                                form.errors.date_of_birth && 'ring-2 ring-destructive ring-offset-1'
                                             )"
+                                            @click="clearFieldError('date_of_birth')"
                                         >
                                             <CalendarIcon class="mr-2 h-4 w-4" />
                                             {{ date ? format(new Date(date.toString()), 'PPP') : 'Pick a date' }}
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent class="w-auto p-0" align="start">
+                                    <PopoverContent class="w-auto p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
                                         <CustomCalendar
                                             v-model="date"
                                             mode="single"
-                                            class="rounded-md border"
+                                            class="rounded-md border dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                                             :fromDate="minDate"
                                             :toDate="maxDate"
                                             @update:model-value="(newDate) => {
                                                 if (newDate) {
                                                     form.date_of_birth = format(new Date(newDate.toString()), 'yyyy-MM-dd');
+                                                    clearFieldError('date_of_birth');
+                                                    // Check age requirement immediately
+                                                    if (!isOldEnough(form.date_of_birth)) {
+                                                        form.errors.date_of_birth = `You must be at least ${minAge} years old to register`;
+                                                    }
                                                 } else {
                                                     form.date_of_birth = '';
                                                 }
                                             }"
                                         />
-                                        <div class="px-4 py-2 text-xs text-gray-500">
+                                        <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
                                             You must be at least {{ minAge }} years old to register.
                                         </div>
                                     </PopoverContent>
                                 </Popover>
-                                <div v-if="form.errors.date_of_birth" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.date_of_birth" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.date_of_birth }}
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-sm font-medium text-black">Phone Number*</label>
+                                <label class="block mb-2 text-sm font-medium text-black dark:text-white">Phone Number*</label>
                                 <Input
                                     v-model="form.phone"
                                     type="tel"
                                     autocomplete="tel"
                                     :disabled="form.processing"
                                     placeholder="09123456789"
-                                    class="bg-white border-primary-color"
-                                    :class="{'ring-2 ring-red-500 ring-offset-1': form.errors.phone}"
+                                    class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
+                                    :class="{'ring-2 ring-destructive ring-offset-1': form.errors.phone}"
+                                    @focus="clearFieldError('phone')"
+                                    @input="clearFieldError('phone')"
+                                    maxlength="11"
                                 />
-                                <div v-if="form.errors.phone" class="text-red-500 text-sm mt-1">
+                                <div v-if="form.errors.phone" class="text-destructive text-xs sm:text-sm mt-1">
                                     {{ form.errors.phone }}
                                 </div>
                             </div>
                         </div>
 
                         <!-- Form Actions -->
-                        <div class="flex justify-between mt-6">
-                            <Link :href="route('login')" class="text-primary-color hover:underline">
+                        <div class="flex flex-col sm:flex-row justify-between mt-6 gap-4">
+                            <Link :href="route('login')" class="text-primary-color hover:underline text-center sm:text-left">
                                 Already have an account?
                             </Link>
                             <button 
