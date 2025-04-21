@@ -214,6 +214,10 @@ Route::middleware('auth')->group(function () {
             Route::put('/reviews/{id}', [SellerReviewController::class, 'update'])->name('reviews.update');
             Route::delete('/reviews/{id}', [SellerReviewController::class, 'destroy'])->name('reviews.destroy');
             Route::get('/seller/{sellerCode}/rating', [SellerReviewController::class, 'getSellerRating'])->name('seller.rating');
+            
+            // Add this route to match the frontend call in Reviews.vue
+            Route::get('/seller-reviews/rating/{sellerCode}', [SellerReviewController::class, 'getSellerRating'])
+                ->name('seller-reviews.rating');
         });
 
         // Seller review routes
