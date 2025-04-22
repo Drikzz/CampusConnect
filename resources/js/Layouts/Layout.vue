@@ -48,23 +48,20 @@ const footerSections = [
     title: 'Company',
     links: [
       { label: 'About', href: '/about' },
-      { label: 'Features', href: '/features' },
-      { label: 'Careers', href: '/careers' },
+      { label: 'Features', href: '/features' }
     ]
   },
   {
     title: 'Help',
     links: [
       { label: 'Support', href: '/support' },
-      { label: 'Terms', href: '/terms' },
-      { label: 'Privacy', href: '/privacy' }
+      { label: 'Terms and Conditions', href: '/terms' }
     ]
   },
   {
     title: 'Resources',
     links: [
       { label: 'Blog', href: '/blog' },
-      { label: 'Documentation', href: '/docs' },
       { label: 'Contact', href: '/contact' }
     ]
   }
@@ -336,7 +333,7 @@ watch(() => page.props.flash.toast, (flashMessage) => {
               <span class="font-Header italic text-2xl text-foreground">Connect</span>
             </div>
             <p class="text-sm text-muted-foreground">
-              The trusted marketplace for students and alumni.
+              The trusted marketplace for students, alumni, faculty and staff.
             </p>
             <div class="flex space-x-4">
               <!-- Social Links -->
@@ -358,6 +355,8 @@ watch(() => page.props.flash.toast, (flashMessage) => {
                       class="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   {{ link.label }}
                 </Link>
+              </li>
+              <li>
               </li>
             </ul>
           </div>

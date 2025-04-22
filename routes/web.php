@@ -7,15 +7,9 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AdminUsersController;
-use App\Http\Controllers\AdminProductsController;
-use App\Http\Controllers\AdminCategoriesTagsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SellerController;
-use App\Http\Controllers\SellerReviewController;
 use App\Http\Controllers\SellerWalletController;
-use App\Http\Controllers\AdminReportController;
-use App\Http\Controllers\AdminMeetupLocController;
 use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -23,18 +17,31 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ProductTradeController;
+use App\Http\Controllers\FooterController;
 
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
 
-// Route::inertia('/about', 'About', ['user' => 'About Us']);   
+// Footer routes
+Route::inertia('/about', 'Footer/About', ['title' => 'About Us'])->name('about');
+Route::inertia('/features', 'Footer/Features', ['title' => 'Features'])->name('features');
+Route::inertia('/support', 'Footer/Support', ['title' => 'Support'])->name('support');
+Route::inertia('/terms', 'Footer/Terms', ['title' => 'Terms and Conditions'])->name('terms');
+Route::inertia('/blog', 'Footer/Blog', ['title' => 'Blog'])->name('blog');
+Route::inertia('/contact', 'Footer/Contact', ['title' => 'Contact Us'])->name('contact');
+
 
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
-Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
-// Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
+Route::get('/trade', [ProductController::class, 'trade'])->name('products.trade');
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
+
+// Trade routes
+Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
+Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit')->middleware('auth');
+
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -73,7 +80,6 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
-            Route::get('/trades', [DashboardController::class, 'trades'])->name('dashboard.trades');
 
             // Fix: Update the wishlist route definition to avoid conflicts
             Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
@@ -86,6 +92,7 @@ Route::middleware('auth')->group(function () {
 
             // Fix: Consolidate wishlist routes under proper prefix
             Route::prefix('wishlist')->group(function () {
+                Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
                 Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
                 Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
             });
@@ -114,16 +121,6 @@ Route::middleware('auth')->group(function () {
                 Route::put('/orders/{order}/status', [SellerController::class, 'updateOrderStatus'])->name('seller.orders.update-status'); // edit this colleen
                 Route::post('/orders/{order}/schedule-meetup', [SellerController::class, 'scheduleMeetup'])->name('seller.orders.schedule-meetup'); // edit this colleen
 
-                // Trade offers route
-                Route::get('/trade-offers', [SellerController::class, 'tradeOffers'])->name('seller.trade-offers');
-                
-                // Add these new routes for accepting and rejecting trade offers
-                Route::post('/trades/{id}/accept', [SellerController::class, 'acceptTradeOffer'])->name('seller.trades.accept');
-                Route::post('/trades/{id}/reject', [SellerController::class, 'rejectTradeOffer'])->name('seller.trades.reject');
-
-                // Add this route where you have other trade routes, likely in a seller middleware group
-                Route::post('/seller/trades/{id}/complete', [ProductTradeController::class, 'completeTrade'])->name('seller.trades.complete');
-
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
                 Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
@@ -146,8 +143,6 @@ Route::middleware('auth')->group(function () {
                 Route::post('/meetup-locations', [SellerController::class, 'storeMeetupLocation'])->name('seller.meetup-locations.store');
                 Route::put('/meetup-locations/{id}', [SellerController::class, 'updateMeetupLocation'])->name('seller.meetup-locations.update');
                 Route::delete('/meetup-locations/{id}', [SellerController::class, 'deleteMeetupLocation'])->name('seller.meetup-locations.destroy');
-                // Add new public endpoint to get meetup locations for a seller
-                Route::get('/meetup-locations/get/{seller}', [SellerController::class, 'getMeetupLocations'])->name('seller.meetup-locations.get')->withoutMiddleware('seller');
 
                 //wallet routes
                 Route::prefix('wallet')->group(function () {
@@ -169,53 +164,10 @@ Route::middleware('auth')->group(function () {
         // Update wishlist routes
         Route::prefix('dashboard/wishlist')->group(function () {
             Route::get('/', [WishlistController::class, 'index'])->name('dashboard.wishlist');
-            Route::post('/', [WishlistController::class, 'toggle'])->name('wishlist.toggle'); // Keep this one as the main toggle route
+            Route::post('/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
             Route::get('/check/{product_id}', [WishlistController::class, 'checkStatus'])->name('wishlist.check');
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
         });
-
-        // Trade related routes
-
-        Route::patch('trades/{id}/update', [DashboardController::class, 'updateTrade'])->name('trades.update');
-        Route::patch('trades/{id}/cancel', [DashboardController::class, 'cancelTrade'])->name('trades.cancel');
-
-        Route::prefix('trades')->group(function () {
-            Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
-            Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
-            
-            // Add new routes for deleting trades
-            Route::delete('/{trade}', [ProductTradeController::class, 'deleteTrade'])->name('trades.delete');
-            Route::delete('/bulk-delete', [ProductTradeController::class, 'bulkDeleteTrades'])->name('trades.bulk-delete');
-            
-            // Add new route to get meetup locations for a product
-            Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
-                ->name('trades.product.meetup-locations')
-                ->withoutMiddleware('auth'); // Add this to make it publicly accessible
-
-            // Add this route where other trade routes are defined:
-            Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');
-            
-            // Add new routes for trade messages
-            Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
-            Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
-        });
-
-        // Trade routes - moved to auth middleware group
-        Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
-        Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
-
-        // Seller Reviews Routes
-        Route::middleware(['auth', 'verified'])->group(function () {
-            Route::get('/reviews/seller/{sellerCode}', [SellerReviewController::class, 'index'])->name('reviews.index');
-            Route::post('/reviews', [SellerReviewController::class, 'store'])->name('reviews.store');
-            Route::put('/reviews/{id}', [SellerReviewController::class, 'update'])->name('reviews.update');
-            Route::delete('/reviews/{id}', [SellerReviewController::class, 'destroy'])->name('reviews.destroy');
-            Route::get('/seller/{sellerCode}/rating', [SellerReviewController::class, 'getSellerRating'])->name('seller.rating');
-        });
-
-        // Seller review routes
-        Route::post('/seller-reviews', [SellerReviewController::class, 'store'])->name('seller-reviews.store');
-        Route::get('/seller-reviews/{sellerCode}', [SellerReviewController::class, 'index'])->name('seller-reviews.index');
 
         //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
@@ -228,16 +180,15 @@ Route::middleware('auth')->group(function () {
     });
 });
 
+Route::middleware(['auth', 'seller'])->group(function () {
+    Route::post('/orders/{order}/mark-as-delivered', [OrderController::class, 'markAsDelivered'])
+        ->name('orders.mark-as-delivered');
+});
+
 Route::middleware('auth', 'admin')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
-        
-        // Fix the wallet routes - ensure each one has a unique path and controller method
         Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
-        
-        Route::get('/test', [AdminController::class, 'test'])->name('test');
-
-        // Make sure to keep the wallet approval routes
         Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
         Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
 
@@ -245,60 +196,12 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
             ->name('wallet-requests.complete-withdrawal');
 
-        // Fix the wallet management route to use a different method
-        Route::get('/wallet', [AdminController::class, 'walletManagement'])->name('wallet');
-        
-        // Add this route within your admin routes group
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('users.update');
-        
-        // User Management Routes
-        Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
-        Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
-        Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
-        Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
-        Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
-
-        
-        // Product Management Routes
-        Route::get('/products', [AdminProductsController::class, 'index'])->name('products');
-        Route::post('/products', [AdminProductsController::class, 'store'])->name('products.store');
-        Route::put('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update');
-        Route::patch('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update'); // Add PATCH as alternative
-        Route::delete('/products/{id}', [AdminProductsController::class, 'destroy'])->name('products.delete');
-        Route::delete('/products/bulk-delete', [AdminProductsController::class, 'bulkDelete'])->name('products.bulk-delete');
-        Route::post('/products/{id}/toggle-status', [AdminProductsController::class, 'toggleStatus'])->name('products.toggle-status');
-        
-        // Categories & Tags Management Routes
-        Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'index'])->name('admin.categories-tags');
-        
-        // Category Routes
-        Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory'])->name('categories.store');
-        Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory'])->name('categories.update');
-        Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory'])->name('categories.delete');
-        Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories'])->name('categories.bulk-delete');
-        
-        // Tag Routes
-        Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag'])->name('tags.store');
-        Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag'])->name('tags.update');
-        Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag'])->name('tags.delete');
-        Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags'])->name('tags.bulk-delete');
-        
+        // Add these new routes
+        Route::get('/users', [AdminController::class, 'userManagement'])->name('users');
+        Route::get('/products', [AdminController::class, 'productManagement'])->name('products');
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
-
-        // Report Routes
-        Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
-        Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
-        Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
-
-        //Meetup Location Routes
-        Route::get('/locations', [AdminMeetupLocController::class, 'index'])->name('locations');
-        Route::post('/locations', [AdminMeetupLocController::class, 'store'])->name('locations.store');
-        Route::put('/locations/{location}', [AdminMeetupLocController::class, 'update'])->name('locations.update');
-        Route::delete('/locations/{location}', [AdminMeetupLocController::class, 'destroy'])->name('locations.destroy');
-
 
         // Wallet Management Routes
         Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method

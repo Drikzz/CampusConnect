@@ -209,4 +209,40 @@ class OrderController extends Controller
 
         return back()->with('success', 'Order cancelled successfully.');
     }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|integer|min:1',
+            'payment_method' => 'required|string|in:cash,gcash',
+            'meetup_schedule' => 'required|string', // Format: "locationId_dayNumber"
+        ]);
+
+        $product = Product::findOrFail($validated['product_id']);
+        $buyer = Auth::user();
+        $seller = $product->user;
+
+        // Create the order
+        $order = Order::create([
+            'buyer_id' => $buyer->id,
+            'seller_code' => $seller->seller_code,
+            'status' => Order::STATUS_PENDING,
+            'payment_method' => $validated['payment_method'],
+            'meetup_schedule' => $validated['meetup_schedule'],
+        ]);
+
+        // Create order items
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => $validated['quantity'],
+            'price' => $product->price,
+        ]);
+
+        // Update product stock
+        $product->decrement('stock', $validated['quantity']);
+
+        return redirect()->route('orders.show', $order->id)->with('success', 'Order placed successfully.');
+    }
 }
