@@ -34,7 +34,7 @@ Route::get('/', [ProductController::class, 'welcome'])->name('index');
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
-Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
+Route::get('/trade', [ProductController::class, 'index'])->name('trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -73,7 +73,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
-            Route::get('/trades', [TradeController::class, 'index'])->name('dashboard.trades');
+            Route::get('/trades', [TradeController::class, 'trades'])->name('dashboard.trades');
 
             // Fix: Update the wishlist route definition to avoid conflicts
             Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
