@@ -86,12 +86,7 @@ const fetchRating = async () => {
   
   try {
     isLoading.value = true
-    // Fix the API endpoint to match the likely backend route definition
-    const response = await axios.get(`/seller-reviews/rating/${props.user.seller_code}`)
-    
-    // Add more debugging to check response structure
-    console.log('Rating API response data:', response.data)
-    
+    const response = await axios.get(`/api/seller-reviews/rating/${props.user.seller_code}`)
     if (response.data.success) {
       // Log the debug information to help identify issues
       console.log('Rating debug info:', response.data.stats.debug)
@@ -337,8 +332,9 @@ watchEffect(() => {
                 <div class="flex justify-between items-start pt-3 border-t border-gray-100">
                   <div>
                     <p class="font-medium">
-                      {{ review.reviewer?.name || 
-                         (review.buyer ? `${review.buyer.first_name} ${review.buyer.last_name}` : 'Anonymous') }}
+                      {{ review.reviewer?.first_name && review.reviewer?.last_name 
+                        ? `${review.reviewer.first_name} ${review.reviewer.last_name}` 
+                        : (review.reviewer?.name || 'Anonymous') }}
                     </p>
                     <p class="text-xs text-gray-500">{{ formatDate(review.created_at) }}</p>
                   </div>

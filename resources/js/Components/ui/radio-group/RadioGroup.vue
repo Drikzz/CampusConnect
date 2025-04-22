@@ -1,52 +1,25 @@
-<script setup>
+<script setup lang="ts">
 import { cn } from '@/lib/utils'
-import { provide, ref, watch } from 'vue'
+import { RadioGroupRoot, type RadioGroupRootEmits, type RadioGroupRootProps, useForwardPropsEmits } from 'reka-ui'
+import { computed, type HTMLAttributes } from 'vue'
 
-const props = defineProps({
-  modelValue: {
-    type: [String, Number, Boolean],
-    default: undefined
-  },
-  disabled: {
-    type: Boolean,
-    default: false
-  },
-  class: {
-    type: String,
-    default: ''
-  }
+const props = defineProps<RadioGroupRootProps & { class?: HTMLAttributes['class'] }>()
+const emits = defineEmits<RadioGroupRootEmits>()
+
+const delegatedProps = computed(() => {
+  const { class: _, ...delegated } = props
+
+  return delegated
 })
 
-const emits = defineEmits(['update:modelValue'])
-
-// Create internal state that can be shared with child components
-const selectedValue = ref(props.modelValue)
-
-// Watch for external changes to modelValue
-watch(() => props.modelValue, (newValue) => {
-  selectedValue.value = newValue
-})
-
-// Update modelValue when internal state changes
-watch(selectedValue, (newValue) => {
-  emits('update:modelValue', newValue)
-})
-
-// Provide radio group context to child components
-provide('RadioGroup', {
-  selectedValue,
-  disabled: props.disabled,
-  updateValue: (value) => {
-    selectedValue.value = value
-  }
-})
+const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
-  <div
-    role="radiogroup"
+  <RadioGroupRoot
     :class="cn('grid gap-2', props.class)"
+    v-bind="forwarded"
   >
     <slot />
-  </div>
+  </RadioGroupRoot>
 </template>

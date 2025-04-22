@@ -14,8 +14,6 @@ class SellerReviewController extends Controller
 {
     /**
      * Display reviews for a specific seller
-     * 
-     * Route: GET /seller-reviews/{sellerCode}
      */
     public function index($sellerCode)
     {
@@ -166,8 +164,6 @@ class SellerReviewController extends Controller
 
     /**
      * Get seller's average rating
-     * 
-     * Route: GET /seller-reviews/rating/{sellerCode}
      */
     public function getSellerRating($sellerCode)
     {
@@ -218,12 +214,7 @@ class SellerReviewController extends Controller
         
         return response()->json([
             'success' => true,
-            'stats' => $stats,
-            // Add seller information for debugging
-            'seller' => [
-                'code' => $seller->seller_code,
-                'name' => $seller->first_name . ' ' . $seller->last_name
-            ]
+            'stats' => $stats
         ]);
     }
 }
