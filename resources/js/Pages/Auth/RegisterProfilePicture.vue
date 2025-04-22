@@ -1,13 +1,11 @@
 <script setup>
 import { useForm, usePage, router } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, inject } from 'vue';
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { Card, CardContent } from "@/Components/ui/card";
 import { Label } from "@/Components/ui/label";
 import { Link } from '@inertiajs/vue3';
-import { Toaster } from '@/Components/ui/toast';
-import { useToast } from '@/Components/ui/toast/use-toast';
 
 const props = defineProps({
     registrationData: Object,
@@ -81,15 +79,27 @@ const submitRegistration = () => {
 };
 
 const page = usePage();
-const { toast } = useToast();
+// For client-side validation only, get the global toast function
+const toast = inject('globalToast', null);
 
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-    if (flashToast) {
+// Add watcher for flash messages
+watch(() => page.props.flash.message, (message) => {
+    if (message && toast) {
         toast({
-            variant: flashToast.variant,
-            title: flashToast.title,
-            description: flashToast.description,
+            variant: 'default',
+            title: 'Notification',
+            description: message,
+        });
+    }
+}, { immediate: true });
+
+// Also watch for flash errors if needed
+watch(() => page.props.flash.error, (error) => {
+    if (error && toast) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: error,
         });
     }
 }, { immediate: true });
@@ -102,48 +112,47 @@ onMounted(() => {
 
 <template>
     <div class="relative">
-        <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-            <Toaster />
-        </div>
 
-        <div class="background w-full h-full absolute z-0"></div>
+        <div class="background w-full h-full absolute z-0 dark:bg-black dark:bg-opacity-80"></div>
 
-        <div class="w-full h-full px-16 pt-16 pb-32 flex justify-center items-center relative z-10">
-            <!-- Logo Container -->
-            <div class="w-1/2">
-                <img class="w-[30rem] h-[30rem]" src="/storage/app/public/imgs/CampusConnect.png" alt="CampusConnect Logo">
-            </div>
-
+        <!-- Center the form container -->
+        <div class="w-full min-h-screen px-4 sm:px-8 md:px-16 pt-8 sm:pt-16 pb-16 sm:pb-32 flex flex-col justify-center items-center relative z-10">
             <!-- Form Container -->
-            <div class="flex flex-col justify-center items-end">
+            <div class="flex flex-col justify-center w-full max-w-[40rem] px-4">
+                <!-- Add smaller logo here -->
+                <div class="flex justify-center mb-6">
+                    <img class="w-24 h-24 sm:w-32 sm:h-32" src="/storage/app/public/imgs/CampusConnect.png" alt="CampusConnect Logo">
+                </div>
+
                 <form @submit.prevent="submitWithPhoto" enctype="multipart/form-data">
-                    <Card class="w-[40rem]">
-                        <CardContent class="p-10">
-                            <div class="mb-8 text-center">
-                                <p class="font-FontSpring-bold text-3xl text-primary-color">Add a Profile Picture</p>
-                                <p class="text-gray-500 mt-2">This step is optional. You can skip it if you prefer.</p>
+                    <Card class="w-full mx-auto dark:bg-gray-900 dark:border-gray-700">
+                        <CardContent class="p-6 sm:p-10">
+                            <div class="mb-6 sm:mb-8 text-center">
+                                <p class="font-FontSpring-bold text-2xl sm:text-3xl text-primary-color">Add a Profile Picture</p>
+                                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm sm:text-base">This step is optional. You can skip it if you prefer.</p>
                             </div>
 
                             <!-- Profile Picture Upload -->
-                            <div class="mb-8 flex flex-col items-center">
-                                <div class="w-40 h-40 border-2 border-dashed border-gray-300 rounded-full flex items-center justify-center overflow-hidden bg-gray-50 mb-4">
+                            <div class="mb-6 sm:mb-8 flex flex-col items-center">
+                                <div class="w-32 h-32 sm:w-40 sm:h-40 border-2 border-dashed border-border dark:border-gray-700 rounded-full flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-800 mb-4">
                                     <img v-if="previewUrl" :src="previewUrl" 
                                         class="w-full h-full object-cover" />
                                     <div v-else class="text-gray-400 text-center">
-                                        <i class="fas fa-user text-4xl mb-2"></i>
-                                        <p class="text-sm">No image</p>
+                                        <i class="fas fa-user text-3xl sm:text-4xl mb-2"></i>
+                                        <p class="text-xs sm:text-sm">No image</p>
                                     </div>
                                 </div>
                                 
-                                <div class="flex flex-col gap-2 items-center">
+                                <div class="flex flex-col gap-2 items-center w-full max-w-xs">
                                     <Input 
                                         type="file"
                                         accept="image/*"
                                         @change="handleFileUpload"
                                         :disabled="form.processing"
-                                        class="bg-white border-primary-color file:bg-primary-color file:text-white file:border-0"
+                                        class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 file:bg-primary-color file:text-white file:border-0 dark:text-white text-xs sm:text-sm"
+                                        :class="{'ring-2 ring-destructive ring-offset-1': form.errors.profile_picture}"
                                     />
-                                    <p class="text-sm text-gray-500">Max size: 2MB (JPG, JPEG, PNG)</p>
+                                    <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Max size: 2MB (JPG, JPEG, PNG)</p>
                                     <Button 
                                         v-if="previewUrl"
                                         type="button"
@@ -154,36 +163,41 @@ onMounted(() => {
                                         Remove Image
                                     </Button>
                                 </div>
+                                <div v-if="form.errors.profile_picture" class="text-destructive text-xs sm:text-sm mt-1">
+                                    {{ form.errors.profile_picture }}
+                                </div>
                             </div>
 
                             <!-- Form Actions -->
-                            <div class="flex justify-between mt-8">
+                            <div class="flex flex-col sm:flex-row justify-between mt-6 sm:mt-8 gap-4">
                                 <!-- Add Back Button -->
                                 <Link 
                                     :href="route('register.details')"
-                                    class="text-primary-color hover:underline px-6 py-2"
+                                    class="text-primary-color hover:underline px-6 py-2 text-center sm:text-left"
                                     :disabled="form.processing"
                                 >
                                     Back
                                 </Link>
                                 
-                                <Button 
-                                    type="button" 
-                                    variant="outline"
-                                    @click="skipStep"
-                                    :disabled="form.processing"
-                                    class="px-8"
-                                >
-                                    Skip for now
-                                </Button>
-                                
-                                <Button 
-                                    type="submit" 
-                                    :disabled="!previewUrl || form.processing"
-                                    class="bg-primary-color text-primary-foreground"
-                                >
-                                    {{ form.processing ? 'Processing...' : 'Complete Registration' }}
-                                </Button>
+                                <div class="flex flex-col sm:flex-row gap-4">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline"
+                                        @click="skipStep"
+                                        :disabled="form.processing"
+                                        class="px-8 dark:border-gray-700 dark:text-gray-300 order-1 sm:order-none"
+                                    >
+                                        Skip for now
+                                    </Button>
+                                    
+                                    <Button 
+                                        type="submit" 
+                                        :disabled="!previewUrl || form.processing"
+                                        class="bg-primary-color text-primary-foreground"
+                                    >
+                                        {{ form.processing ? 'Processing...' : 'Complete Registration' }}
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

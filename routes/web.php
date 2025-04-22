@@ -23,6 +23,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ProductTradeController;
+use App\Http\Controllers\TradeController;
 use App\Http\Controllers\AdminLocationController;
 use App\Http\Controllers\AdminTransactionsController;
 use App\Http\Controllers\AdminUserBanController; // Import the AdminUserBanController at the top of the file
@@ -178,7 +179,6 @@ Route::middleware('auth')->group(function () {
         });
 
         // Trade related routes
-
         Route::patch('trades/{id}/update', [DashboardController::class, 'updateTrade'])->name('trades.update');
         Route::patch('trades/{id}/cancel', [DashboardController::class, 'cancelTrade'])->name('trades.cancel');
 
@@ -207,6 +207,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
         Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
 
+        // Around line 219-224, add these new routes after the checkout routes
+        //trade routes - update to add consistent naming
+        Route::get('/trade', [TradeController::class, 'index'])->name('trade.index');
+        Route::get('/trade/{id}', [TradeController::class, 'show'])->name('trade.show');
+        Route::get('/trade/{id}/meetup-locations', [TradeController::class, 'getMeetupLocations'])->name('trade.meetup-locations');
+        Route::post('/trade/submit', [TradeController::class, 'submit'])->name('trade.submit');
+        Route::post('/trade/{id}/cancel', [TradeController::class, 'cancel'])->name('trade.cancel');
+
+        //checkout routes - update to add consistent naming
+        Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
+        // Add a new route with checkout.show name for backward compatibility
+        Route::get('/checkout/{id}', [CheckoutController::class, 'summary'])->name('checkout.show');
+        Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
+
         // Seller Reviews Routes
         Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/reviews/seller/{sellerCode}', [SellerReviewController::class, 'index'])->name('reviews.index');
@@ -223,12 +237,6 @@ Route::middleware('auth')->group(function () {
         // Seller review routes
         Route::post('/seller-reviews', [SellerReviewController::class, 'store'])->name('seller-reviews.store');
         Route::get('/seller-reviews/{sellerCode}', [SellerReviewController::class, 'index'])->name('seller-reviews.index');
-
-        //checkout routes - update to add consistent naming
-        Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');
-        // Add a new route with checkout.show name for backward compatibility
-        Route::get('/checkout/{id}', [CheckoutController::class, 'summary'])->name('checkout.show');
-        Route::post('/checkout/process', [CheckoutController::class, 'checkout'])->name('checkout.process');
 
         Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
             ->name('profile.revert');
