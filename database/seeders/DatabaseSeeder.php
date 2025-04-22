@@ -110,7 +110,7 @@ class DatabaseSeeder extends Seeder
         $categoryDistribution = [1, 1, 1, 2, 2, 3, 3]; // More products in categories 1-3
 
         foreach ([$user1, $user4] as $user) {
-            for ($i = 0; $i < 4; $i++) {
+            for ($i = 0; $i < 4College@1234!; $i++) {
                 Product::factory()->create([
                     'seller_code' => $user->seller_code,
                     'category_id' => $categoryDistribution[array_rand($categoryDistribution)],

@@ -451,18 +451,4 @@ class AdminController extends Controller
             'stats' => $stats
         ]);
     }
-
-    public function getDefaultAvatar()
-    {
-        // Create a path to a publicly accessible image
-        $path = public_path('images/default-avatar.png');
-        
-        // If the file doesn't exist, generate a placeholder image
-        if (!file_exists($path)) {
-            // Return a fallback image from public directory
-            return response()->file(public_path('favicon.ico'));
-        }
-        
-        return response()->file($path);
-    }
 }
