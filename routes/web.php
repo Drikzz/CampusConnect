@@ -23,6 +23,9 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\TradeController;
+use App\Http\Controllers\AdminLocationController;
+use App\Http\Controllers\AdminTransactionsController;
+use App\Http\Controllers\AdminUserBanController; // Import the AdminUserBanController at the top of the file
 use App\Http\Controllers\SellerTradeController;
 
 // Public routes should be at the top, before any middleware groups
@@ -218,6 +221,10 @@ Route::middleware('auth')->group(function () {
             Route::put('/reviews/{id}', [SellerReviewController::class, 'update'])->name('reviews.update');
             Route::delete('/reviews/{id}', [SellerReviewController::class, 'destroy'])->name('reviews.destroy');
             Route::get('/seller/{sellerCode}/rating', [SellerReviewController::class, 'getSellerRating'])->name('seller.rating');
+            
+            // Add this route to match the frontend call in Reviews.vue
+            Route::get('/seller-reviews/rating/{sellerCode}', [SellerReviewController::class, 'getSellerRating'])
+                ->name('seller-reviews.rating');
         });
 
         // Seller review routes
@@ -229,89 +236,106 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-Route::middleware('auth', 'admin')->group(function () {
-    Route::prefix('admin')->name('admin.')->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
-        
-        // Fix the wallet routes - ensure each one has a unique path and controller method
-        Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
-        
-        Route::get('/test', [AdminController::class, 'test'])->name('test');
+// Admin Routes
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
+    // Remove the duplicate dashboard route that was here
+    
+    // Fix the wallet routes - ensure each one has a unique path and controller method
+    Route::get('/wallet-requests', [AdminController::class, 'walletRequests'])->name('wallet-requests');
+    
+    Route::get('/test', [AdminController::class, 'test'])->name('test');
 
-        // Make sure to keep the wallet approval routes
-        Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
-        Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
+    // Make sure to keep the wallet approval routes
+    Route::post('/wallet-requests/{id}/approve', [AdminController::class, 'approveWalletRequest'])->name('wallet-requests.approve');
+    Route::post('/wallet-requests/{id}/reject', [AdminController::class, 'rejectWalletRequest'])->name('wallet-requests.reject');
 
-        // Ensure this route is properly defined
-        Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
-            ->name('wallet-requests.complete-withdrawal');
+    // Ensure this route is properly defined
+    Route::post('/wallet-requests/{id}/complete-withdrawal', [AdminController::class, 'markWithdrawalCompleted'])
+        ->name('wallet-requests.complete-withdrawal');
 
-        // Fix the wallet management route to use a different method
-        Route::get('/wallet', [AdminController::class, 'walletManagement'])->name('wallet');
-        
-        // Add this route within your admin routes group
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('users.update');
-        
-        // User Management Routes
-        Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
-        Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
-        Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
-        Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
-        Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
-        Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
+    // Fix the wallet management route to use a different method
+    Route::get('/wallet', [AdminController::class, 'walletManagement'])->name('wallet');
+    
+    // Add this route within your admin routes group
+    Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('users.update');
+    
+    // User Management Routes
+    Route::get('/users', [AdminUsersController::class, 'users'])->name('users');
+    Route::post('/users/{id}/toggle-seller', [AdminUsersController::class, 'toggleSellerStatus'])->name('users.toggle-seller');
+    Route::post('/users/{id}/toggle-status', [AdminUsersController::class, 'toggleStatus'])->name('users.toggle-status');
+    Route::put('/users/{id}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+    Route::delete('/users/{id}', [AdminUsersController::class, 'destroy'])->name('users.delete');
+    Route::delete('/users/bulk-delete', [AdminUsersController::class, 'bulkDelete'])->name('users.bulk-delete');
 
-        
-        // Product Management Routes
-        Route::get('/products', [AdminProductsController::class, 'index'])->name('products');
-        Route::post('/products', [AdminProductsController::class, 'store'])->name('products.store');
-        Route::put('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update');
-        Route::patch('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update'); // Add PATCH as alternative
-        Route::delete('/products/{id}', [AdminProductsController::class, 'destroy'])->name('products.delete');
-        Route::delete('/products/bulk-delete', [AdminProductsController::class, 'bulkDelete'])->name('products.bulk-delete');
-        Route::post('/products/{id}/toggle-status', [AdminProductsController::class, 'toggleStatus'])->name('products.toggle-status');
-        
-        // Categories & Tags Management Routes
-        Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'index'])->name('admin.categories-tags');
-        
-        // Category Routes
-        Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory'])->name('categories.store');
-        Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory'])->name('categories.update');
-        Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory'])->name('categories.delete');
-        Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories'])->name('categories.bulk-delete');
-        
-        // Tag Routes
-        Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag'])->name('tags.store');
-        Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag'])->name('tags.update');
-        Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag'])->name('tags.delete');
-        Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags'])->name('tags.bulk-delete');
-        
-        Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
-        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
-        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
+    // Add these routes within your admin routes group
+    Route::post('/users/{id}/ban', [AdminUserBanController::class, 'banUser'])->name('users.ban');
+    Route::post('/users/{id}/unban', [AdminUserBanController::class, 'unbanUser'])->name('users.unban');
+    Route::get('/users/{id}/ban-status', [AdminUserBanController::class, 'getBanStatus'])->name('users.ban-status');
+    
+    // Product Management Routes
+    Route::get('/products', [AdminProductsController::class, 'index'])->name('products');
+    Route::post('/products', [AdminProductsController::class, 'store'])->name('products.store');
+    Route::put('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update');
+    Route::patch('/products/{id}', [AdminProductsController::class, 'update'])->name('products.update'); // Add PATCH as alternative
+    Route::delete('/products/{id}', [AdminProductsController::class, 'destroy'])->name('products.delete');
+    Route::delete('/products/bulk-delete', [AdminProductsController::class, 'bulkDelete'])->name('products.bulk-delete');
+    Route::post('/products/{id}/toggle-status', [AdminProductsController::class, 'toggleStatus'])->name('products.toggle-status');
+    
+    // Categories & Tags Management Routes
+    Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'index'])->name('admin.categories-tags');
+    
+    // Category Routes
+    Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory'])->name('categories.store');
+    Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory'])->name('categories.update');
+    Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory'])->name('categories.delete');
+    Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories'])->name('categories.bulk-delete');
+    
+    // Tag Routes
+    Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag'])->name('tags.store');
+    Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag'])->name('tags.update');
+    Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag'])->name('tags.delete');
+    Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags'])->name('tags.bulk-delete');
+    
+    Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
+    Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+    Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
 
-        // Report Routes
-        Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
-        Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
-        Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
+    // Report Routes
+    Route::get('/reports', [AdminReportController::class, 'index'])->name('reports');
+    Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
+    Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
 
-        //Meetup Location Routes
-        Route::get('/locations', [AdminMeetupLocController::class, 'index'])->name('locations');
-        Route::post('/locations', [AdminMeetupLocController::class, 'store'])->name('locations.store');
-        Route::put('/locations/{location}', [AdminMeetupLocController::class, 'update'])->name('locations.update');
-        Route::delete('/locations/{location}', [AdminMeetupLocController::class, 'destroy'])->name('locations.destroy');
+    //Meetup Location Routes
+    Route::get('/locations', [AdminLocationController::class, 'index'])->name('locations');
+    Route::post('/locations', [AdminLocationController::class, 'store'])->name('locations.store');
+    Route::put('/locations/{location}', [AdminLocationController::class, 'update'])->name('locations.update');
+    Route::delete('/locations/{location}', [AdminLocationController::class, 'destroy'])->name('locations.destroy');
 
 
-        // Wallet Management Routes
-        Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
-        Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
-            ->name('wallet-requests.update-fees');
-        Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
-            ->name('wallet-requests.adjust-balance');
-        Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
-            ->name('wallet-requests.approve-refund');
-        Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
-            ->name('wallet-requests.reject-refund');
+    // Wallet Management Routes
+    Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
+    Route::post('/wallet/fees', [AdminController::class, 'updatePlatformFees'])
+        ->name('wallet-requests.update-fees');
+    Route::post('/wallet/adjust', [AdminController::class, 'adjustWalletBalance'])
+        ->name('wallet-requests.adjust-balance');
+    Route::post('/wallet/refunds/{id}/approve', [AdminController::class, 'approveRefund'])
+        ->name('wallet-requests.approve-refund');
+    Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
+        ->name('wallet-requests.reject-refund');
+
+    // Chart data routes
+    Route::prefix('api/charts')->group(function () {
+        Route::get('users', [AdminDashboardController::class, 'getUserChartDataFiltered']);
+        Route::get('products', [AdminDashboardController::class, 'getProductChartDataFiltered']);
+        Route::get('transactions', [AdminDashboardController::class, 'getTransactionChartDataFiltered']);
     });
+});
+
+// Admin transaction management routes
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/transactions', [AdminTransactionsController::class, 'index'])->name('admin.transactions');
+    Route::get('/api/admin/transactions/chart', [AdminTransactionsController::class, 'getChartData']);
 });
 
 Route::fallback(function () {
