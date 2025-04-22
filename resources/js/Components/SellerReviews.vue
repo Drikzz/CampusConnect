@@ -97,7 +97,7 @@
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
               </svg>
             </div>
-            <span class="font-medium">{{ review.reviewer_name || 'Anonymous' }}</span>
+            <span class="font-medium">{{ review.reviewer && review.reviewer.name ? review.reviewer.name : 'Anonymous' }}</span>
           </div>
           <span class="text-sm text-gray-500">{{ formatDate(review.created_at) }}</span>
         </div>
@@ -152,6 +152,9 @@ const fetchReviews = async () => {
     }
     
     const data = await response.json();
+    
+    // Add debugging to see the exact structure of reviews data
+    console.log('Reviews data from API:', data);
     
     if (data.success) {
       reviews.value = data.reviews;

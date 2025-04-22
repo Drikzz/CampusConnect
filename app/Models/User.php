@@ -221,4 +221,45 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(WalletTransaction::class);
     }
+
+    /**
+     * Get the ban records associated with the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function userBans(): HasMany
+    {
+        return $this->hasMany(UserBan::class, 'user_id');
+    }
+
+    /**
+     * Check if user has an active ban
+     * 
+     * @return bool
+     */
+    public function isBanned()
+    {
+        return $this->userBans()
+            ->where(function($query) {
+                $query->where('is_permanent', true)
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+    }
+
+    /**
+     * Get active ban if it exists
+     * 
+     * @return \App\Models\UserBan|null
+     */
+    public function getActiveBan()
+    {
+        return $this->userBans()
+            ->where(function($query) {
+                $query->where('is_permanent', true)
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->latest()
+            ->first();
+    }
 }

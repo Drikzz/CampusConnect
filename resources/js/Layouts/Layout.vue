@@ -1,26 +1,30 @@
-<script setup>
-import { ref, watch } from 'vue';
+<script setup lang="ts">
+import { ref, provide, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/Components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/Components/ui/dropdown-menu';
 import { useColorMode } from '@vueuse/core';
-import { useToast } from '@/Components/ui/toast/use-toast';
-import { Toaster } from '@/Components/ui/toast';
 import RegistrationGuard from '@/Components/RegistrationGuard.vue';
 import { Input } from '@/Components/ui/input';
 import { Bars3Icon, SunIcon, MoonIcon, ComputerDesktopIcon } from '@heroicons/vue/24/outline';
 import { SearchIcon } from 'lucide-vue-next';
 import { Separator } from '@/Components/ui/separator';
+import { Toaster } from '@/Components/ui/toast'; // Import Toaster directly
+import { ToastProvider } from '@/Components/ui/toast';
+import { useToast } from '@/Components/ui/toast/use-toast'; // Import useToast
 
 const props = defineProps({
   auth: Object
 });
 
+// Add toast functionality
+const { toast } = useToast();
+provide('globalToast', toast); // Make toast available to all child components
+
 const isOpen = ref(false);
 const mode = useColorMode();
 const page = usePage();
-const { toast } = useToast();
 const searchQuery = ref('');
 const newsletterEmail = ref('');
 
@@ -89,13 +93,13 @@ const socialIcons = [
   }
 ];
 
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashMessage) => {
-  if (flashMessage) {
+// Add flash message handling
+watch(() => page.props.flash.toast, (flashToast) => {
+  if (flashToast) {
     toast({
-      variant: flashMessage.variant,
-      title: flashMessage.title,
-      description: flashMessage.description,
+      variant: flashToast.variant || 'default',
+      title: flashToast.title || '',
+      description: flashToast.description || '',
     });
   }
 }, { immediate: true });
@@ -105,6 +109,9 @@ watch(() => page.props.flash.toast, (flashMessage) => {
   <div class="min-h-screen bg-background">
     <!-- Add the registration guard component -->
     <RegistrationGuard />
+    
+    <!-- Add ToastWrapper with high z-index -->
+    <Toaster />
 
     <!-- Sticky Header -->
     <header class="sticky top-0 z-50 w-full bg-primary">
