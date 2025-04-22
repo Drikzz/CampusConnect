@@ -7,6 +7,7 @@ use App\Models\TradeTransaction;
 use App\Models\TradeOfferedItem;
 use App\Models\User;
 use App\Models\MeetupLocation;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,7 @@ use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
-class ProductTradeController extends Controller
+class SellerTradeController extends Controller
 {
     public function index(Request $request)
     {
@@ -304,6 +305,50 @@ class ProductTradeController extends Controller
             ]);
             return false;
         }
+    }
+
+    /**
+     * Get dashboard statistics for the user
+     */
+    protected function getDashboardStats()
+    {
+        $user = Auth::user();
+        $userStats = [];
+        
+        // Fix: Change user_id to buyer_id in orders table
+        $userStats['order_count'] = Order::where('buyer_id', $user->id)->count();
+        
+        // Fix: Change user_id to buyer_id in completed orders sum
+        $userStats['total_spent'] = Order::where('buyer_id', $user->id)
+            ->where('status', 'completed')
+            ->sum('total');
+        
+        // ...existing code...
+        
+        // Get seller stats if the user is a seller
+        $sellerStats = [];
+        if ($user->is_seller) {
+            // ...existing code...
+            
+            // Ensure this queries are using the correct column name too
+            $sellerStats['order_count'] = Order::where('seller_id', $user->id)->count();
+            
+            $sellerStats['revenue'] = Order::where('seller_id', $user->id)
+                ->where('status', 'completed')
+                ->sum('total');
+            
+            // Fix: This is likely also using buyer_id 
+            $sellerStats['pending_orders'] = Order::where('seller_id', $user->id)
+                ->whereIn('status', ['pending', 'processing'])
+                ->count();
+            
+            // ...existing code...
+        }
+        
+        return [
+            'user' => $userStats,
+            'seller' => $sellerStats
+        ];
     }
 
     /**
