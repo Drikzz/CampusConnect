@@ -176,7 +176,7 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-const submitReview = async () => {
+const submitReview = () => {
   validationErrors.value = {};
   
   // Enhanced client-side validation
@@ -192,47 +192,31 @@ const submitReview = async () => {
   
   submitting.value = true;
   
-  try {
-    // Use fetch API for POST request with proper URL
-    const response = await fetch('/seller-reviews', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-      },
-      body: JSON.stringify({
-        seller_code: props.sellerCode,
-        rating: newReview.value.rating,
-        review: newReview.value.review,
-        transaction_id: props.transactionId,
-        transaction_type: props.transactionType
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
+  // Use Inertia's router to submit the form
+  router.post('/seller-reviews', {
+    seller_code: props.sellerCode,
+    rating: newReview.value.rating,
+    review: newReview.value.review,
+    transaction_id: props.transactionId,
+    transaction_type: props.transactionType
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
       toast({ title: 'Success', description: 'Review submitted successfully' });
       newReview.value = { rating: 0, review: '' };
       hasReviewed.value = true;
       emit('review-submitted');
       fetchReviews();
-    } else {
-      // More detailed error handling
-      console.error('Review submission response:', data);
-      error.value = data.message || 'Failed to submit review';
-      
-      if (data.errors) {
-        validationErrors.value = data.errors;
-      }
+    },
+    onError: (errors) => {
+      console.error('Review submission errors:', errors);
+      validationErrors.value = errors;
+      error.value = Object.values(errors)[0] || 'Failed to submit review';
+    },
+    onFinish: () => {
+      submitting.value = false;
     }
-  } catch (err) {
-    console.error('Review submission error:', err);
-    error.value = 'Failed to submit review. Please try again later.';
-  } finally {
-    submitting.value = false;
-  }
+  });
 };
 
 onMounted(fetchReviews);
