@@ -6,16 +6,16 @@
       <!-- Platform Fees Settings -->
       <div class="bg-white border rounded-lg shadow-sm p-6 mb-6">
         <h3 class="text-lg font-medium mb-4">Platform Fees Settings</h3>
-        <form @submit.prevent="updatePlatformFees" class="space-y-4">
+        <form @submit.prevent="updateDeductionRate" class="space-y-4">
           <div class="flex items-center gap-4">
             <div class="w-64">
               <label class="block text-sm font-medium text-gray-700 mb-1">
-                Listing Fee Percentage
+                Wallet Deduction Rate
               </label>
               <div class="flex items-center gap-2">
                 <input 
                   type="number" 
-                  v-model="platformFees.listingFee" 
+                  v-model="walletDeductionRate" 
                   min="0" 
                   max="100" 
                   step="0.1"
@@ -40,7 +40,7 @@
         <div class="bg-gray-50 p-6 rounded-lg shadow">
           <p class="text-sm text-gray-500">Total Platform Revenue</p>
           <p class="text-2xl font-bold text-indigo-600">
-            ₱{{ totalRevenue }}
+            ₱{{ formatCurrency(totalRevenue) }}
           </p>
         </div>
         <div class="bg-gray-50 p-6 rounded-lg shadow">
@@ -50,9 +50,9 @@
           </p>
         </div>
         <div class="bg-gray-50 p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Pending Fee Collection</p>
+          <p class="text-sm text-gray-500">Total Profit From Revenue</p>
           <p class="text-2xl font-bold text-yellow-600">
-            ₱{{ pendingFees }}
+            ₱{{ formatCurrency(totalProfit) }}
           </p>
         </div>
       </div>
@@ -116,20 +116,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import axios from 'axios'
 
-// Mock data
-const platformFees = ref({
-  listingFee: 2.5,
-})
-
-const totalRevenue = ref('8,750.00')
-const activeWallets = ref(12)
-const pendingFees = ref('450.00')
+// Data properties
+const walletDeductionRate = ref(5)
+const totalRevenue = ref(0)
+const totalProfit = ref(0)
+const activeWallets = ref(0)
 const isSubmitting = ref(false)
-
 const sellers = ref([
   {
     id: 1,
@@ -154,14 +151,54 @@ const sellers = ref([
   }
 ])
 
-const updatePlatformFees = () => {
+// Fetch dashboard data
+const fetchDashboardData = async () => {
+  try {
+    console.log('Fetching dashboard data...');
+    const response = await axios.get('/admin/wallet/dashboard-data');
+    console.log('Response:', response.data);
+    
+    walletDeductionRate.value = parseFloat(response.data.walletDeductionRate);
+    totalRevenue.value = response.data.totalRevenue;
+    totalProfit.value = response.data.totalProfit;
+    activeWallets.value = response.data.activeWallets;
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    // Set default values on error
+    walletDeductionRate.value = 5;
+    totalRevenue.value = 0;
+    totalProfit.value = 0;
+    activeWallets.value = 0;
+    
+    // Show user-friendly error
+    alert('Unable to load dashboard data. Please try again later.');
+  }
+}
+
+// Update wallet deduction rate
+const updateDeductionRate = async () => {
   isSubmitting.value = true
   
-  // Simulate API call
-  setTimeout(() => {
+  try {
+    await axios.post('/admin/wallet/update-deduction-rate', {
+      rate: walletDeductionRate.value
+    })
+    // Refresh data after update
+    await fetchDashboardData()
+  } catch (error) {
+    console.error('Error updating deduction rate:', error)
+    alert('Failed to update deduction rate. Please try again.')
+  } finally {
     isSubmitting.value = false
-    alert('Platform fees updated successfully!')
-  }, 1000)
+  }
+}
+
+// Helper to format currency
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
 }
 
 const adjustBalance = (sellerId) => {
@@ -170,4 +207,7 @@ const adjustBalance = (sellerId) => {
     alert(`Balance adjusted for seller #${sellerId}: ${amount > 0 ? '+' : ''}${amount}`)
   }
 }
+
+// Fetch data on component mount
+onMounted(fetchDashboardData)
 </script>

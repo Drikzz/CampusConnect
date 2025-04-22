@@ -27,6 +27,7 @@ use App\Http\Controllers\AdminLocationController;
 use App\Http\Controllers\AdminTransactionsController;
 use App\Http\Controllers\AdminUserBanController; // Import the AdminUserBanController at the top of the file
 use App\Http\Controllers\SellerTradeController;
+use App\Http\Controllers\AdminWalletController;
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
@@ -323,6 +324,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('wallet-requests.approve-refund');
     Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
         ->name('wallet-requests.reject-refund');
+
+    // Admin wallet routes
+    Route::get('/wallet', [AdminWalletController::class, 'index'])->name('wallet');
+    Route::post('/wallet/update-deduction-rate', [AdminWalletController::class, 'updateDeductionRate'])->name('wallet.update-deduction-rate');
+    Route::get('/wallet/dashboard-data', [AdminWalletController::class, 'getDashboardData'])->name('wallet.dashboard-data');
 
     // Chart data routes
     Route::prefix('api/charts')->group(function () {

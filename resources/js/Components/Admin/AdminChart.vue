@@ -1,16 +1,13 @@
 <template>
   <div class="space-y-4">
-    <!-- Chart Header with Title and Filter Controls -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <!-- Title Area -->
       <div>
         <h3 class="text-base sm:text-lg font-medium text-foreground">{{ title }}</h3>
         <p class="text-xs sm:text-sm text-muted-foreground">{{ description }}</p>
       </div>
       
-      <!-- Filter Controls with improved responsive layout -->
+      <!-- Filter Controls -->
       <div class="flex flex-wrap gap-2">
-        <!-- Date filter -->
         <Select v-if="showDateFilter" v-model="selectedDateRange" @update:model-value="applyFilters">
           <SelectTrigger class="w-full sm:w-32 md:w-40 text-xs sm:text-sm">
             <SelectValue placeholder="Date range" />
@@ -24,7 +21,6 @@
           </SelectContent>
         </Select>
 
-        <!-- Category filter -->
         <Select v-if="showCategoryFilter && filterCategories.length > 0" v-model="selectedCategory" @update:model-value="applyFilters">
           <SelectTrigger class="w-full sm:w-32 md:w-40 text-xs sm:text-sm">
             <SelectValue placeholder="Category" />
@@ -37,7 +33,6 @@
           </SelectContent>
         </Select>
 
-        <!-- Status filter -->
         <Select v-if="showStatusFilter && filterStatuses.length > 0" v-model="selectedStatus" @update:model-value="applyFilters">
           <SelectTrigger class="w-full sm:w-32 md:w-40 text-xs sm:text-sm">
             <SelectValue placeholder="Status" />
@@ -52,18 +47,16 @@
       </div>
     </div>
 
-    <!-- Chart Container with improved responsive height -->
+    <!-- Chart Container -->
     <Card class="p-0">
       <CardContent class="pt-4 sm:pt-6">
         <div v-if="chartError" class="flex items-center justify-center p-4 sm:p-8 text-destructive text-center">
           <p>{{ chartError }}</p>
         </div>
-        <div v-else-if="!hasData" class="flex items-center justify-center h-[250px] sm:h-[300px] md:h-[350px] text-muted-foreground">
+        <div v-else-if="!hasData" class="flex items-center justify-center h-40 text-muted-foreground">
           <p>No data available for the selected period</p>
         </div>
-        <div v-else class="h-[250px] sm:h-[300px] md:h-[350px]">
-          <canvas ref="chartCanvas" :height="height" class="w-full h-full"></canvas>
-        </div>
+        <canvas v-else ref="chartCanvas" :height="height"></canvas>
       </CardContent>
     </Card>
   </div>
@@ -333,30 +326,11 @@ const validateChartData = (data) => {
  * Get default options based on chart type
  */
 const getDefaultOptions = () => {
-  // Detect dark mode from the environment
-  let isDarkMode = false;
-  try {
-    // Try to determine dark mode from document
-    isDarkMode = document.documentElement.classList.contains('dark') || 
-                 window.matchMedia('(prefers-color-scheme: dark)').matches;
-  } catch (e) {
-    // Fallback for SSR
-  }
-  
   const baseOptions = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-      // Add custom plugin for dark mode background
-      beforeDraw: (chart) => {
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.globalCompositeOperation = 'destination-over';
-        ctx.fillStyle = isDarkMode ? 'hsl(var(--card))' : 'white';
-        ctx.fillRect(0, 0, chart.width, chart.height);
-        ctx.restore();
-      },
       legend: {
         position: 'top',
         align: 'start',
@@ -365,7 +339,7 @@ const getDefaultOptions = () => {
           boxHeight: 16,
           useBorderRadius: true,
           borderRadius: 4,
-          color: 'hsl(var(--foreground))',
+          color: 'hsl(var(--foreground, 220 10% 40%))',
           font: {
             size: 12,
           },
@@ -373,39 +347,134 @@ const getDefaultOptions = () => {
         }
       },
       tooltip: {
-        backgroundColor: isDarkMode ? 'rgba(20, 20, 20, 0.9)' : 'hsl(var(--background))',
-        titleColor: 'hsl(var(--foreground))',
-        bodyColor: 'hsl(var(--foreground))',
-        // ...existing tooltip code...
+        backgroundColor: 'hsl(var(--background, 0 0% 100%))',
+        titleColor: 'hsl(var(--foreground, 220 10% 40%))',
+        bodyColor: 'hsl(var(--foreground, 220 10% 40%))',
+        bodyFont: {
+          size: 12,
+        },
+        titleFont: {
+          size: 12,
+          weight: 'normal',
+        },
+        padding: 12,
+        boxPadding: 6,
+        borderColor: 'hsla(var(--border, 220 13% 91%), 0.5)',
+        borderWidth: 1,
+        cornerRadius: 6,
+        displayColors: true,
+        boxWidth: 12,
+        boxHeight: 12,
+        usePointStyle: true,
+        callbacks: {
+          label: (context) => {
+            let label = context.dataset.label || ''
+            if (label) label += ': '
+            
+            // Safely extract value based on chart type
+            const value = (props.chartType === 'line' || props.chartType === 'bar')
+              ? context.parsed?.y ?? context.raw ?? 0
+              : context.parsed ?? context.raw ?? 0
+              
+            // Format value based on content
+            if (label.includes('Sales') || label.includes('Revenue') || label.includes('Amount')) {
+              return label + new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value)
+            } 
+            
+            return label + formatNumber(value)
+          }
+        }
       }
-    },
-    // ...existing scales code...
-  };
-
-  // Add scales for line and bar charts with dark mode support
+    }
+  }
+  
+  // Add scales for line and bar charts
   if (['line', 'bar'].includes(props.chartType)) {
     baseOptions.scales = {
       x: {
-        // ...existing x scale code...
+        display: true,
+        border: {
+          display: false,
+        },
         grid: {
           display: false,
-          color: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
         },
-        // ...rest of x scale code...
+        ticks: {
+          color: 'hsl(var(--muted-foreground, 220 5% 45%))',
+          padding: 8,
+          font: {
+            size: 11,
+          },
+        },
+        title: {
+          display: true,
+          color: 'hsl(var(--muted-foreground, 220 5% 45%))',
+          font: {
+            size: 12,
+            weight: 'normal',
+          },
+        }
       },
       y: {
-        // ...existing y scale code...
-        grid: {
-          color: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'hsla(var(--muted), 0.08)',
+        display: true,
+        beginAtZero: true,
+        border: {
+          display: false,
         },
-        // ...rest of y scale code...
+        grid: {
+          color: 'hsla(var(--muted, 220 14% 96%), 0.08)', // Even lighter grid lines
+        },
+        ticks: {
+          precision: 0,
+          font: { size: 11 },
+          color: 'hsl(var(--muted-foreground, 220 5% 45%))',
+          padding: 8,
+        },
+        title: {
+          display: true,
+          color: 'hsl(var(--muted-foreground, 220 5% 45%))',
+          font: {
+            size: 12,
+            weight: 'normal',
+          },
+        }
       }
-    };
+    }
   }
   
-  // ...rest of function...
+  // Add specific options for line charts to make them cleaner
+  if (props.chartType === 'line') {
+    baseOptions.elements = {
+      line: {
+        tension: 0.3, // Slightly smoother lines
+        borderWidth: 2,
+        borderJoinStyle: 'round', // Round line joins
+        capBezierPoints: true,
+      },
+      point: {
+        radius: 0, // Hide points by default
+        hoverRadius: 5, // Show on hover
+        hitRadius: 8, // Larger hit area for interaction
+        borderWidth: 2,
+      }
+    }
+  }
   
-  return baseOptions;
+  // Add specific options for bar charts
+  if (props.chartType === 'bar') {
+    baseOptions.elements = {
+      bar: {
+        borderWidth: 1,
+        borderRadius: 4,
+        borderSkipped: false, // Don't skip border radius on any side
+      }
+    }
+    // Add proper spacing between bars
+    baseOptions.barPercentage = 0.85;
+    baseOptions.categoryPercentage = 0.8;
+  }
+  
+  return baseOptions
 }
 
 /**
