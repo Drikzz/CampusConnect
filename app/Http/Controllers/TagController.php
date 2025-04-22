@@ -17,13 +17,11 @@ class TagController extends Controller
   {
     $validated = $request->validate([
       'name' => 'required|string|max:255|unique:tags',
-      'description' => 'nullable|string'
     ]);
 
     return Tag::create([
       'name' => $validated['name'],
       'slug' => Str::slug($validated['name']),
-      'description' => $validated['description']
     ]);
   }
 

@@ -62,13 +62,13 @@
                     <span class="text-sm">Products</span>
                   </Link>
                 </li>
-                <li>
+                 <li>
                   <Link 
-                    :href="'#'"
-                    class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': $page.component.includes('Admin/categories') }">
-                    <TagIcon class="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span class="text-sm">Categories & Tags</span>
+                    :href="route('admin.categories-tags-management')"
+                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    :class="{ 'bg-gray-50 text-red-600': $page.component.includes('Admin/admin-categoriestagsManagement') }">
+                    <TagIcon class="w-5 h-5" />
+                    <span>Categories & Tags</span>
                   </Link>
                 </li>
               </ul>
@@ -173,9 +173,24 @@ import {
   ChartBarIcon, WalletIcon, MapPinIcon, TagIcon,
   HomeIcon, BanknotesIcon, ArrowRightOnRectangleIcon
 } from '@heroicons/vue/24/outline'
+import { computed } from 'vue'
 
 const logout = () => {
   router.post(route('admin.logout'))
 }
+
+const adminAvatarUrl = computed(() => {
+  try {
+    // Try to use the user's avatar if available
+    if (props.auth?.user?.profile_picture) {
+      return `/storage/${props.auth.user.profile_picture}`;
+    }
+    // Fall back to default avatar from our public route
+    return '/admin-avatar';
+  } catch (e) {
+    console.error('Error getting admin avatar URL', e);
+    return '/admin-avatar';
+  }
+});
 
 </script>
