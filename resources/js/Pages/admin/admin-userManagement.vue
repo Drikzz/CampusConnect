@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
 import { 
@@ -7,7 +7,9 @@ import {
     PencilIcon,
     XMarkIcon,
     EyeIcon,
-    ShieldExclamationIcon
+    ShieldExclamationIcon,
+    MagnifyingGlassIcon,
+    XCircleIcon
 } from '@heroicons/vue/24/outline';
 
 // Define props to receive data from the controller
@@ -19,6 +21,7 @@ const props = defineProps({
 // Reactive state
 const selectedUsers = ref([]);
 const search = ref(props.filters?.search || '');
+const searchInput = ref(props.filters?.search || ''); // Add separate input for better UX
 const filter = ref(props.filters?.filter || 'all');
 const sortField = ref(props.filters?.sort || 'created_at');
 const sortDirection = ref(props.filters?.direction || 'desc');
@@ -26,6 +29,15 @@ const showUserModal = ref(false);
 const currentUser = ref(null);
 const showEditModal = ref(false);
 const showBanModal = ref(false);
+const isSearching = ref(false); 
+
+// Client-side filtered users for real-time feedback
+const clientSideFilteredUsers = ref([...props.users?.data || []]);
+
+// For local filtering without server requests
+const lastServerSearch = ref('');
+const lastServerFilter = ref('all');
+
 const editForm = ref({
     id: null,
     first_name: '',
@@ -78,7 +90,8 @@ const filterOptions = [
     { value: 'sellers', label: 'Sellers' },
     { value: 'customers', label: 'Customers' },
     { value: 'verified', label: 'Verified Users' },
-    { value: 'unverified', label: 'Unverified Users' }
+    { value: 'unverified', label: 'Unverified Users' },
+    { value: 'banned', label: 'Banned Users' }
 ];
 
 // Available ban durations with new Custom option
@@ -267,7 +280,10 @@ const closeBanModal = () => {
     showBanModal.value = false;
 };
 
-// Handle search and filters
+// Clean up search timeout on component unmount
+let searchTimeout = null;
+
+// Improved search implementation with better loading state management
 const performSearch = () => {
     router.get(route('admin.users'), {
         search: search.value,
@@ -277,24 +293,169 @@ const performSearch = () => {
     }, {
         preserveState: true,
         replace: true,
+        preserveScroll: true,
+        onSuccess: (page) => {
+            isSearching.value = false;
+            // Update client-side filtered users with new server data
+            clientSideFilteredUsers.value = page.props.users.data;
+        },
+        onError: (errors) => {
+            console.error('Search error:', errors);
+            isSearching.value = false;
+            
+            // Show a simple error message to the user
+            alert('An error occurred while searching. Please try again with different terms.');
+        }
     });
 };
 
-// Watch for changes to trigger search
-watch([search, filter], () => {
-    performSearch();
-});
+// Improved debounced search handler that doesn't show loading on every keystroke
+const handleSearchInput = () => {
+    clearTimeout(searchTimeout);
+    
+    // Update the search value immediately
+    search.value = searchInput.value.trim();
+    
+    // Always apply client-side filtering first for immediate feedback
+    applyClientSideFiltering();
+    
+    // Then send the request to the server for complete results
+    // Use a very short timeout just to prevent hammering the server on every keystroke
+    searchTimeout = setTimeout(() => {
+        if (search.value !== lastServerSearch.value || filter.value !== lastServerFilter.value) {
+            isSearching.value = true;
+            performSearch();
+            lastServerSearch.value = search.value;
+            lastServerFilter.value = filter.value;
+        }
+    }, 300);
+};
 
-// Handle sorting
-const sort = (field) => {
-    sortDirection.value = sortField.value === field && sortDirection.value === 'asc' ? 'desc' : 'asc';
-    sortField.value = field;
+// Clear search function with improved UX
+const clearSearch = () => {
+    searchInput.value = '';
+    search.value = '';
+    clearTimeout(searchTimeout); // Clear any pending search
+    
+    // Apply client-side filtering immediately
+    applyClientSideFiltering();
+    
+    // Then perform server search
     performSearch();
 };
 
+// Handle filter changes without immediate loading indicator
+const handleFilterChange = () => {
+    // Apply client-side filtering immediately for responsive UI
+    applyClientSideFiltering();
+    
+    // Then send the request to the server
+    if (filter.value !== lastServerFilter.value) {
+        isSearching.value = true;
+        performSearch();
+        lastServerFilter.value = filter.value;
+    }
+};
+
+// Client-side filtering function for immediate feedback
+const applyClientSideFiltering = () => {
+    if (!props.users?.data) return;
+    
+    // Start with all users
+    let filtered = [...props.users.data];
+    
+    // Apply search filter
+    if (search.value) {
+        const searchLower = search.value.toLowerCase();
+        filtered = filtered.filter(user => 
+            (user.username && user.username.toLowerCase().includes(searchLower)) || 
+            (user.name && user.name.toLowerCase().includes(searchLower)) || 
+            (user.wmsu_email && user.wmsu_email.toLowerCase().includes(searchLower)) || 
+            (user.first_name && user.first_name.toLowerCase().includes(searchLower)) || 
+            (user.last_name && user.last_name.toLowerCase().includes(searchLower)) ||
+            ((user.first_name + ' ' + user.last_name).toLowerCase().includes(searchLower))
+        );
+    }
+    
+    // Apply role/status filter
+    if (filter.value !== 'all') {
+        if (filter.value === 'admins') {
+            filtered = filtered.filter(user => user.is_admin);
+        } else if (filter.value === 'sellers') {
+            filtered = filtered.filter(user => user.is_seller);
+        } else if (filter.value === 'customers') {
+            filtered = filtered.filter(user => !user.is_seller && !user.is_admin);
+        } else if (filter.value === 'verified') {
+            filtered = filtered.filter(user => user.email_verified_at);
+        } else if (filter.value === 'unverified') {
+            filtered = filtered.filter(user => !user.email_verified_at);
+        } else if (filter.value === 'banned') {
+            filtered = filtered.filter(user => user.is_banned);
+        }
+    }
+    
+    clientSideFilteredUsers.value = filtered;
+};
+
+// Updated sort function with better error handling and immediate client-side sorting
+const sort = (field) => {
+    sortDirection.value = sortField.value === field && sortDirection.value === 'asc' ? 'desc' : 'asc';
+    sortField.value = field;
+    
+    // Apply client-side sorting immediately
+    applyClientSideSorting(field);
+    
+    // Then perform server request
+    isSearching.value = true;
+    performSearch();
+};
+
+// New function for client-side sorting
+const applyClientSideSorting = (field) => {
+    const direction = sortDirection.value;
+    
+    clientSideFilteredUsers.value = [...clientSideFilteredUsers.value].sort((a, b) => {
+        const aVal = a[field] || '';
+        const bVal = b[field] || '';
+        
+        // Handle dates
+        if (field === 'created_at' || field === 'email_verified_at') {
+            const aDate = aVal ? new Date(aVal).getTime() : 0;
+            const bDate = bVal ? new Date(bVal).getTime() : 0;
+            return direction === 'asc' ? aDate - bDate : bDate - aDate;
+        }
+        
+        // Handle strings
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+            return direction === 'asc' 
+                ? aVal.localeCompare(bVal) 
+                : bVal.localeCompare(aVal);
+        }
+        
+        // Handle numbers
+        return direction === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+};
+
+// Clean up timeout on component unmount
+onBeforeUnmount(() => {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+});
+
+// Watch for props updates to refresh client-side data
+watch(() => props.users?.data, (newUsers) => {
+    if (newUsers) {
+        clientSideFilteredUsers.value = [...newUsers];
+        applyClientSideFiltering();
+    }
+}, { immediate: true });
+
 // Computed properties
 const isAllSelected = computed(() => {
-    return props.users.data.length > 0 && selectedUsers.value.length === props.users.data.length;
+    return clientSideFilteredUsers.value.length > 0 && 
+           selectedUsers.value.length === clientSideFilteredUsers.value.length;
 });
 
 </script>
@@ -305,19 +466,50 @@ const isAllSelected = computed(() => {
         
         <div class="bg-card rounded-lg p-3 md:p-4 mb-6 shadow">
             <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <!-- Enhanced search input with icons and better error handling -->
                 <div class="w-full md:w-1/3">
                     <label class="block text-sm font-medium text-muted-foreground mb-1">Search</label>
-                    <input 
-                        type="text" 
-                        v-model="search" 
-                        class="w-full p-2 border rounded bg-background text-foreground"
-                        placeholder="Search users..."
-                    />
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <MagnifyingGlassIcon class="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input 
+                            type="text" 
+                            v-model="searchInput"
+                            @input="handleSearchInput"
+                            class="w-full pl-10 pr-10 p-2 border rounded bg-background text-foreground focus:ring-2 focus:ring-primary-color focus:border-primary-color"
+                            placeholder="Search users by name, username, etc..."
+                            :disabled="isSearching"
+                        />
+                        <!-- Show X button only when there is content and we're not currently searching -->
+                        <div v-if="searchInput && !isSearching" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                            <button 
+                                @click="clearSearch" 
+                                class="text-gray-400 hover:text-gray-600 focus:outline-none"
+                                title="Clear search"
+                            >
+                                <XCircleIcon class="h-5 w-5" />
+                            </button>
+                        </div>
+                        <!-- Loading spinner with improved visibility -->
+                        <div v-if="isSearching" class="absolute inset-y-0 right-3 flex items-center">
+                            <svg class="animate-spin h-5 w-5 text-primary-color" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <!-- Add helpful search tip -->
+                    <p class="text-xs text-gray-500 mt-1">
+                        Search by name, username, or WMSU email
+                    </p>
                 </div>
+                <!-- Filter dropdown -->
                 <div class="w-full md:w-1/3">
                     <label class="block text-sm font-medium text-muted-foreground mb-1">Filter</label>
                     <select 
                         v-model="filter" 
+                        @change="handleFilterChange"
                         class="w-full p-2 border rounded bg-background text-foreground"
                     >
                         <option v-for="option in filterOptions" :key="option.value" :value="option.value">
@@ -327,6 +519,28 @@ const isAllSelected = computed(() => {
                 </div>
             </div>
             
+            <!-- Results feedback when no results or during search -->
+            <div v-if="isSearching" class="mb-4 text-sm text-muted-foreground">
+                <span class="flex items-center">
+                    <svg class="animate-spin h-4 w-4 mr-2 text-primary-color" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Fetching complete results...
+                </span>
+            </div>
+            
+            <div v-else-if="search && clientSideFilteredUsers.length === 0" class="mb-4 py-2 px-3 bg-amber-50 border border-amber-200 rounded text-amber-800">
+                No results found for "<span class="font-medium">{{ search }}</span>". Try adjusting your search term.
+                <button 
+                    @click="clearSearch" 
+                    class="ml-2 text-blue-600 hover:text-blue-800 underline focus:outline-none"
+                >
+                    Clear search
+                </button>
+            </div>
+            
+            <!-- Users table -->
             <div class="overflow-x-auto -mx-3 md:mx-0">
                 <table class="min-w-full bg-card border border-border">
                     <thead>
@@ -364,7 +578,7 @@ const isAllSelected = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="user in props.users.data" :key="user.id" class="hover:bg-muted/50">
+                        <tr v-for="user in clientSideFilteredUsers" :key="user.id" class="hover:bg-muted/50">
                             <td class="py-2 px-3 border-b border-border">
                                 <input 
                                     type="checkbox" 
@@ -494,7 +708,7 @@ const isAllSelected = computed(() => {
                                 </div>
                             </td>
                         </tr>
-                        <tr v-if="!props.users.data || props.users.data.length === 0">
+                        <tr v-if="!clientSideFilteredUsers || clientSideFilteredUsers.length === 0">
                             <td colspan="8" class="text-center py-4 text-muted-foreground">No users found</td>
                         </tr>
                     </tbody>
@@ -934,5 +1148,22 @@ button:hover .text-blue-600 {
 
 .group:hover button .text-blue-600 ~ div {
     background-color: #dbeafe !important; /* Tailwind blue-100 */
+}
+
+/* Add responsive styles for search input */
+@media (max-width: 768px) {
+    .pl-10 {
+        padding-left: 2.5rem;
+    }
+    
+    .pr-10 {
+        padding-right: 2.5rem;
+    }
+}
+
+/* Style for disabled state */
+input:disabled, select:disabled {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
 }
 </style>

@@ -18,21 +18,27 @@ class AdminUsersController extends Controller
      */
     public function users(Request $request)
     {
-        $search = $request->input('search', '');
+        $search = trim($request->input('search', ''));
         $sortField = $request->input('sort', 'created_at');
         $sortDirection = $request->input('direction', 'desc');
         $filter = $request->input('filter', 'all');
         
         $query = User::query()
             ->select('users.*')
-            // Remove the problematic SQL queries that reference non-existent columns
-            // We'll use a simpler query without the counts for now
-            ->when($search, function($query, $search) {
-                $query->where(function($query) use ($search) {
-                    $query->where('username', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('wmsu_email', 'like', "%{$search}%") // Add search by wmsu_email
-                        ->orWhere('phone', 'like', "%{$search}%");
+            // Improve search to include more user fields and case-insensitive search
+            ->when(!empty($search), function($query) use ($search) {
+                $lowercaseSearch = strtolower($search);
+                $query->where(function($query) use ($search, $lowercaseSearch) {
+                    $query->whereRaw('LOWER(username) LIKE ?', ["%{$lowercaseSearch}%"])
+                        // Remove reference to non-existent email column
+                        // ->orWhereRaw('LOWER(email) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw('LOWER(wmsu_email) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw('LOWER(phone) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw('LOWER(first_name) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw('LOWER(last_name) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw('LOWER(middle_name) LIKE ?', ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw("LOWER(CONCAT(first_name, ' ', last_name)) LIKE ?", ["%{$lowercaseSearch}%"])
+                        ->orWhereRaw("LOWER(CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name)) LIKE ?", ["%{$lowercaseSearch}%"]);
                 });
             })
             ->when($filter !== 'all', function($query) use ($filter) {
@@ -46,12 +52,23 @@ class AdminUsersController extends Controller
                     $query->whereNotNull('email_verified_at');
                 } elseif ($filter === 'unverified') {
                     $query->whereNull('email_verified_at');
+                } elseif ($filter === 'banned') {
+                    // Add filter for banned users
+                    $query->whereExists(function ($query) {
+                        $query->select(DB::raw(1))
+                              ->from('user_bans')
+                              ->whereColumn('user_bans.user_id', 'users.id')
+                              ->where(function($query) {
+                                  $query->where('is_permanent', true)
+                                        ->orWhere('expires_at', '>', now());
+                              });
+                    });
                 }
             });
             
         // Apply sorting
         if ($sortField && $sortDirection) {
-            // Map 'email' sort field to 'wmsu_email' when needed
+            // Fix email reference in sorting too - change 'email' to 'wmsu_email'
             if ($sortField === 'email') {
                 $query->orderBy('wmsu_email', $sortDirection);
             }
@@ -73,10 +90,11 @@ class AdminUsersController extends Controller
             ->through(function ($user) {
                 return [
                     'id' => $user->id,
-                    'username' => $user->username,  // Add username field
+                    'username' => $user->username,
                     'name' => $user->name,
-                    'email' => $user->email,
-                    'wmsu_email' => $user->wmsu_email, // Include wmsu_email field
+                    // Remove reference to non-existent email property
+                    // 'email' => $user->email,
+                    'wmsu_email' => $user->wmsu_email,
                     'first_name' => $user->first_name,  // Include user's first name
                     'middle_name' => $user->middle_name, // Include user's middle name
                     'last_name' => $user->last_name,    // Include user's last name
@@ -101,7 +119,7 @@ class AdminUsersController extends Controller
         return Inertia::render('Admin/admin-userManagement', [
             'users' => $users,
             'filters' => [
-                'search' => $search,
+                'search' => $search, // Return the trimmed search value
                 'sort' => $sortField,
                 'direction' => $sortDirection,
                 'filter' => $filter,
