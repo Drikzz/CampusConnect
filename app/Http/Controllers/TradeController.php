@@ -267,7 +267,7 @@ class TradeController extends Controller
             ->latest()
             ->paginate(12);
             
-        return Inertia::render('Trade/Index', [
+        return Inertia::render('Products/Trade', [
             'products' => $products
         ]);
     }
