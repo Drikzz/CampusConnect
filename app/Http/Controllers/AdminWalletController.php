@@ -118,6 +118,145 @@ class AdminWalletController extends Controller
     }
 
     /**
+     * Get all activated seller wallets.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSellerWallets()
+    {
+        try {
+            Log::info('AdminWalletController::getSellerWallets method called');
+            
+            $wallets = Wallet::with(['user:id,first_name,last_name,username,seller_code'])
+                ->where(function($query) {
+                    $query->where('status', 'active')
+                        ->orWhere('is_activated', 1);
+                })
+                ->select('id', 'user_id', 'seller_code', 'balance', 'status', 'updated_at')
+                ->orderBy('updated_at', 'desc')
+                ->get();
+                
+            Log::info('Found wallets count: ' . $wallets->count());
+            
+            // Always use the same response structure even if empty
+            $mappedWallets = $wallets->map(function ($wallet) {
+                // Get the most recent refill transaction
+                $lastRefill = \App\Models\WalletTransaction::where('seller_code', $wallet->seller_code)
+                    ->where('reference_type', 'refill')
+                    ->where('status', 'completed')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                return [
+                    'id' => $wallet->id,
+                    'user_id' => $wallet->user_id,
+                    'name' => $wallet->user ? "{$wallet->user->first_name} {$wallet->user->last_name}" : 'Unknown User',
+                    'username' => $wallet->user ? $wallet->user->username : 'unknown',
+                    'seller_code' => $wallet->seller_code, 
+                    'balance' => $wallet->balance,
+                    'status' => $wallet->status ?: 'active',
+                    'last_activity' => $wallet->updated_at->format('Y-m-d H:i'),
+                    'last_refill' => $lastRefill ? $lastRefill->created_at->format('Y-m-d H:i') : 'Never',
+                ];
+            })->values()->all();
+            
+            // Debug the response
+            Log::info('Sending wallet response with ' . count($mappedWallets) . ' wallets');
+            
+            return response()->json(['wallets' => $mappedWallets]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching seller wallets: ' . $e->getMessage());
+            // Still maintain the expected structure even in error cases
+            return response()->json([
+                'wallets' => [],
+                'error' => 'Failed to load seller wallets',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Adjust the balance of a seller wallet.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function adjustWalletBalance(Request $request)
+    {
+        $validated = $request->validate([
+            'walletId' => 'required|exists:seller_wallets,id',
+            'amount' => 'required|numeric',
+            'reason' => 'required|string|max:255'
+        ]);
+        
+        try {
+            DB::beginTransaction();
+            
+            $wallet = Wallet::findOrFail($validated['walletId']);
+            
+            // Calculate new balance
+            $previousBalance = $wallet->balance;
+            $newBalance = $previousBalance + $validated['amount'];
+            
+            // Determine transaction type based on amount
+            $transactionType = $validated['amount'] >= 0 ? 'credit' : 'debit';
+            
+            // Create transaction record
+            $transaction = \App\Models\WalletTransaction::create([
+                'user_id' => $wallet->user_id,
+                'seller_code' => $wallet->seller_code,
+                'type' => $transactionType,
+                'amount' => abs($validated['amount']), // Store as positive
+                'previous_balance' => $previousBalance,
+                'new_balance' => $newBalance,
+                'reference_type' => 'adjustment',
+                'reference_id' => \Illuminate\Support\Str::uuid()->toString(),
+                'status' => 'completed',
+                'description' => $validated['reason'],
+                'processed_at' => now(),
+                'processed_by' => auth()->id()
+            ]);
+            
+            // Update wallet balance
+            $wallet->balance = $newBalance;
+            $wallet->save();
+            
+            DB::commit();
+            
+            // Get the updated wallet with user details
+            $updatedWallet = Wallet::where('id', $wallet->id)
+                ->with('user:id,first_name,last_name,username,seller_code')
+                ->first();
+                
+            $lastAdjustment = $this->getLastAdjustment($wallet->id);
+            
+            return response()->json([
+                'message' => 'Wallet balance adjusted successfully',
+                'wallet' => [
+                    'id' => $updatedWallet->id,
+                    'user_id' => $updatedWallet->user_id,
+                    'name' => $updatedWallet->user ? "{$updatedWallet->user->first_name} {$updatedWallet->user->last_name}" : 'Unknown User',
+                    'username' => $updatedWallet->user ? $updatedWallet->user->username : 'unknown',
+                    'seller_code' => $updatedWallet->seller_code,
+                    'balance' => $updatedWallet->balance,
+                    'status' => $updatedWallet->status ?: 'active',
+                    'last_activity' => $updatedWallet->updated_at->format('Y-m-d H:i'),
+                    'last_refill' => $this->getLastRefillDate($updatedWallet->seller_code)
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error adjusting wallet balance: ' . $e->getMessage());
+            
+            return response()->json([
+                'error' => 'Failed to adjust wallet balance',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Calculate total revenue from all completed transactions.
      *
      * @return float
@@ -247,5 +386,58 @@ class AdminWalletController extends Controller
             Log::error('Error counting active wallets: ' . $e->getMessage());
             return 3; // Return mock value of 3 to confirm the frontend is working
         }
+    }
+
+    /**
+     * Get the last adjustment for a wallet.
+     *
+     * @param int $walletId
+     * @return string
+     */
+    private function getLastAdjustment($walletId)
+    {
+        $wallet = Wallet::find($walletId);
+        if (!$wallet) {
+            return 'Never';
+        }
+        
+        $lastAdjustment = \App\Models\WalletTransaction::where('seller_code', $wallet->seller_code)
+            ->where('reference_type', 'adjustment')
+            ->where('status', 'completed')
+            ->orderBy('created_at', 'desc')
+            ->first();
+            
+        return $lastAdjustment ? $lastAdjustment->created_at->format('Y-m-d H:i') : 'Never';
+    }
+    
+    /**
+     * Get the last refill date for a seller code.
+     *
+     * @param string $sellerCode
+     * @return string
+     */
+    private function getLastRefillDate($sellerCode)
+    {
+        $lastRefill = \App\Models\WalletTransaction::where('seller_code', $sellerCode)
+            ->where('reference_type', 'refill')
+            ->where('status', 'completed')
+            ->orderBy('created_at', 'desc')
+            ->first();
+            
+        return $lastRefill ? $lastRefill->created_at->format('Y-m-d H:i') : 'Never';
+    }
+    
+    /**
+     * Get the total deductions for a seller code.
+     *
+     * @param string $sellerCode
+     * @return float
+     */
+    private function getWalletTotalDeductions($sellerCode)
+    {
+        return \App\Models\WalletTransaction::where('seller_code', $sellerCode)
+            ->where('type', 'debit')
+            ->where('status', 'completed')
+            ->sum('amount');
     }
 }

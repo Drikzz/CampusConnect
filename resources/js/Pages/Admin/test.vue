@@ -35,6 +35,21 @@
         </form>
       </div>
       
+      <!-- API Status Notification -->
+      <div v-if="apiError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+        <strong class="font-bold">API Error:</strong>
+        <span class="block sm:inline"> {{ apiError }}</span>
+        <button 
+          class="absolute top-0 bottom-0 right-0 px-4 py-3" 
+          @click="apiError = null"
+        >
+          <span class="sr-only">Dismiss</span>
+          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+      
       <!-- Wallet Stats Section -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div class="bg-gray-50 p-6 rounded-lg shadow">
@@ -57,111 +72,58 @@
         </div>
       </div>
       
-      <!-- Seller Wallets Table -->
-      <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seller</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Activity</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="(seller, index) in sellers" :key="index" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="text-sm font-medium text-gray-900">
-                    {{ seller.name }}
-                  </div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                ₱{{ seller.balance }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="[
-                  'px-2 py-1 text-xs rounded-full',
-                  seller.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                ]">
-                  {{ seller.status }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ seller.lastActivity }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <button 
-                  class="px-3 py-1 bg-blue-100 text-blue-700 rounded mr-2"
-                  @click="adjustBalance(seller.id)"
-                >
-                  Adjust Balance
-                </button>
-              </td>
-            </tr>
-            
-            <!-- Empty state -->
-            <tr v-if="!sellers.length">
-              <td colspan="5" class="px-6 py-10 text-center text-gray-500">
-                No seller wallets found
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <!-- Admin Wallet Table Component -->
+      <AdminWalletTable
+        :wallets="sellers || []"
+        :loading="isLoadingWallets"
+        :error="walletError"
+        @refresh="fetchSellerWallets"
+        @update-wallet="updateWalletInState"
+      />
     </div>
   </AdminLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { router } from '@inertiajs/vue3'
-import AdminLayout from '@/Layouts/AdminLayout.vue'
-import axios from 'axios'
+import { ref, onMounted, nextTick } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
+import AdminWalletTable from '@/Pages/Admin/Components/AdminWalletTable.vue';
+import axios from 'axios';
 
-// Data properties
-const walletDeductionRate = ref(5)
-const totalRevenue = ref(0)
-const totalProfit = ref(0)
-const activeWallets = ref(0)
-const isSubmitting = ref(false)
-const sellers = ref([
-  {
-    id: 1,
-    name: 'John Doe',
-    balance: '1,250.00',
-    status: 'active',
-    lastActivity: '2023-04-25 15:30'
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    balance: '780.00',
-    status: 'active',
-    lastActivity: '2023-04-24 09:15'
-  },
-  {
-    id: 3,
-    name: 'Robert Johnson',
-    balance: '0.00',
-    status: 'inactive',
-    lastActivity: '2023-03-15 11:20'
-  }
-])
+// Data properties - initialize with proper default values
+const walletDeductionRate = ref(5);
+const totalRevenue = ref(0);
+const totalProfit = ref(0);
+const activeWallets = ref(0);
+const isSubmitting = ref(false);
+const isLoadingWallets = ref(true);
+const walletError = ref(null);
+const apiError = ref(null);
+const sellers = ref([]);
 
 // Fetch dashboard data
 const fetchDashboardData = async () => {
   try {
     console.log('Fetching dashboard data...');
     const response = await axios.get('/admin/wallet/dashboard-data');
-    console.log('Response:', response.data);
+    console.log('Dashboard API response:', response.data);
     
-    walletDeductionRate.value = parseFloat(response.data.walletDeductionRate);
-    totalRevenue.value = response.data.totalRevenue;
-    totalProfit.value = response.data.totalProfit;
-    activeWallets.value = response.data.activeWallets;
+    // Check if the response has the expected properties
+    if (!response.data) {
+      throw new Error('Empty response from server');
+    }
+    
+    // Update values
+    walletDeductionRate.value = parseFloat(response.data.walletDeductionRate) || 5;
+    totalRevenue.value = response.data.totalRevenue || 0;
+    totalProfit.value = response.data.totalProfit || 0;
+    activeWallets.value = response.data.activeWallets || 0;
+    
+    console.log('Dashboard data loaded successfully');
+    
+    // Fetch seller wallets after dashboard data
+    await fetchSellerWallets();
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
     // Set default values on error
@@ -171,43 +133,126 @@ const fetchDashboardData = async () => {
     activeWallets.value = 0;
     
     // Show user-friendly error
-    alert('Unable to load dashboard data. Please try again later.');
+    apiError.value = `Failed to load dashboard data: ${error.message || 'Unknown error'}`;
+    
+    // Still try to fetch wallets
+    await fetchSellerWallets();
   }
-}
+};
+
+// Fetch seller wallets
+const fetchSellerWallets = async () => {
+  isLoadingWallets.value = true;
+  walletError.value = null;
+  
+  try {
+    console.log('Making request to /admin/wallet/seller-wallets');
+    const response = await axios.get('/admin/wallet/seller-wallets');
+    console.log('API response received, status:', response.status);
+    console.log('Response data:', response.data);
+    
+    // More robust error handling
+    if (!response.data) {
+      throw new Error('Empty response data from server');
+    }
+    
+    // Check if response has wallets property, if not create an empty default
+    if (!response.data.hasOwnProperty('wallets')) {
+      console.warn('Missing wallets property in response, using empty array instead');
+      sellers.value = [];
+    } else {
+      // Ensure wallets is an array
+      sellers.value = Array.isArray(response.data.wallets) ? response.data.wallets : [];
+      console.log('Seller wallets loaded successfully:', sellers.value.length);
+    }
+  } catch (error) {
+    console.error('Error fetching seller wallets:', error);
+    
+    // More detailed error logging
+    if (error.response) {
+      console.error('Error response status:', error.response.status);
+      console.error('Error response data:', error.response.data);
+    }
+    
+    walletError.value = 'Failed to load seller wallets: ' + (error.response?.data?.message || error.message || 'Unknown error');
+    sellers.value = []; // Reset to empty array on error
+  } finally {
+    isLoadingWallets.value = false;
+  }
+};
 
 // Update wallet deduction rate
 const updateDeductionRate = async () => {
-  isSubmitting.value = true
+  isSubmitting.value = true;
   
   try {
-    await axios.post('/admin/wallet/update-deduction-rate', {
-      rate: walletDeductionRate.value
-    })
+    console.log('Updating deduction rate to:', walletDeductionRate.value);
+    const response = await axios.post('/admin/wallet/update-deduction-rate', {
+      rate: parseFloat(walletDeductionRate.value)
+    });
+    
+    console.log('Rate update response:', response.data);
+    
     // Refresh data after update
-    await fetchDashboardData()
+    await nextTick();
+    await fetchDashboardData();
   } catch (error) {
-    console.error('Error updating deduction rate:', error)
-    alert('Failed to update deduction rate. Please try again.')
+    console.error('Error updating deduction rate:', error);
+    apiError.value = 'Failed to update deduction rate: ' + (error.response?.data?.message || error.message || 'Unknown error');
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
-}
+};
+
+// Update wallet in state after adjustment
+const updateWalletInState = (updatedWallet) => {
+  if (!updatedWallet || !updatedWallet.id) {
+    console.warn('Attempted to update wallet with invalid data:', updatedWallet);
+    return;
+  }
+  
+  const index = sellers.value.findIndex(wallet => wallet.id === updatedWallet.id);
+  if (index !== -1) {
+    console.log('Updating wallet in state:', updatedWallet.id);
+    sellers.value[index] = updatedWallet;
+  } else {
+    console.warn('Wallet not found in state:', updatedWallet.id);
+  }
+};
 
 // Helper to format currency
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(value)
-}
+  }).format(value || 0);
+};
 
-const adjustBalance = (sellerId) => {
-  const amount = prompt('Enter adjustment amount (use negative for deduction):')
-  if (amount) {
-    alert(`Balance adjusted for seller #${sellerId}: ${amount > 0 ? '+' : ''}${amount}`)
+// Add this helper function to verify API routes
+const verifyApiRoute = async (url) => {
+  try {
+    console.log(`Verifying API route: ${url}`);
+    const response = await axios.head(url);
+    console.log(`Route ${url} is valid, status: ${response.status}`);
+    return true;
+  } catch (error) {
+    console.error(`Route ${url} verification failed:`, error.message);
+    if (error.response) {
+      console.log(`Response status: ${error.response.status}`);
+    }
+    return false;
   }
-}
+};
 
 // Fetch data on component mount
-onMounted(fetchDashboardData)
+onMounted(async () => {
+  console.log('Admin wallet page mounted');
+  
+  // Try to verify the API routes first
+  await verifyApiRoute('/admin/wallet/dashboard-data');
+  await verifyApiRoute('/admin/wallet/seller-wallets');
+  
+  // Then proceed with data fetching
+  await fetchDashboardData();
+});
 </script>
