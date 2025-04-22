@@ -6,6 +6,10 @@ use App\Models\Product;
 use App\Models\TradeTransaction;
 use App\Models\TradeOfferedItem;
 use App\Models\MeetupLocation;
+use App\Models\Order;
+use App\Models\Rating;
+use App\Models\SellerReview;
+use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -119,11 +123,7 @@ class TradeController extends Controller
      */
     public function submit(Request $request)
     {
-        // Remove debug line
-        // dd($request);
-        
         try {
-            // Log the incoming request for debugging
             Log::info('Trade submit request: ' . json_encode($request->all()));
 
             $validated = $request->validate([
@@ -147,7 +147,6 @@ class TradeController extends Controller
             
             DB::beginTransaction();
             
-            // Parse the meetup schedule to get a valid datetime
             $scheduleComponents = explode(',', $validated['meetup_schedule']);
             
             if (count($scheduleComponents) < 2) {
@@ -159,17 +158,14 @@ class TradeController extends Controller
             $timeString = $validated['preferred_time'];
             
             try {
-                // Create a Carbon date from the parsed components
                 $meetupSchedule = Carbon::createFromFormat('Y-m-d H:i', "$dateString $timeString");
             } catch (\Exception $e) {
                 Log::error('Date parsing failed: ' . $e->getMessage());
                 return redirect()->back()->withErrors(['meetup_schedule' => 'Invalid date/time format']);
             }
             
-            // Rest of your existing code...
             $product = Product::findOrFail($validated['seller_product_id']);
             
-            // Create the trade transaction
             $trade = new TradeTransaction();
             $trade->buyer_id = Auth::id();
             $trade->seller_id = $product->seller_id;
@@ -184,11 +180,9 @@ class TradeController extends Controller
             $trade->status = 'pending';
             $trade->save();
             
-            // Process offered items
             foreach ($validated['offered_items'] as $index => $item) {
                 $uploadedImages = [];
                 
-                // Check if image files were uploaded - use correct field name
                 if ($request->hasFile("offered_items.{$index}.image_files")) {
                     $files = $request->file("offered_items.{$index}.image_files");
                     
@@ -198,21 +192,19 @@ class TradeController extends Controller
                     }
                 }
                 
-                // Create the item record with JSON images - use $trade not $tradeTransaction
                 TradeOfferedItem::create([
-                    'trade_transaction_id' => $trade->id, // FIXED: use $trade->id instead of $tradeTransaction->id
+                    'trade_transaction_id' => $trade->id,
                     'name' => $item['name'],
                     'quantity' => $item['quantity'],
                     'estimated_value' => $item['estimated_value'],
                     'description' => $item['description'] ?? '',
                     'condition' => $item['condition'],
-                    'images' => json_encode($uploadedImages) // Save as JSON string
+                    'images' => json_encode($uploadedImages)
                 ]);
             }
             
             DB::commit();
             
-            // Redirect with success message
             return redirect()->back()->with([
                 'toast' => [
                     'title' => 'Success',
@@ -243,12 +235,10 @@ class TradeController extends Controller
         try {
             $trade = TradeTransaction::findOrFail($id);
             
-            // Verify user is the buyer or seller
             if ($trade->buyer_id !== Auth::id() && $trade->seller_id !== Auth::id()) {
                 return back()->with('error', 'Unauthorized action');
             }
             
-            // Only pending or accepted trades can be canceled
             if (!in_array($trade->status, ['pending', 'accepted'])) {
                 return back()->with('error', 'This trade cannot be canceled');
             }
@@ -280,5 +270,243 @@ class TradeController extends Controller
         return Inertia::render('Trade/Index', [
             'products' => $products
         ]);
+    }
+
+    /**
+     * Display the user's trades dashboard
+     * 
+     * @return \Inertia\Response
+     */
+    public function trades()
+    {
+        $user = Auth::user();
+        
+        $trades = $this->getTradesWithRelations($user);
+        
+        $trades = $this->formatTradesData($trades);
+        
+        $stats = $this->getDashboardStats();
+        
+        $unreadMessages = $this->getUnreadMessagesCount($user->id);
+        
+        return Inertia::render('Dashboard/MyTrades', [
+            'trades' => $trades,
+            'stats' => $stats,
+            'user' => $user,
+            'unreadMessages' => $unreadMessages
+        ]);
+    }
+    
+    private function getTradesWithRelations($user)
+    {
+        return TradeTransaction::with([
+            'sellerProduct', 
+            'offeredItems', 
+            'buyer:id,first_name,last_name,username,profile_picture', 
+            'seller:id,first_name,last_name,username,profile_picture,seller_code',
+            'meetupLocation.location',
+            'messages.user:id,first_name,last_name,username,profile_picture'
+        ])
+        ->where(function ($query) use ($user) {
+            $query->where('buyer_id', $user->id)
+                  ->orWhere('seller_id', $user->id);
+        })
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
+    }
+    
+    private function formatTradesData($trades)
+    {
+        $trades->getCollection()->transform(function ($trade) {
+            if ($trade->sellerProduct && $trade->sellerProduct->images) {
+                $trade->sellerProduct->images = $this->formatImageUrls($trade->sellerProduct->images);
+            }
+            
+            if ($trade->offeredItems) {
+                $trade->offeredItems->transform(function ($item) {
+                    $item->images = $this->formatItemImages($item->images);
+                    return $item;
+                });
+            }
+            
+            $trade->buyer = $this->formatUserData($trade->buyer);
+            $trade->seller = $this->formatUserData($trade->seller);
+            
+            if ($trade->messages) {
+                $trade->messages->transform(function ($message) {
+                    $message->user = $this->formatUserData($message->user);
+                    
+                    $message->user_id = $message->sender_id;
+                    $message->formatted_time = $message->created_at ? 
+                        Carbon::parse($message->created_at)->format('M j, Y g:i A') : null;
+                    
+                    return $message;
+                });
+            }
+            
+            if ($trade->meetup_schedule) {
+                $trade->formatted_meetup_date = Carbon::parse($trade->meetup_schedule)->format('F j, Y g:i A');
+            }
+            
+            return $trade;
+        });
+        
+        return $trades;
+    }
+    
+    private function formatImageUrls($images)
+    {
+        if (!$images) return [];
+        
+        if (is_array($images)) {
+            return array_map(function ($image) {
+                if ($image && file_exists(storage_path('app/public/' . $image))) {
+                    return asset('storage/' . $image);
+                }
+                return asset('images/placeholder-product.jpg');
+            }, $images);
+        }
+        
+        return [$images ? asset('storage/' . $images) : asset('images/placeholder-product.jpg')];
+    }
+    
+    private function formatUserData($user)
+    {
+        if (!$user) return null;
+        
+        if ($user->profile_picture) {
+            $user->profile_picture = file_exists(storage_path('app/public/' . $user->profile_picture))
+                ? asset('storage/' . $user->profile_picture)
+                : asset('images/placeholder-avatar.jpg');
+        }
+        
+        return $user;
+    }
+    
+    private function formatItemImages($images)
+    {
+        if (!$images) return [];
+        
+        $processedImages = [];
+        
+        if (is_string($images)) {
+            try {
+                $decodedImages = json_decode($images, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decodedImages)) {
+                    $images = $decodedImages;
+                } else {
+                    $images = [$images];
+                }
+            } catch (\Exception $e) {
+                $images = [$images];
+            }
+        }
+        
+        $imageArray = is_array($images) ? $images : [$images];
+        
+        foreach ($imageArray as $imagePath) {
+            if (empty($imagePath)) continue;
+            
+            if (file_exists(storage_path('app/public/' . $imagePath))) {
+                $processedImages[] = asset('storage/' . $imagePath);
+            } else {
+                $processedImages[] = asset('storage/' . $imagePath);
+            }
+        }
+        
+        return $processedImages;
+    }
+    
+    private function getUnreadMessagesCount($userId)
+    {
+        return DB::table('trade_messages')
+            ->join('trade_transactions', 'trade_messages.trade_transaction_id', '=', 'trade_transactions.id')
+            ->where('trade_messages.sender_id', '!=', $userId)
+            ->where(function($query) use ($userId) {
+                $query->where('trade_transactions.buyer_id', $userId)
+                      ->orWhere('trade_transactions.seller_id', $userId);
+            })
+            ->whereNull('trade_messages.read_at')
+            ->count();
+    }
+    
+    protected function getDashboardStats()
+    {
+        $user = Auth::user();
+        $userStats = [];
+        
+        $userStats['order_count'] = Order::where('buyer_id', $user->id)->count();
+        
+        $userStats['total_spent'] = Order::where('buyer_id', $user->id)
+        ->where('status', 'Completed')  // Capitalized first letter to match the constant in Order model
+        ->sum('sub_total');  // Changed from 'total' to 'sub_total'
+        
+        $userStats['wishlist_count'] = Wishlist::where('user_id', $user->id)->count();
+        
+        $userStats['review_count'] = Rating::where('user_id', $user->id)->count();
+        
+        $userStats['pending_orders'] = Order::where('buyer_id', $user->id)
+            ->where('status', 'pending')
+            ->count();
+        
+        $userStats['trade_count'] = TradeTransaction::where('buyer_id', $user->id)->count();
+        
+        $totalTradeValue = $this->calculateTotalTradeValue($user->id);
+        $userStats['total_trade_value'] = $totalTradeValue;
+        
+        $sellerStats = [];
+        if ($user->is_seller) {
+            $sellerStats['product_count'] = Product::where('user_id', $user->id)->count();
+            
+            $sellerStats['active_product_count'] = Product::where('user_id', $user->id)
+                ->where('status', 'Active')
+                ->count();
+            
+            $sellerStats['order_count'] = Order::where('seller_id', $user->id)->count();
+            
+            $sellerStats['revenue'] = Order::where('seller_id', $user->id)
+                ->where('status', 'completed')
+                ->sum('total');
+            
+            $sellerStats['review_count'] = SellerReview::where('seller_id', $user->id)->count();
+            
+            $sellerStats['trade_offers_count'] = TradeTransaction::where('seller_id', $user->id)->count();
+            
+            $sellerStats['pending_trade_offers'] = TradeTransaction::where('seller_id', $user->id)
+                ->where('status', 'pending')
+                ->count();
+                
+            $sellerStats['pending_orders'] = Order::where('seller_id', $user->id)
+                ->whereIn('status', ['pending', 'processing'])
+                ->count();
+                
+            $avgRating = Rating::where('seller_id', $user->id)->avg('rating');
+            $sellerStats['avg_rating'] = $avgRating ? number_format($avgRating, 1) : 0;
+            
+            $sellerStats['total_ratings'] = Rating::where('seller_id', $user->id)->count();
+        }
+        
+        return [
+            'user' => $userStats,
+            'seller' => $sellerStats
+        ];
+    }
+    
+    private function calculateTotalTradeValue($userId)
+    {
+        $totalValue = 0;
+        
+        $trades = TradeTransaction::where('buyer_id', $userId)->get();
+        
+        foreach ($trades as $trade) {
+            $totalValue += $trade->additional_cash ?? 0;
+            
+            $offeredItems = TradeOfferedItem::where('trade_transaction_id', $trade->id)->get();
+            foreach ($offeredItems as $item) {
+                $totalValue += $item->estimated_value * $item->quantity;
+            }
+        }
+        
+        return $totalValue;
     }
 }
