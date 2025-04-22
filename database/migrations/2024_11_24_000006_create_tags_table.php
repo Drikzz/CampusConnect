@@ -14,29 +14,27 @@ return new class extends Migration
       $table->id();
       $table->string('name')->unique();
       $table->string('slug')->unique();
-      $table->string('description')->nullable();
       $table->timestamps();
     });
 
     // Insert predefined tags
     $tags = [
-      'Books' => 'Academic and learning materials',
-      'Electronics' => 'Electronic devices and accessories',
-      'School Supplies' => 'General school supplies',
-      'Notes' => 'Study notes and materials',
-      'Uniforms' => 'School uniforms and attire',
-      'Lab Equipment' => 'Laboratory equipment and supplies',
-      'Sports' => 'Sports equipment and gear',
-      'Art Supplies' => 'Art and craft materials',
-      'Computing' => 'Computer hardware and software',
-      'Stationery' => 'Writing and office supplies'
+      'Books',
+      'Electronics',
+      'School Supplies',
+      'Notes',
+      'Uniforms',
+      'Lab Equipment',
+      'Sports',
+      'Art Supplies',
+      'Computing',
+      'Stationery'
     ];
 
-    foreach ($tags as $name => $description) {
+    foreach ($tags as $name) {
       DB::table('tags')->insert([
         'name' => $name,
         'slug' => Str::slug($name),
-        'description' => $description,
         'created_at' => now(),
         'updated_at' => now()
       ]);

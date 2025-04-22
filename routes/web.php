@@ -16,7 +16,6 @@ use App\Http\Controllers\SellerReviewController;
 use App\Http\Controllers\SellerWalletController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AdminMeetupLocController;
-use App\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -27,6 +26,23 @@ use App\Http\Controllers\ProductTradeController;
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
+
+// Add this route near the top with other public routes
+Route::get('/admin/default-avatar', [AdminController::class, 'getDefaultAvatar'])
+    ->name('admin.default-avatar');
+
+// Add the admin-avatar route outside the auth middleware for public access
+Route::get('/admin-avatar', function() {
+    // Path to a default avatar image in the public directory
+    $avatarPath = public_path('images/default-avatar.png');
+    
+    // Check if the file exists, otherwise generate a placeholder
+    if (!file_exists($avatarPath)) {
+        return response()->file(public_path('favicon.ico'));
+    }
+    
+    return response()->file($avatarPath);
+})->name('admin.avatar');
 
 // Route::inertia('/about', 'About', ['user' => 'About Us']);   
 
@@ -270,20 +286,21 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::post('/products/{id}/toggle-status', [AdminProductsController::class, 'toggleStatus'])->name('products.toggle-status');
         
         // Categories & Tags Management Routes
-        Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'index'])->name('admin.categories-tags');
+        Route::get('/categories-tags-management', [AdminCategoriesTagsController::class, 'index'])->name('categories-tags-management');
+        Route::get('/categories-tags', [AdminCategoriesTagsController::class, 'getCategoriesTagsData']);
         
-        // Category Routes
-        Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory'])->name('categories.store');
-        Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory'])->name('categories.update');
-        Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory'])->name('categories.delete');
-        Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories'])->name('categories.bulk-delete');
+        // Categories CRUD routes
+        Route::post('/categories', [AdminCategoriesTagsController::class, 'storeCategory']);
+        Route::put('/categories/{id}', [AdminCategoriesTagsController::class, 'updateCategory']);
+        Route::delete('/categories/{id}', [AdminCategoriesTagsController::class, 'destroyCategory']);
+        Route::delete('/categories/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteCategories']);
         
-        // Tag Routes
-        Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag'])->name('tags.store');
-        Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag'])->name('tags.update');
-        Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag'])->name('tags.delete');
-        Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags'])->name('tags.bulk-delete');
-        
+        // Tags CRUD routes
+        Route::post('/tags', [AdminCategoriesTagsController::class, 'storeTag']);
+        Route::put('/tags/{id}', [AdminCategoriesTagsController::class, 'updateTag']);
+        Route::delete('/tags/{id}', [AdminCategoriesTagsController::class, 'destroyTag']);
+        Route::delete('/tags/bulk-delete', [AdminCategoriesTagsController::class, 'bulkDeleteTags']);
+
         Route::get('/orders', [AdminController::class, 'transactions'])->name('orders');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
@@ -293,12 +310,11 @@ Route::middleware('auth', 'admin')->group(function () {
         Route::get('/reports/{report}', [AdminReportController::class, 'show'])->name('reports.show');
         Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('reports.update');
 
-        //Meetup Location Routes
+        // Meetup Location Routes
         Route::get('/locations', [AdminMeetupLocController::class, 'index'])->name('locations');
         Route::post('/locations', [AdminMeetupLocController::class, 'store'])->name('locations.store');
         Route::put('/locations/{location}', [AdminMeetupLocController::class, 'update'])->name('locations.update');
         Route::delete('/locations/{location}', [AdminMeetupLocController::class, 'destroy'])->name('locations.destroy');
-
 
         // Wallet Management Routes
         Route::get('/wallet', [AdminController::class, 'walletRequests'])->name('wallet'); // Use same controller method
@@ -310,6 +326,28 @@ Route::middleware('auth', 'admin')->group(function () {
             ->name('wallet-requests.approve-refund');
         Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
             ->name('wallet-requests.reject-refund');
+
+        // Add this debug route at the END of your admin routes group
+        if (app()->environment('local')) {
+            Route::match(['put', 'post'], '/categories-tags-management', function () {
+                // Log the request details to help debug
+                \Illuminate\Support\Facades\Log::warning('Incorrect route accessed:', [
+                    'intended_url' => request()->fullUrl(),
+                    'method' => request()->method(),
+                    'all_parameters' => request()->all()
+                ]);
+                
+                // Return a clear error message
+                return response()->json([
+                    'error' => true,
+                    'message' => 'You are using the wrong URL. For category updates, use /admin/categories/{id}, for tag updates, use /admin/tags/{id}',
+                    'debug_info' => [
+                        'url' => request()->fullUrl(),
+                        'method' => request()->method(),
+                    ]
+                ], 405);
+            })->name('debug-wrong-url');
+        }
     });
 });
 

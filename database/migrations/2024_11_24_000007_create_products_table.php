@@ -27,8 +27,7 @@ return new class extends Migration
             $table->boolean('is_tradable')->default(false);
             $table->enum('status', ['Active', 'Inactive'])->default('Active')->nullable(false);
             $table->softDeletes();
-            $table->json('old_attributes')->nullable();
-
+            $table->json('old_attributes')->nullable();         
             $table->timestamps();
         });
     }
