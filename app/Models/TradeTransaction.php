@@ -74,6 +74,14 @@ class TradeTransaction extends Model
     }
     
     /**
+     * Get the messages for this trade.
+     */
+    public function messages()
+    {
+        return $this->hasMany(TradeMessage::class);
+    }
+    
+    /**
      * Get the meetup location for this trade.
      */
     public function meetupLocation()

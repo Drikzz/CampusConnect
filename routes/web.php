@@ -22,20 +22,16 @@ use Inertia\Inertia;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\WishlistController;
-use App\Http\Controllers\ProductTradeController;
 use App\Http\Controllers\TradeController;
-
+use App\Http\Controllers\SellerTradeController;
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
-
-// Route::inertia('/about', 'About', ['user' => 'About Us']);   
 
 // Update the products routes
 Route::get('/products', [ProductController::class, 'index'])->name('products');
 Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/trade', [ProductController::class, 'trade'])->name('trade');
-// Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('products.trade');
 
 Route::middleware('guest')->group(function () {
     // This is the correct route we want to use
@@ -74,7 +70,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
             Route::get('/orders', [DashboardController::class, 'orders'])->name('dashboard.orders');
-            Route::get('/trades', [DashboardController::class, 'trades'])->name('dashboard.trades');
+            Route::get('/trades', [TradeController::class, 'trades'])->name('dashboard.trades');
 
             // Fix: Update the wishlist route definition to avoid conflicts
             Route::get('/wishlist', [WishlistController::class, 'index'])->name('dashboard.wishlist');
@@ -123,7 +119,7 @@ Route::middleware('auth')->group(function () {
                 Route::post('/trades/{id}/reject', [SellerController::class, 'rejectTradeOffer'])->name('seller.trades.reject');
 
                 // Add this route where you have other trade routes, likely in a seller middleware group
-                Route::post('/seller/trades/{id}/complete', [ProductTradeController::class, 'completeTrade'])->name('seller.trades.complete');
+                Route::post('/seller/trades/{id}/complete', [SellerTradeController::class, 'completeTrade'])->name('seller.trades.complete');
 
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
@@ -175,37 +171,34 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
         });
 
+        // Seller Trade routes
         // Trade related routes
-        Route::patch('trades/{id}/update', [DashboardController::class, 'updateTrade'])->name('trades.update');
-        Route::patch('trades/{id}/cancel', [DashboardController::class, 'cancelTrade'])->name('trades.cancel');
-
         Route::prefix('trades')->group(function () {
-            Route::patch('/{trade}/cancel', [ProductTradeController::class, 'cancelTrade'])->name('trades.cancel');
-            Route::get('/{trade}/details', [ProductTradeController::class, 'getTradeDetails'])->name('trades.details');
+            Route::patch('/{trade}/cancel', [TradeController::class, 'cancelTrade'])->name('trades.cancel');
+            Route::get('/{trade}/details', [TradeController::class, 'getTradeDetails'])->name('trades.details');
             
             // Add new routes for deleting trades
-            Route::delete('/{trade}', [ProductTradeController::class, 'deleteTrade'])->name('trades.delete');
-            Route::delete('/bulk-delete', [ProductTradeController::class, 'bulkDeleteTrades'])->name('trades.bulk-delete');
+            Route::delete('/{trade}', [TradeController::class, 'deleteTrade'])->name('trades.delete');
+            Route::delete('/bulk-delete', [TradeController::class, 'bulkDeleteTrades'])->name('trades.bulk-delete');
             
-            // Add new route to get meetup locations for a product
-            Route::get('/product/{id}/meetup-locations', [ProductTradeController::class, 'getProductMeetupLocations'])
-                ->name('trades.product.meetup-locations')
-                ->withoutMiddleware('auth'); // Add this to make it publicly accessible
-
             // Add this route where other trade routes are defined:
-            Route::patch('/trades/{id}/update', [ProductTradeController::class, 'updateTrade'])->name('trades.update');
+            Route::patch('/{id}/update', [TradeController::class, 'updateTrade'])->name('trades.update');
             
             // Add new routes for trade messages
-            Route::post('/trades/{trade}/message', [ProductTradeController::class, 'sendMessage'])->name('trades.message.send');
-            Route::get('/trades/{trade}/messages', [ProductTradeController::class, 'getMessages'])->name('trades.messages.get');
+            Route::post('/{trade}/message', [TradeController::class, 'sendMessage'])->name('trades.message.send');
+            Route::get('/{trade}/messages', [TradeController::class, 'getMessages'])->name('trades.messages.get');
+            
+            // Keep meetup locations route with the SellerTradeController
+            Route::get('/product/{id}/meetup-locations', [SellerTradeController::class, 'getProductMeetupLocations'])
+                ->name('trades.product.meetup-locations')
+                ->withoutMiddleware('auth'); // Public endpoint
         });
 
         // Trade routes - moved to auth middleware group
-        Route::get('/products/trade', [ProductTradeController::class, 'index'])->name('product.trade.index');
-        Route::post('/products/trade/submit', [ProductTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
+        Route::get('/products/trade', [SellerTradeController::class, 'index'])->name('product.trade.index');
+        Route::post('/products/trade/submit', [SellerTradeController::class, 'submitTradeOffer'])->name('product.trade.submit');
 
-        // Around line 219-224, add these new routes after the checkout routes
-        //trade routes - update to add consistent naming
+        //user trade routes - update to add consistent naming
         Route::get('/trade', [TradeController::class, 'index'])->name('trade.index');
         Route::get('/trade/{id}', [TradeController::class, 'show'])->name('trade.show');
         Route::get('/trade/{id}/meetup-locations', [TradeController::class, 'getMeetupLocations'])->name('trade.meetup-locations');
