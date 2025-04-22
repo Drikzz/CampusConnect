@@ -1,85 +1,119 @@
 <template>
   <AdminLayout>
-    <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Wallet & Fees</h2>
-      
-      <!-- Platform Fees Settings -->
-      <div class="bg-white border rounded-lg shadow-sm p-6 mb-6">
-        <h3 class="text-lg font-medium mb-4">Platform Fees Settings</h3>
-        <form @submit.prevent="updateDeductionRate" class="space-y-4">
-          <div class="flex items-center gap-4">
-            <div class="w-64">
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Wallet Deduction Rate
-              </label>
-              <div class="flex items-center gap-2">
-                <input 
-                  type="number" 
-                  v-model="walletDeductionRate" 
-                  min="0" 
-                  max="100" 
-                  step="0.1"
-                  class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-500"
-                />
-                <span>%</span>
+    <div class="py-4 sm:py-6">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 class="text-xl sm:text-2xl font-bold text-foreground mb-6">Wallet & Fees</h1>
+        
+        <!-- Platform Fees Settings -->
+        <div class="bg-card shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 hover:shadow-md transition-shadow duration-300">
+          <h3 class="text-lg font-medium text-foreground mb-4">Platform Fees Settings</h3>
+          <form @submit.prevent="updateDeductionRate" class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div class="w-full sm:w-64">
+                <label class="block text-sm font-medium text-muted-foreground mb-1">
+                  Wallet Deduction Rate
+                </label>
+                <div class="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    v-model="walletDeductionRate" 
+                    min="0" 
+                    max="100" 
+                    step="0.1"
+                    class="w-full h-10 px-3 py-2 border rounded focus:ring-2 focus:ring-primary bg-background text-foreground"
+                  />
+                  <span class="text-muted-foreground">%</span>
+                </div>
               </div>
+              <button 
+                type="submit" 
+                class="h-10 px-4 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors duration-200"
+                :disabled="isSubmitting"
+              >
+                <span v-if="isSubmitting" class="flex items-center gap-2">
+                  <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em]"></span>
+                  Saving...
+                </span>
+                <span v-else>Save Changes</span>
+              </button>
             </div>
+          </form>
+        </div>
+        
+        <!-- API Status Notification -->
+        <div v-if="apiError" class="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg relative mb-6 sm:mb-8" role="alert">
+          <strong class="font-bold">API Error:</strong>
+          <span class="block sm:inline"> {{ apiError }}</span>
+          <button 
+            class="absolute top-0 bottom-0 right-0 px-4 py-3 text-destructive hover:text-destructive/80" 
+            @click="apiError = null"
+          >
+            <span class="sr-only">Dismiss</span>
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Wallet Stats Section -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div class="bg-card shadow rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow duration-300">
+            <p class="text-sm text-muted-foreground">Total Platform Revenue</p>
+            <p class="text-xl sm:text-2xl font-bold text-primary mt-1">
+              ₱{{ formatCurrency(totalRevenue) }}
+            </p>
+          </div>
+          <div class="bg-card shadow rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow duration-300">
+            <p class="text-sm text-muted-foreground">Active Seller Wallets</p>
+            <p class="text-xl sm:text-2xl font-bold text-primary mt-1">
+              {{ activeWallets }}
+            </p>
+          </div>
+          <div class="bg-card shadow rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow duration-300">
+            <p class="text-sm text-muted-foreground">Total Profit From Revenue</p>
+            <p class="text-xl sm:text-2xl font-bold text-primary mt-1">
+              ₱{{ formatCurrency(totalProfit) }}
+            </p>
+          </div>
+        </div>
+        
+        <!-- Admin Wallet Table Section -->
+        <div class="bg-card shadow rounded-lg overflow-hidden">
+          <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-border">
+            <h3 class="text-base sm:text-lg font-medium text-foreground">Seller Wallets</h3>
+            <p class="mt-1 text-xs sm:text-sm text-muted-foreground">Manage wallet balances and transactions for all sellers.</p>
+          </div>
+          
+          <!-- Loading State -->
+          <div v-if="isLoadingWallets" class="flex items-center justify-center h-40 sm:h-64 p-4 sm:p-6">
+            <div class="text-center">
+              <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em]"></div>
+              <p class="mt-2 text-muted-foreground">Loading seller wallets...</p>
+            </div>
+          </div>
+          
+          <!-- Error State -->
+          <div v-else-if="walletError" class="p-4 sm:p-6 text-center text-destructive">
+            <p>{{ walletError }}</p>
             <button 
-              type="submit" 
-              class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-              :disabled="isSubmitting"
+              @click="fetchSellerWallets" 
+              class="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors duration-200"
             >
-              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+              Retry
             </button>
           </div>
-        </form>
-      </div>
-      
-      <!-- API Status Notification -->
-      <div v-if="apiError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
-        <strong class="font-bold">API Error:</strong>
-        <span class="block sm:inline"> {{ apiError }}</span>
-        <button 
-          class="absolute top-0 bottom-0 right-0 px-4 py-3" 
-          @click="apiError = null"
-        >
-          <span class="sr-only">Dismiss</span>
-          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-          </svg>
-        </button>
-      </div>
-      
-      <!-- Wallet Stats Section -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div class="bg-gray-50 p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Total Platform Revenue</p>
-          <p class="text-2xl font-bold text-indigo-600">
-            ₱{{ formatCurrency(totalRevenue) }}
-          </p>
-        </div>
-        <div class="bg-gray-50 p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Active Seller Wallets</p>
-          <p class="text-2xl font-bold text-green-600">
-            {{ activeWallets }}
-          </p>
-        </div>
-        <div class="bg-gray-50 p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Total Profit From Revenue</p>
-          <p class="text-2xl font-bold text-yellow-600">
-            ₱{{ formatCurrency(totalProfit) }}
-          </p>
+          
+          <!-- Admin Wallet Table Component -->
+          <AdminWalletTable
+            v-else
+            :wallets="sellers || []"
+            :loading="isLoadingWallets"
+            :error="walletError"
+            @refresh="fetchSellerWallets"
+            @update-wallet="updateWalletInState"
+          />
         </div>
       </div>
-      
-      <!-- Admin Wallet Table Component -->
-      <AdminWalletTable
-        :wallets="sellers || []"
-        :loading="isLoadingWallets"
-        :error="walletError"
-        @refresh="fetchSellerWallets"
-        @update-wallet="updateWalletInState"
-      />
     </div>
   </AdminLayout>
 </template>
