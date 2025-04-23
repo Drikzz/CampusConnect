@@ -162,8 +162,104 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(SellerWallet::class, 'seller_code', 'seller_code');
     }
 
+    /**
+     * Get reviews written by this user.
+     */
+    public function writtenReviews()
+    {
+        return $this->hasMany(SellerReview::class, 'reviewer_id');
+    }
+
+    /**
+     * Get reviews about this seller.
+     */
+    public function receivedReviews()
+    {
+        return $this->hasMany(SellerReview::class, 'seller_code', 'seller_code');
+    }
+
+    /**
+     * Get average rating for this seller
+     */
+    public function getAverageRatingAttribute()
+    {
+        // Fetch all reviews to ensure we have complete data
+        $reviews = $this->receivedReviews()->get();
+        
+        // Get the count of reviews for each rating value using a more reliable method
+        $ratingCounts = [];
+        foreach ($reviews as $review) {
+            $rating = (int)$review->rating;
+            if (!isset($ratingCounts[$rating])) {
+                $ratingCounts[$rating] = 0;
+            }
+            $ratingCounts[$rating]++;
+        }
+        
+        // Calculate total number of reviews
+        $totalReviews = count($reviews);
+        
+        // Calculate sum of (rating × count) for each rating
+        $weightedSum = 0;
+        foreach ($ratingCounts as $rating => $count) {
+            $weightedSum += $rating * $count;
+        }
+        
+        // Return the average using the correct formula
+        return $totalReviews > 0 ? $weightedSum / $totalReviews : 0;
+    }
+
+    /**
+     * Get total number of reviews for this seller
+     */
+    public function getReviewsCountAttribute()
+    {
+        return $this->receivedReviews()->count();
+    }
+
     public function walletTransactions()
     {
         return $this->hasMany(WalletTransaction::class);
+    }
+
+    /**
+     * Get the ban records associated with the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function userBans(): HasMany
+    {
+        return $this->hasMany(UserBan::class, 'user_id');
+    }
+
+    /**
+     * Check if user has an active ban
+     * 
+     * @return bool
+     */
+    public function isBanned()
+    {
+        return $this->userBans()
+            ->where(function($query) {
+                $query->where('is_permanent', true)
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+    }
+
+    /**
+     * Get active ban if it exists
+     * 
+     * @return \App\Models\UserBan|null
+     */
+    public function getActiveBan()
+    {
+        return $this->userBans()
+            ->where(function($query) {
+                $query->where('is_permanent', true)
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->latest()
+            ->first();
     }
 }

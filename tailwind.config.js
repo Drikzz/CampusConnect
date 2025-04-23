@@ -140,14 +140,31 @@ module.exports = {
   				to: {
   					height: 0
   				}
-  			}
+  			},
+            'toast-slide-in-bottom': {
+                '0%': { transform: 'translateY(100%)', opacity: 0 },
+                '100%': { transform: 'translateY(0)', opacity: 1 }
+            },
+            'toast-slide-out-right': {
+                '0%': { transform: 'translateX(0)', opacity: 1 },
+                '100%': { transform: 'translateX(100%)', opacity: 0 }
+            },
+            'toast-swipe-out': {
+                '0%': { transform: 'translateX(var(--reka-toast-swipe-end-x))', opacity: 1 },
+                '100%': { transform: 'translateX(calc(100% + 32px))', opacity: 0 }
+            }
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
   			'collapsible-down': 'collapsible-down 0.2s ease-in-out',
-  			'collapsible-up': 'collapsible-up 0.2s ease-in-out'
-  		}
+  			'collapsible-up': 'collapsible-up 0.2s ease-in-out',
+            'toast-slide-in': 'toast-slide-in-bottom 0.2s ease-out',
+            'toast-slide-out': 'toast-slide-out-right 0.2s ease-in forwards',
+            'toast-swipe-out': 'toast-swipe-out 0.2s ease-out forwards'
+  		},
+		backfaceVisibility: ['hidden'],
+		transform: ['gpu'],
   	}
   },
   plugins: [animate, require("tailwindcss-animate")],

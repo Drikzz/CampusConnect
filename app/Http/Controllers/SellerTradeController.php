@@ -6,19 +6,30 @@ use App\Models\Product;
 use App\Models\TradeTransaction;
 use App\Models\TradeOfferedItem;
 use App\Models\User;
+use App\Models\MeetupLocation;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Carbon\Carbon;
+use Illuminate\Validation\ValidationException;
 
-class ProductTradeController extends Controller
+class SellerTradeController extends Controller
 {
     public function index(Request $request)
     {
         // Start with a query for tradable products only
         $query = Product::where('is_tradable', true)
-                        ->where('status', 'Active');
+                        ->where('status', 'Active')
+                        ->with(['seller' => function($query) {
+                            $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture')
+                                ->with(['meetupLocations' => function($q) {
+                                    $q->where('is_active', true)
+                                      ->with('location');
+                                }]);
+                        }, 'category']);
         
         // Apply category filter
         if ($request->filled('category') && $request->category !== 'all') {
@@ -36,25 +47,34 @@ class ProductTradeController extends Controller
             $query->where('price', '<=', $request->input('price.max'));
         }
         
-        // Apply matching type logic if needed
-        if ($request->filled('matchingType')) {
-            // This logic would depend on your specific implementation
-            // of 'any' vs 'all' matching
-        }
+        // Get the tradable products with pagination
+        $products = $query->paginate(9)->withQueryString();
         
-        // Get the tradable products with pagination - ensure seller info is loaded
-        $products = $query->with([
-            'category', 
-            'seller:id,first_name,last_name,username,seller_code'
-        ])
-        ->paginate(9)
-        ->withQueryString();
-        
-        // Transform product data to ensure seller information is correctly included
+        // Transform product data to ensure full seller info is included
         $products->getCollection()->transform(function ($product) {
-            // Make sure seller_code is directly accessible on the product
+            // Include full seller information
             if ($product->seller) {
-                $product->seller_code = $product->seller->seller_code;
+                $meetupLocations = $product->seller->meetupLocations->map(function($location) {
+                    return [
+                        'id' => $location->id,
+                        'name' => $location->location ? $location->location->name : null,
+                        'description' => $location->description,
+                        'available_days' => $location->available_days,
+                        'available_from' => $location->available_from,
+                        'available_until' => $location->available_until,
+                        'is_default' => $location->is_default
+                    ];
+                });
+
+                $product->seller = [
+                    'id' => $product->seller->id,
+                    'first_name' => $product->seller->first_name,
+                    'last_name' => $product->seller->last_name,
+                    'username' => $product->seller->username,
+                    'seller_code' => $product->seller->seller_code,
+                    'profile_picture' => $product->seller->profile_picture,
+                    'meetup_locations' => $meetupLocations
+                ];
             }
             return $product;
         });
@@ -70,25 +90,26 @@ class ProductTradeController extends Controller
      */
     public function submitTradeOffer(Request $request)
     {
-        // Log request information to help with debugging
-        Log::info('Trade offer submission started', [
-            'user_id' => Auth::id(),
-            'data' => $request->except('offered_items.*.images'),
-            'has_files' => $request->hasFile('offered_items') ? 'Yes' : 'No',
-            'files_structure' => $request->file() ? array_keys($request->file()) : 'No files'
-        ]);
         
-        // CRITICAL DEBUGGING: Directly log the entire FILES array to see exactly what we're receiving
-        Log::debug('RAW FILES INPUT', [
-            'files' => print_r($_FILES, true)
+        // dd($request);
+
+        // Add detailed logging
+        Log::info('Trade offer submission started', [
+            'request_data' => $request->all(),
+            'has_meetup_date' => $request->has('meetup_date'),
+            'meetup_date_value' => $request->input('meetup_date'),
+            'meetup_schedule_value' => $request->input('meetup_schedule'),
+            'files' => $request->hasFile('offered_items') ? 'Yes' : 'No',
         ]);
         
         try {
+            // Validate the request first
             $validated = $request->validate([
                 'seller_product_id' => 'required|exists:products,id',
-                'meetup_location_id' => 'nullable|exists:meetup_locations,id',
-                'meetup_schedule' => 'nullable|string', 
-                'meetup_date' => 'nullable|date|after_or_equal:today', // Add validation for meetup_date
+                'meetup_location_id' => 'required|exists:meetup_locations,id',
+                'meetup_schedule' => 'required|string',
+                'meetup_date' => 'required|date|after_or_equal:today',
+                'preferred_time' => 'required|string', // Add validation for preferred time
                 'additional_cash' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
                 'offered_items' => 'required|array|min:1',
@@ -99,204 +120,140 @@ class ProductTradeController extends Controller
                 'offered_items.*.images' => 'required|array|min:1',
                 'offered_items.*.images.*' => 'required|file|image|max:2048',
             ]);
-            
-            // Get the product with seller information
-            $product = Product::findOrFail($validated['seller_product_id']);
-            
-            // Get seller_code from product
-            $sellerCode = $product->seller_code;
-            
-            if (empty($sellerCode)) {
-                Log::error('Product has no seller_code', [
-                    'product_id' => $product->id
-                ]);
-                
-                return redirect()->back()
-                    ->with('error', 'Cannot identify the seller of this product.')
-                    ->withInput();
-            }
-            
-            // Find seller_id from seller_code
-            $seller = User::where('seller_code', $sellerCode)->first();
-            
-            if (!$seller) {
-                Log::error('No seller found with seller_code', [
-                    'seller_code' => $sellerCode,
-                    'product_id' => $product->id
-                ]);
-                
-                return redirect()->back()
-                    ->with('error', 'Cannot find the seller for this product.')
-                    ->withInput();
-            }
-            
-            Log::info('Found seller for trade transaction', [
-                'seller_id' => $seller->id,
-                'seller_code' => $sellerCode
+
+            // Log the validated data
+            Log::info('Validation passed', [
+                'validated_data' => $validated
             ]);
+
+            // Get the product to retrieve the seller information
+            $product = Product::with('seller')->findOrFail($validated['seller_product_id']);
             
-            // Now start the transaction
+            // Parse meetup date and time from the input
+            $meetupDate = new Carbon($validated['meetup_date']);
+            
+            // If meetup_schedule has time information (in format "YYYY-MM-DD, HH:MM:SS, dayname")
+            if (strpos($validated['meetup_schedule'], ',') !== false) {
+                $scheduleParts = explode(',', $validated['meetup_schedule']);
+                if (count($scheduleParts) >= 2) {
+                    $timeString = trim($scheduleParts[1]);
+                    // Parse the time from the schedule
+                    try {
+                        // Set the time component on the meetup date
+                        $timeObj = Carbon::createFromFormat('H:i:s', $timeString);
+                        $meetupDate->setTime($timeObj->hour, $timeObj->minute, 0);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to parse time string: ' . $timeString, [
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
+            } else if (!empty($validated['preferred_time'])) {
+                // Use preferred_time if available and meetup_schedule doesn't contain time
+                try {
+                    // Parse time from preferred_time (expected in HH:MM format)
+                    list($hour, $minute) = explode(':', $validated['preferred_time']);
+                    $meetupDate->setTime((int)$hour, (int)$minute, 0);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to parse preferred time: ' . $validated['preferred_time'], [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            // Begin database transaction
             DB::beginTransaction();
             
             try {
-                // Combine meetup_date and meetup_schedule to create a specific datetime
-                $meetupSchedule = null;
-                if (!empty($validated['meetup_schedule']) && !empty($validated['meetup_date'])) {
-                    // Create a date from the selected date
-                    $meetupDate = new \DateTime($validated['meetup_date']);
-                    
-                    // Get the day from meetup_schedule
-                    $dayName = $validated['meetup_schedule'];
-                    
-                    // Ensure the date matches the expected day of week
-                    $selectedDay = strtolower(date('l', strtotime($validated['meetup_date'])));
-                    if (strtolower($dayName) !== $selectedDay) {
-                        // If there's a mismatch, log it - this should be prevented by the frontend
-                        Log::warning('Selected date does not match day of week', [
-                            'expected_day' => strtolower($dayName),
-                            'selected_date_day' => $selectedDay,
-                            'selected_date' => $validated['meetup_date']
-                        ]);
-                    }
-                    
-                    // Store only the date without time
-                    $meetupSchedule = $meetupDate->format('Y-m-d');
-                    
-                    Log::info('Using specific meetup date', [
-                        'meetup_date' => $validated['meetup_date'],
-                        'day_name' => $dayName, 
-                        'converted_date' => $meetupSchedule
-                    ]);
-                }
-                
-                // Create trade transaction with proper datetime
-                $tradeTransaction = TradeTransaction::create([
+                // 1. Create the trade transaction with ALL required fields
+                $tradeTransaction = new TradeTransaction([
                     'buyer_id' => Auth::id(),
-                    'seller_id' => $seller->id,
-                    'seller_code' => $sellerCode, // Store both for redundancy
-                    'seller_product_id' => $product->id,
-                    'meetup_location_id' => $validated['meetup_location_id'] ?? null,
-                    'meetup_schedule' => $meetupSchedule, // Use combined date and time
+                    'seller_id' => $product->seller->id, 
+                    'seller_code' => $product->seller->seller_code,
+                    'seller_product_id' => $validated['seller_product_id'],
+                    'meetup_location_id' => $validated['meetup_location_id'],
+                    'meetup_schedule' => $meetupDate,
                     'additional_cash' => $validated['additional_cash'] ?? 0,
                     'notes' => $validated['notes'] ?? null,
                     'status' => 'pending'
                 ]);
                 
-                // Log meetup information if available
-                if ($validated['meetup_location_id'] || $meetupSchedule) {
-                    Log::info('Trade includes meetup information', [
-                        'trade_id' => $tradeTransaction->id,
-                        'meetup_location_id' => $validated['meetup_location_id'] ?? 'Not specified',
-                        'meetup_schedule' => $meetupSchedule ?? 'Not specified',
-                        'original_date' => $validated['meetup_date'] ?? 'Not specified'
-                    ]);
-                }
+                $tradeTransaction->save();
                 
-                Log::info('Created trade transaction', [
+                Log::info('Trade transaction created', [
                     'trade_id' => $tradeTransaction->id
                 ]);
                 
-                // Process each offered item
-                foreach ($validated['offered_items'] as $itemIndex => $itemData) {
+                // 2. Process and save each offered item
+                foreach ($validated['offered_items'] as $index => $itemData) {
+                    // Process and store images
                     $images = [];
                     
-                    // Debug log to see the structure of the request data
-                    Log::debug('Processing offered item', [
-                        'index' => $itemIndex,
-                        'item_data' => array_diff_key($itemData, ['images' => 'removed_for_logging']),
-                        'has_files' => $request->hasFile('offered_items') ? 'Yes' : 'No'
-                    ]);
-                    
-                    // Check for images - this is now required so we must find them
-                    $imagesFound = false;
-                    
-                    // Method 1: Direct array access to the files
-                    if (isset($request->file('offered_items')[$itemIndex]['images'])) {
-                        $uploadedImages = $request->file('offered_items')[$itemIndex]['images'];
-                        Log::debug('Found images using direct array access', [
-                            'item_index' => $itemIndex,
-                            'count' => count($uploadedImages)
-                        ]);
-                        
-                        foreach ($uploadedImages as $image) {
-                            if ($this->processAndStoreImage($image, $images, $itemIndex)) {
-                                $imagesFound = true;
-                            }
-                        }
-                    } 
-                    // Method 2: Looking for flattened keys
-                    else {
-                        $prefix = "offered_items.{$itemIndex}.images.";
-                        
-                        foreach ($request->allFiles() as $key => $value) {
-                            if (strpos($key, $prefix) === 0) {
-                                Log::debug('Found image using flattened key format', [
-                                    'key' => $key,
-                                    'item_index' => $itemIndex
+                    if (isset($itemData['images']) && is_array($itemData['images'])) {
+                        foreach ($itemData['images'] as $image) {
+                            if ($this->processAndStoreImage($image, $images, $index)) {
+                                Log::debug("Processed image for item", [
+                                    'item_index' => $index,
+                                    'image' => end($images)
                                 ]);
-                                if ($this->processAndStoreImage($value, $images, $itemIndex)) {
-                                    $imagesFound = true;
-                                }
                             }
                         }
                     }
                     
-                    // Verify we found and processed at least one image
-                    if (!$imagesFound || empty($images)) {
-                        throw new \Exception('Required images for item #' . ($itemIndex + 1) . ' were not found or could not be processed');
+                    // Make sure we have at least one image
+                    if (empty($images)) {
+                        throw new \Exception("No valid images uploaded for item " . ($index + 1));
                     }
                     
-                    // Create offered item record
-                    $offeredItem = TradeOfferedItem::create([
+                    // Create trade offered item
+                    $offeredItem = new TradeOfferedItem([
                         'trade_transaction_id' => $tradeTransaction->id,
                         'name' => $itemData['name'],
                         'quantity' => $itemData['quantity'],
                         'estimated_value' => $itemData['estimated_value'],
                         'description' => $itemData['description'] ?? null,
-                        'images' => json_encode($images), // This should now always have at least one image
+                        'images' => json_encode($images)
                     ]);
                     
-                    Log::info('Created offered item', [
+                    $offeredItem->save();
+                    
+                    Log::info('Trade offered item created', [
                         'item_id' => $offeredItem->id,
-                        'name' => $offeredItem->name,
-                        'image_count' => count($images),
-                        'image_paths' => $images
-                    ]);
-                }
-                
-                DB::commit();
-                
-                // Send notification to seller here (if implemented)
-                
-                // Check if this is an AJAX request
-                if ($request->wantsJson()) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Trade offer submitted successfully! The seller will be notified.',
                         'trade_id' => $tradeTransaction->id
                     ]);
                 }
                 
-                // For regular requests, use redirect with flash
-                return redirect()->back()->with([
-                    'success' => 'Trade offer submitted successfully! The seller will be notified.',
+                // Commit the transaction
+                DB::commit();
+                
+                Log::info('Trade offer submission completed successfully', [
+                    'trade_id' => $tradeTransaction->id,
+                    'user_id' => Auth::id()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Trade offer submitted successfully',
                     'trade_id' => $tradeTransaction->id
                 ]);
                 
             } catch (\Exception $e) {
                 DB::rollBack();
-                throw $e; // Re-throw for the outer catch
+                throw $e;
             }
-            
+
+        } catch (ValidationException $e) {
+            Log::error('Validation failed', [
+                'errors' => $e->errors()
+            ]);
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Trade offer submission error: ' . $e->getMessage(), [
-                'user_id' => Auth::id(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
-            return redirect()->back()->with([
-                'error' => 'Failed to submit trade offer: ' . $e->getMessage()
-            ])->withInput();
+            throw ValidationException::withMessages([
+                'general' => ['An error occurred while submitting your trade offer: ' . $e->getMessage()]
+            ]);
         }
     }
 
@@ -310,32 +267,87 @@ class ProductTradeController extends Controller
      */
     private function processAndStoreImage($image, array &$images, int $itemIndex): bool
     {
-        if ($image && $image->isValid()) {
-            try {
-                $path = $image->store('trade_images', 'public');
-                $images[] = $path;
-                Log::debug('Image uploaded successfully', [
-                    'item_index' => $itemIndex,
-                    'original_name' => $image->getClientOriginalName(),
-                    'stored_path' => $path
-                ]);
-                return true;
-            } catch (\Exception $e) {
-                Log::error('Failed to store image', [
-                    'item_index' => $itemIndex,
-                    'original_name' => $image->getClientOriginalName(),
-                    'error' => $e->getMessage(),
-                    'error_type' => get_class($e)
-                ]);
-            }
-        } else {
-            $errorMessage = $image ? $image->getErrorMessage() : 'Image is null';
+        // Validate the image is present and valid
+        if (!$image) {
+            Log::warning('Invalid file upload detected: Image is null', [
+                'item_index' => $itemIndex
+            ]);
+            return false;
+        }
+        
+        if (!$image->isValid()) {
+            $errorMessage = $image->getErrorMessage() ?: 'Image validation failed';
             Log::warning('Invalid file upload detected', [
                 'item_index' => $itemIndex,
+                'original_name' => $image->getClientOriginalName(),
                 'error' => $errorMessage
             ]);
+            return false;
         }
-        return false;
+        
+        try {
+            // Store the image and add to the array
+            $path = $image->store('trade_images', 'public');
+            $images[] = $path;
+            
+            Log::debug('Image uploaded successfully', [
+                'item_index' => $itemIndex,
+                'original_name' => $image->getClientOriginalName(),
+                'stored_path' => $path
+            ]);
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to store image', [
+                'item_index' => $itemIndex,
+                'original_name' => $image->getClientOriginalName(),
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e)
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get dashboard statistics for the user
+     */
+    protected function getDashboardStats()
+    {
+        $user = Auth::user();
+        $userStats = [];
+        
+        // Fix: Change user_id to buyer_id in orders table
+        $userStats['order_count'] = Order::where('buyer_id', $user->id)->count();
+        
+        // Fix: Change user_id to buyer_id in completed orders sum
+        $userStats['total_spent'] = Order::where('buyer_id', $user->id)
+            ->where('status', 'completed')
+            ->sum('total');
+        
+        // ...existing code...
+        
+        // Get seller stats if the user is a seller
+        $sellerStats = [];
+        if ($user->is_seller) {
+            // ...existing code...
+            
+            // Ensure this queries are using the correct column name too
+            $sellerStats['order_count'] = Order::where('seller_id', $user->id)->count();
+            
+            $sellerStats['revenue'] = Order::where('seller_id', $user->id)
+                ->where('status', 'completed')
+                ->sum('total');
+            
+            $sellerStats['pending_orders'] = Order::where('seller_id', $user->id)
+                ->whereIn('status', ['pending', 'processing'])
+                ->count();
+            
+            // ...existing code...
+        }
+        
+        return [
+            'user' => $userStats,
+            'seller' => $sellerStats
+        ];
     }
 
     /**
@@ -640,9 +652,14 @@ class ProductTradeController extends Controller
     public function getProductMeetupLocations($id)
     {
         try {
-            // Load the product with its seller and meetup locations
+            \Log::info('Fetching meetup locations for product:', ['product_id' => $id]); // Add logging
+
             $product = Product::with(['seller' => function($query) {
-                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code');
+                $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture')
+                    ->with(['meetupLocations' => function($q) {
+                        $q->where('is_active', true)
+                          ->with('location');
+                    }]);
             }])->findOrFail($id);
             
             if (!$product->is_tradable) {
@@ -652,30 +669,31 @@ class ProductTradeController extends Controller
                 ], 400);
             }
             
-            // Find the seller by seller_code
-            $seller = null;
-            if (!empty($product->seller_code)) {
-                $seller = User::where('seller_code', $product->seller_code)->first();
-            } else if ($product->seller) {
-                $seller = $product->seller;
-            }
-            
+            // Get the seller and their meetup locations
+            $seller = $product->seller;
             if (!$seller) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Seller information not found for this product.'
                 ], 404);
             }
-            
-            // Get the seller's meetup locations
-            $meetupLocations = $seller->meetupLocations()
-                ->where('is_active', true)
-                ->with('location')
-                ->get();
-            
-            // Get default location
-            $defaultLocation = $meetupLocations->where('is_default', true)->first();
-            
+
+            // Transform meetup locations
+            $meetupLocations = $seller->meetupLocations->map(function($location) {
+                return [
+                    'id' => $location->id,
+                    'name' => $location->location ? $location->location->name : null,
+                    'description' => $location->description,
+                    'available_days' => $location->available_days,
+                    'available_from' => $location->available_from,
+                    'available_until' => $location->available_until,
+                    'is_default' => $location->is_default,
+                    'location_id' => $location->location ? $location->location->id : null,
+                    'latitude' => $location->location ? $location->location->latitude : null,
+                    'longitude' => $location->location ? $location->location->longitude : null
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'product' => [
@@ -684,13 +702,23 @@ class ProductTradeController extends Controller
                     'seller' => [
                         'id' => $seller->id,
                         'name' => $seller->first_name . ' ' . $seller->last_name,
-                        'seller_code' => $seller->seller_code
+                        'first_name' => $seller->first_name,
+                        'last_name' => $seller->last_name,
+                        'username' => $seller->username,
+                        'seller_code' => $seller->seller_code,
+                        'profile_picture' => $seller->profile_picture ? asset('storage/' . $seller->profile_picture) : null
                     ]
                 ],
-                'meetup_locations' => $meetupLocations,
-                'default_location' => $defaultLocation
+                'meetupLocations' => $meetupLocations,
+                'defaultLocation' => $meetupLocations->firstWhere('is_default', true)
             ]);
+            
         } catch (\Exception $e) {
+            \Log::error('Error fetching meetup locations: ' . $e->getMessage(), [
+                'product_id' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching meetup locations: ' . $e->getMessage()

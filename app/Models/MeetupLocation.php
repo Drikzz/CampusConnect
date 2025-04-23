@@ -57,7 +57,12 @@ class MeetupLocation extends Model
 
   public function location()
   {
-    return $this->belongsTo(Location::class);
+    return $this->belongsTo(Location::class)->withDefault(function ($location, $meetupLocation) {
+      // Provide default values if the related location is not found
+      $location->name = $meetupLocation->custom_location;
+      $location->latitude = $meetupLocation->latitude;
+      $location->longitude = $meetupLocation->longitude;
+    });
   }
 
   public function orders()
@@ -73,6 +78,14 @@ class MeetupLocation extends Model
       $parts[] = "Near " . $this->landmark;
     }
     return implode(', ', $parts);
+  }
+
+  public function getFullNameAttribute()
+  {
+    if ($this->location) {
+        return $this->location->name;
+    }
+    return $this->custom_location;
   }
 
   public function isAvailableOn($date)
@@ -158,6 +171,29 @@ class MeetupLocation extends Model
       ->update(['is_default' => false]);
 
     $this->update(['is_default' => true]);
+  }
+
+  // Add accessor to always get location coordinates, either from location model or directly
+  public function getLatitudeAttribute($value)
+  {
+    // If we have our own latitude, use it
+    if (!empty($value)) {
+      return $value;
+    }
+    
+    // Otherwise try to get it from the location relation
+    return $this->location->latitude ?? null;
+  }
+
+  public function getLongitudeAttribute($value)
+  {
+    // If we have our own longitude, use it
+    if (!empty($value)) {
+      return $value;
+    }
+    
+    // Otherwise try to get it from the location relation
+    return $this->location->longitude ?? null;
   }
 
   protected static function boot()

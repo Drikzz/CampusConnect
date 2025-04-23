@@ -1,10 +1,6 @@
 <template>
   <DashboardLayout :user="user" :stats="stats">
-    <!-- Add Toaster component -->
-    <div class="fixed inset-0 pointer-events-none z-[100] flex justify-end p-4">
-      <Toaster />
-    </div>
-
+  
     <div class="space-y-8">
       <h2 class="text-2xl font-bold">Profile Settings</h2>
 
@@ -17,15 +13,8 @@
         <!-- Profile Picture Section -->
         <div class="flex items-center space-x-6">
           <div class="shrink-0">
-            <div v-if="user.profile_picture" 
-                 class="h-24 w-24 rounded-full overflow-hidden outline outline-primary-color/30">
-              <img :src="profileImageUrl" :alt="user.username" 
-                   class="h-full w-full object-cover">
-            </div>
-            <div v-else
-                 class="h-24 w-24 rounded-full bg-red/80 flex items-center justify-center border-2 border-white outline outline-primary-color/30">
-              <span class="text-white text-xl font-medium">{{ user.first_name ? user.first_name[0] : (user.username ? user.username[0] : 'U') }}</span>
-            </div>
+            <img :src="profileImageUrl" :alt="user.username" 
+                 class="h-24 w-24 object-cover rounded-full outline outline-primary-color/30">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700">Profile Picture</label>
@@ -167,13 +156,14 @@
               </label>
               <Input
                 v-model="form.wmsu_email"
-                disabled
+                :disabled="form.processing"
                 type="email"
                 placeholder="Enter your WMSU email"
-                class="bg-gray-100 border-primary-color text-gray-600 cursor-not-allowed"
+                class="bg-white border-primary-color"
+                :class="{'ring-2 ring-red-500 ring-offset-1': form.errors.wmsu_email}"
               />
-              <div class="text-xs text-gray-500 mt-1">
-                Email cannot be changed. It was verified during registration.
+              <div v-if="form.errors.wmsu_email" class="text-red-500 text-sm mt-1">
+                {{ form.errors.wmsu_email }}
               </div>
             </div>
 
@@ -305,12 +295,22 @@
           </button>
         </div>
       </form>
+
+      <!-- Become Seller Section -->
+      <div v-if="!user.is_seller" class="border-t pt-8 mt-8">
+        <h3 class="text-lg font-medium mb-4">Become a Seller</h3>
+        <p class="text-gray-600 mb-6">Start selling your products on our platform</p>
+        <Link :href="route('dashboard.become-seller')"
+              class="inline-block bg-primary-color text-white px-4 py-2 rounded-md hover:bg-primary-color/90">
+          Apply Now
+        </Link>
+      </div>
     </div>
   </DashboardLayout>
 </template>
 
 <script setup>
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted, inject } from 'vue'
 import { Link, useForm, usePage } from '@inertiajs/vue3'
 import DashboardLayout from './DashboardLayout.vue'
 import { Input } from '@/Components/ui/input'
@@ -322,8 +322,6 @@ import { cn } from "@/lib/utils"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/Components/ui/select'
 import CustomCalendar from '@/Components/ui/custom-calendar.vue'
 import { today, getLocalTimeZone, parseDate } from '@internationalized/date'
-import { Toaster } from '@/Components/ui/toast'
-import { useToast } from '@/Components/ui/toast/use-toast'
 
 const props = defineProps({
   user: Object,
@@ -332,6 +330,8 @@ const props = defineProps({
   gradeLevels: Array,
   errors: Object // Add this prop
 })
+
+const toast = inject('globalToast', null);
 
 const flash = computed(() => usePage().props.flash || {})
 
@@ -366,10 +366,8 @@ const showGradeLevel = computed(() => {
 
 const profileImageUrl = computed(() => {
   return props.user.profile_picture 
-    ? props.user.profile_picture.startsWith('http')
-      ? props.user.profile_picture
-      : `/storage/${props.user.profile_picture}`
-    : null // Return null so the v-if in the template works correctly
+    ? props.user.profile_picture // Now using the full URL from the backend
+    : '/images/default-avatar.png'
 })
 
 // Add new computed properties for ID images
@@ -403,25 +401,7 @@ watch(() => form.date_of_birth, (newValue) => {
     }
 }, { immediate: true })
 
-// Add toast setup
-const { toast } = useToast()
 const page = usePage()
-
-// Watch for flash messages
-watch(() => page.props.flash.toast, (flashToast) => {
-  if (flashToast) {
-    toast({
-      variant: flashToast.variant || 'default',
-      title: flashToast.title,
-      description: flashToast.description,
-      // The correct property might be different based on your UI library
-      closeButton: true,  // Try this property
-      // Alternative properties that might work
-      hasCloseButton: true,
-      dismissible: true
-    })
-  }
-}, { immediate: true })
 
 // Add this computed property to properly handle errors
 const formErrors = computed(() => usePage().props.errors)
@@ -459,6 +439,7 @@ function updateProfile() {
   }
 
   form.post(route('profile.update'), {
+    preserveScroll: true,
     forceFormData: true, // Force FormData for file uploads
     onSuccess: () => {
       // Reset file inputs after successful submission
@@ -478,11 +459,7 @@ function updateProfile() {
       toast({
         variant: 'default',
         title: 'Success!',
-        description: 'Profile updated successfully.',
-        // Try all possible properties to ensure one works
-        closeButton: true,
-        hasCloseButton: true,
-        dismissible: true
+        description: 'Profile updated successfully.'
       })
     },
     onError: (errors) => {
@@ -490,11 +467,7 @@ function updateProfile() {
       toast({
         variant: 'destructive',
         title: 'Error!',
-        description: 'There was a problem updating your profile.',
-        // Try all possible properties to ensure one works
-        closeButton: true,
-        hasCloseButton: true,
-        dismissible: true
+        description: 'There was a problem updating your profile.'
       })
     }
   })

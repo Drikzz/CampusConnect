@@ -1,223 +1,314 @@
 <template>
   <AdminLayout>
     <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Wallet Transactions</h2>
+      <!-- Header with refresh button -->
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl md:text-2xl font-bold text-foreground">Wallet Requests</h2>
+        <div class="flex items-center gap-2">
+          <!-- Filter Dropdown -->
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" class="flex items-center gap-2">
+                <FilterIcon class="h-4 w-4" />
+                <span>Filter</span>
+                <Badge 
+                  v-if="isFilterActive" 
+                  variant="secondary" 
+                  class="ml-1 px-1.5 py-0.5 text-xs"
+                >
+                  {{ activeFilterCount }}
+                </Badge>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-80">
+              <div class="space-y-4">
+                <h4 class="font-medium flex items-center">
+                  <SearchIcon class="h-4 w-4 mr-2 text-muted-foreground" />
+                  Filters
+                </h4>
+                
+                <!-- Search Input -->
+                <div class="space-y-2">
+                  <Label for="search-query">Search</Label>
+                  <div class="relative">
+                    <SearchIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="search-query"
+                      v-model="searchQuery" 
+                      placeholder="Search by seller name or code..." 
+                      class="pl-9 w-full"
+                    />
+                  </div>
+                </div>
+                
+                <!-- Status filter -->
+                <div class="space-y-2">
+                  <Label for="status-filter">Status</Label>
+                  <Select id="status-filter" v-model="statusFilter" class="w-full">
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_process">In Process</option>
+                    <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
+                  </Select>
+                </div>
+                
+                <!-- Type filter -->
+                <div class="space-y-2">
+                  <Label for="type-filter">Type</Label>
+                  <Select id="type-filter" v-model="typeFilter" class="w-full">
+                    <option value="all">All Types</option>
+                    <option value="refill">Refill</option>
+                    <option value="withdrawal">Withdrawal</option>
+                    <option value="verification">Verification</option>
+                  </Select>
+                </div>
+                
+                <!-- Reset filters button -->
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  class="w-full mt-2" 
+                  @click="resetFilters"
+                  :disabled="!isFilterActive"
+                >
+                  Reset Filters
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <!-- Refresh button -->
+          <Button 
+            variant="outline" 
+            size="sm"
+            @click="refreshData"
+            :disabled="isRefreshing"
+            class="flex items-center gap-2"
+          >
+            <RefreshCwIcon class="h-4 w-4" :class="{'animate-spin': isRefreshing}" />
+            <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
+          </Button>
+        </div>
+      </div>
       
       <!-- Stats Summary -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Pending Requests</p>
-          <p class="text-2xl font-bold text-yellow-600">
-            {{ pendingCount }}
-          </p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Total Processed Today</p>
-          <p class="text-2xl font-bold text-green-600">
-            {{ todayProcessedCount }}
-          </p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow">
-          <p class="text-sm text-gray-500">Total Volume (₱)</p>
-          <p class="text-2xl font-bold text-primary-color">
-            {{ totalAmount }}
-          </p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- Stats Cards -->
+        <div v-for="(stat, index) in stats" :key="index" class="bg-card shadow rounded-lg p-4 border border-muted">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-muted-foreground">{{ stat.title }}</p>
+              <h3 class="text-2xl font-bold mt-1">{{ stat.value }}</h3>
+            </div>
+            <div :class="`p-3 rounded-full bg-${stat.color}-50`">
+              <component :is="getIcon(stat.icon)" class="h-5 w-5" :class="`text-${stat.color}-500`" />
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <!-- Transactions Table -->
-      <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seller</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="transaction in transactions" :key="transaction.id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                {{ formatDate(transaction.created_at) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
-                      {{ transaction.wallet.user.first_name }} {{ transaction.wallet.user.last_name }}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                      {{ transaction.seller_code }}
-                    </div>
+      <div class="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Seller</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead class="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="transaction in filteredTransactions" :key="transaction.id" class="hover:bg-muted/50">
+              <TableCell>
+                <div>
+                  <div>{{ formatDateShort(transaction.created_at) }}</div>
+                  <div class="text-xs text-muted-foreground">{{ formatTime(transaction.created_at) }}</div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="flex items-center gap-2">
+                  <UserCircleIcon class="h-8 w-8 text-muted-foreground" />
+                  <div>
+                    <div class="font-medium">{{ transaction.wallet?.user?.first_name || 'N/A' }} {{ transaction.wallet?.user?.last_name || '' }}</div>
+                    <div class="text-xs text-muted-foreground">{{ transaction.seller_code || 'No code' }}</div>
                   </div>
                 </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="[
-                  'px-2 py-1 text-xs rounded-full',
-                  transaction.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                ]">
-                  {{ transaction.reference_type }}
+              </TableCell>
+              <TableCell>
+                <Badge :variant="getTypeVariant(transaction)">
+                  {{ getTypeLabel(transaction) }}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <span class="font-medium" :class="transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'">
+                  ₱{{ formatNumber(transaction.amount || 0) }}
                 </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                ₱{{ transaction.amount }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="[
-                  'px-2 py-1 text-xs rounded-full',
-                  {
-                    'bg-yellow-100 text-yellow-800': transaction.status === 'pending',
-                    'bg-blue-100 text-blue-800': transaction.status === 'in_process',
-                    'bg-green-100 text-green-800': transaction.status === 'completed',
-                    'bg-red-100 text-red-800': transaction.status === 'rejected'
-                  }
-                ]">
+              </TableCell>
+              <TableCell>
+                <Badge :variant="getStatusVariant(transaction.status)">
                   {{ formatStatus(transaction.status) }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <Button v-if="transaction.receipt_url" 
-                        variant="link" 
-                        @click="showReceipt(transaction)">
-                  View Receipt
-                </Button>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap space-x-2">
-                <!-- Pending transaction actions -->
-                <template v-if="transaction.status === 'pending'">
-                  <Button variant="success" 
-                          size="sm" 
-                          @click="approveRequest(transaction.id)">
+                </Badge>
+              </TableCell>
+              <TableCell class="text-right">
+                <div class="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" @click="viewTransactionDetails(transaction)">
+                    <EyeIcon class="h-3 w-3 mr-1" />
+                    View
+                  </Button>
+                  <Button 
+                    v-if="transaction.status === 'pending'"
+                    variant="success" 
+                    size="sm" 
+                    @click="confirmAction('approve', transaction.id)"
+                  >
+                    <CheckIcon class="h-3 w-3 mr-1" />
                     Approve
                   </Button>
-                  <Button variant="destructive" 
-                          size="sm" 
-                          @click="rejectRequest(transaction.id)">
+                  <Button 
+                    v-if="transaction.status === 'pending'"
+                    variant="destructive" 
+                    size="sm" 
+                    @click="confirmAction('reject', transaction.id)"
+                  >
+                    <XIcon class="h-3 w-3 mr-1" />
                     Reject
                   </Button>
-                </template>
-                
-                <!-- In Process withdrawal - Add GCash reference completion button -->
-                <Button v-if="transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'"
-                        variant="outline"
-                        size="sm"
-                        class="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                        @click="showCompleteWithdrawalDialog(transaction.id)">
-                  <span class="flex items-center">
-                    <svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                    Complete Withdrawal
-                  </span>
-                </Button>
-                
-                <!-- Processed transaction info -->
-                <div v-else-if="transaction.processed_at && transaction.status !== 'in_process'" class="text-sm text-gray-500">
-                  <div>Processed {{ formatDate(transaction.processed_at) }}</div>
-                  <div v-if="transaction.reference_id && transaction.status === 'completed' && transaction.reference_type !== 'verification'" 
-                       class="text-xs text-blue-600 mt-1">
-                    GCash Ref: {{ transaction.reference_id }}
-                  </div>
+                  <Button 
+                    v-if="transaction.status === 'in_process' && transaction.reference_type === 'withdrawal'"
+                    variant="outline" 
+                    size="sm"
+                    class="text-blue-600 border-blue-200 hover:bg-blue-50" 
+                    @click="showCompleteWithdrawalDialog(transaction.id)"
+                  >
+                    <CheckSquareIcon class="h-3 w-3 mr-1" />
+                    Complete
+                  </Button>
                 </div>
-                
-                <!-- In-process transaction info -->
-                <div v-else-if="transaction.status === 'in_process' && transaction.reference_type !== 'withdrawal'" class="text-sm text-gray-500">
-                  Processing since {{ formatDate(transaction.processed_at) }}
+              </TableCell>
+            </TableRow>
+            
+            <!-- Empty state -->
+            <TableRow v-if="filteredTransactions.length === 0">
+              <TableCell colspan="6" class="py-10 text-center">
+                <div class="flex flex-col items-center justify-center text-muted-foreground">
+                  <SearchXIcon class="h-12 w-12 mb-3" />
+                  <h3 class="font-medium text-lg mb-1">No requests found</h3>
+                  <p class="text-sm">
+                    {{ transactions.length ? 'Try adjusting your search or filters' : 'No wallet requests available yet' }}
+                  </p>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
-
-    <!-- Receipt Preview Dialog -->
-    <Dialog :open="!!selectedTransaction" @close="selectedTransaction = null">
-      <DialogContent class="sm:max-w-md lg:max-w-sm">
+    
+    <!-- Transaction Details Dialog -->
+    <Dialog :open="showDetailsDialog" @update:open="showDetailsDialog = false">
+      <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Payment Receipt</DialogTitle>
+          <DialogTitle>Request Details</DialogTitle>
           <DialogDescription>
-            Transaction #{{ selectedTransaction?.id }} - {{ formatDate(selectedTransaction?.created_at) }}
+            Complete information about this wallet request
           </DialogDescription>
         </DialogHeader>
-        <div class="space-y-4">
-          <!-- Transaction details -->
-          <div class="bg-gray-50 p-4 rounded-md space-y-2">
-            <div class="flex justify-between text-sm">
-              <span class="font-medium text-gray-500">Amount:</span>
-              <span class="font-bold">₱{{ selectedTransaction?.amount }}</span>
+        
+        <div v-if="selectedTransaction" class="space-y-4">
+          <!-- Status badges -->
+          <div class="flex items-center justify-between">
+            <Badge :variant="getStatusVariant(selectedTransaction.status)">
+              {{ formatStatus(selectedTransaction.status) }}
+            </Badge>
+            <Badge :variant="getTypeVariant(selectedTransaction)">
+              {{ getTypeLabel(selectedTransaction) }}
+            </Badge>
+          </div>
+          
+          <!-- Basic info - Inline implementation instead of InfoGrid component -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-muted-foreground">Transaction ID</p>
+              <p class="font-mono text-sm">{{ selectedTransaction.id }}</p>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="font-medium text-gray-500">Reference #:</span>
-              <span>{{ selectedTransaction?.reference_id }}</span>
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-muted-foreground">Amount</p>
+              <p class="font-medium" :class="{
+                'text-green-600': selectedTransaction.type === 'credit',
+                'text-red-600': selectedTransaction.type === 'debit'
+              }">₱{{ formatNumber(selectedTransaction.amount || 0) }}</p>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="font-medium text-gray-500">Status:</span>
-              <span :class="{
-                'text-yellow-600': selectedTransaction?.status === 'pending',
-                'text-green-600': selectedTransaction?.status === 'completed',
-                'text-red-600': selectedTransaction?.status === 'rejected'
-              }">{{ selectedTransaction?.status }}</span>
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-muted-foreground">Date Requested</p>
+              <p>{{ formatDate(selectedTransaction.created_at) }}</p>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="font-medium text-gray-500">Type:</span>
-              <span>{{ selectedTransaction?.reference_type }}</span>
+            <div class="space-y-1" v-if="selectedTransaction.processed_at">
+              <p class="text-sm font-medium text-muted-foreground">Processed Date</p>
+              <p>{{ formatDate(selectedTransaction.processed_at) }}</p>
+            </div>
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-muted-foreground">Seller Code</p>
+              <p>{{ selectedTransaction.seller_code || 'N/A' }}</p>
+            </div>
+            <div class="space-y-1" v-if="selectedTransaction.reference_type">
+              <p class="text-sm font-medium text-muted-foreground">Request Type</p>
+              <p>{{ getTypeLabel(selectedTransaction) }}</p>
+            </div>
+            <div class="space-y-1" v-if="selectedTransaction.phone_number">
+              <p class="text-sm font-medium text-muted-foreground">Phone Number</p>
+              <p>{{ selectedTransaction.phone_number }}</p>
+            </div>
+            <div class="space-y-1" v-if="selectedTransaction.account_name">
+              <p class="text-sm font-medium text-muted-foreground">Account Name</p>
+              <p>{{ selectedTransaction.account_name }}</p>
             </div>
           </div>
           
-          <!-- Receipt image -->
-          <img 
-            v-if="selectedTransaction"
-            :src="selectedTransaction.receipt_url" 
-            :alt="'Receipt for transaction #' + selectedTransaction.id"
-            class="w-full rounded-lg"
-          />
+          <!-- Receipt image if available -->
+          <div v-if="selectedTransaction.receipt_path" class="space-y-2">
+            <p class="text-sm font-medium text-muted-foreground">Receipt</p>
+            <img 
+              :src="'/storage/' + selectedTransaction.receipt_path" 
+              alt="Receipt" 
+              class="max-h-[200px] w-auto mx-auto object-contain border rounded-md" 
+            />
+          </div>
         </div>
+        
+        <!-- Action buttons -->
         <DialogFooter>
-          <Button @click="selectedTransaction = null">Close</Button>
+          <Button variant="outline" @click="showDetailsDialog = false">Close</Button>
+          <div v-if="selectedTransaction?.status === 'pending'" class="flex gap-2">
+            <Button variant="success" @click="confirmAction('approve', selectedTransaction.id)">
+              Approve
+            </Button>
+            <Button variant="destructive" @click="confirmAction('reject', selectedTransaction.id)">
+              Reject
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
     
-    <!-- Complete Withdrawal Dialog -->
-    <Dialog :open="showCompleteDialog" @close="closeCompleteDialog">
-      <DialogContent class="sm:max-w-md">
+    <!-- Simple Confirmation Dialog -->
+    <Dialog :open="showConfirmDialog" @update:open="showConfirmDialog = $event">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Complete Withdrawal</DialogTitle>
+          <DialogTitle>{{ confirmDialogTitle }}</DialogTitle>
           <DialogDescription>
-            Enter the GCash reference number to complete this withdrawal transaction.
+            {{ confirmDialogMessage }}
           </DialogDescription>
         </DialogHeader>
-        <!-- Fix the form to use @submit.prevent to handle form submission properly -->
-        <form @submit.prevent="completeWithdrawal">
-          <div class="space-y-4 py-4">
-            <div class="space-y-2">
-              <Label for="gcash-reference">GCash Reference Number</Label>
-              <Input 
-                id="gcash-reference"
-                v-model="gcashReference"
-                placeholder="Enter GCash reference number"
-                required
-              />
-              <p class="text-xs text-gray-500">This will be visible to the seller as confirmation of payment.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" @click="closeCompleteDialog">Cancel</Button>
-            <Button 
-              type="submit" 
-              variant="default" 
-              :disabled="!gcashReference || isSubmitting"
-            >
-              {{ isSubmitting ? 'Submitting...' : 'Complete Withdrawal' }}
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter>
+          <Button variant="outline" @click="showConfirmDialog = false">Cancel</Button>
+          <Button :class="confirmActionButtonClass" @click="executeConfirmedAction">
+            {{ confirmActionButtonText }}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   </AdminLayout>
@@ -227,82 +318,131 @@
 import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/Components/ui/dialog'
-import { Label } from '@/Components/ui/label'
-import { Input } from '@/Components/ui/input'
-// Import the useToast composable
-import { useToast } from '@/Components/ui/toast/use-toast'
+import { useToast } from "@/Components/ui/toast/use-toast"
 
-// Initialize the toast
+// UI components
+import { Card } from "@/Components/ui/card"
+import { Input } from "@/Components/ui/input"
+import { Select } from "@/Components/ui/select"
+import { Button } from "@/Components/ui/button"
+import { Badge } from "@/Components/ui/badge"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/Components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/Components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover"
+import { Label } from "@/Components/ui/label"
+
+// Icons
+import { 
+  UserCircleIcon, ClockIcon, CheckCircleIcon, WalletIcon, 
+  EyeIcon, CheckIcon, XIcon, CheckSquareIcon, 
+  RefreshCwIcon, SearchIcon, SearchXIcon, FilterIcon 
+} from 'lucide-vue-next'
+
 const { toast } = useToast()
 
 const props = defineProps({
-  transactions: Array
+  transactions: {
+    type: Array,
+    default: () => []
+  }
 })
 
+// UI state
+const isRefreshing = ref(false)
+const searchQuery = ref('')
+const statusFilter = ref('all')
+const typeFilter = ref('all')
+const showDetailsDialog = ref(false)
 const selectedTransaction = ref(null)
-const showCompleteDialog = ref(false)
-const selectedWithdrawalId = ref(null)
-const gcashReference = ref('')
-const isSubmitting = ref(false)
 
-// Format transaction status for display
-const formatStatus = (status) => {
-  const statusMap = {
-    'pending': 'Pending',
-    'in_process': 'In Process',
-    'completed': 'Completed',
-    'rejected': 'Rejected'
+// Confirmation dialog state
+const showConfirmDialog = ref(false)
+const confirmDialogTitle = ref('')
+const confirmDialogMessage = ref('')
+const confirmActionType = ref('')
+const confirmActionId = ref(null)
+const confirmActionButtonText = ref('')
+const confirmActionButtonClass = ref('')
+
+// Computed stats for displaying in cards
+const stats = computed(() => [
+  {
+    title: 'Pending Requests',
+    value: pendingCount.value,
+    icon: 'ClockIcon',
+    color: 'yellow'
+  },
+  {
+    title: 'Processed Today',
+    value: todayProcessedCount.value,
+    icon: 'CheckCircleIcon',
+    color: 'green'
+  },
+  {
+    title: 'Total Volume',
+    value: `₱${totalAmount.value}`,
+    icon: 'WalletIcon',
+    color: 'primary'
   }
-  return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1)
+])
+
+// Helper function to get icon component
+const getIcon = (name) => {
+  const icons = {
+    ClockIcon,
+    CheckCircleIcon,
+    WalletIcon
+  }
+  return icons[name] || null
 }
 
-const showCompleteWithdrawalDialog = (id) => {
-  selectedWithdrawalId.value = id
-  gcashReference.value = ''
-  showCompleteDialog.value = true
-}
-
-const closeCompleteDialog = () => {
-  showCompleteDialog.value = false
-  selectedWithdrawalId.value = null
-  gcashReference.value = ''
-}
-
-const completeWithdrawal = () => {
-  if (!gcashReference.value) return
-  
-  isSubmitting.value = true
-  router.post(route('admin.wallet-requests.complete-withdrawal', selectedWithdrawalId.value), {
-    gcash_reference: gcashReference.value
-  }, {
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Withdrawal completed successfully with GCash reference.",
-        variant: "success"
-      });
-      closeCompleteDialog();
-      isSubmitting.value = false;
-    },
-    onError: (errors) => {
-      isSubmitting.value = false;
-      toast({
-        title: "Error",
-        description: errors.gcash_reference || "Failed to complete withdrawal",
-        variant: "destructive"
-      });
-    },
-    preserveScroll: true
+// Filtered transactions based on search and filters
+const filteredTransactions = computed(() => {
+  return props.transactions.filter(t => {
+    // Build search string from relevant fields
+    const searchString = [
+      t.wallet?.user?.first_name,
+      t.wallet?.user?.last_name,
+      t.seller_code,
+      t.reference_number
+    ].filter(Boolean).join(' ').toLowerCase()
+    
+    return (
+      (!searchQuery.value || searchString.includes(searchQuery.value.toLowerCase())) &&
+      (statusFilter.value === 'all' || t.status === statusFilter.value) &&
+      (typeFilter.value === 'all' || t.reference_type === typeFilter.value)
+    )
   })
-}
+})
 
-const showReceipt = (transaction) => {
-  selectedTransaction.value = transaction
+// Computed stats
+const pendingCount = computed(() => 
+  props.transactions?.filter(t => t.status === 'pending').length || 0
+)
+
+const todayProcessedCount = computed(() => {
+  const today = new Date().toDateString()
+  return props.transactions?.filter(t => 
+    t.processed_at && new Date(t.processed_at).toDateString() === today
+  ).length || 0
+})
+
+const totalAmount = computed(() => 
+  formatNumber(props.transactions
+    ?.filter(t => t.status === 'completed')
+    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0) || 0)
+)
+
+// Format utilities
+const formatNumber = (value) => {
+  return new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
 }
 
 const formatDate = (date) => {
+  if (!date) return 'N/A'
   return new Date(date).toLocaleString('en-PH', {
     year: 'numeric',
     month: 'short',
@@ -312,33 +452,192 @@ const formatDate = (date) => {
   })
 }
 
-const pendingCount = computed(() => 
-  props.transactions.filter(t => t.status === 'pending').length
-)
+const formatDateShort = (date) => {
+  if (!date) return 'N/A'
+  return new Date(date).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric'
+  })
+}
 
-const todayProcessedCount = computed(() => {
-  const today = new Date().toDateString()
-  return props.transactions.filter(t => 
-    t.processed_at && new Date(t.processed_at).toDateString() === today
-  ).length
-})
+const formatTime = (date) => {
+  if (!date) return ''
+  return new Date(date).toLocaleTimeString('en-PH', {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
 
-const totalAmount = computed(() => 
-  props.transactions
-    .filter(t => t.status === 'completed')
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0)
-    .toLocaleString('en-PH')
-)
+// Format transaction status for display
+const formatStatus = (status) => {
+  const statusMap = {
+    'pending': 'Pending',
+    'in_process': 'In Process',
+    'completed': 'Completed',
+    'rejected': 'Rejected'
+  }
+  return statusMap[status] || status?.charAt(0).toUpperCase() + status?.slice(1) || 'Unknown'
+}
 
-const approveRequest = (id) => {
-  if (confirm('Are you sure you want to approve this request?')) {
-    router.post(route('admin.wallet-requests.approve', id))
+// Get type label with more friendly names
+const getTypeLabel = (transaction) => {
+  const typeMap = {
+    'refill': 'Refill',
+    'withdrawal': 'Withdrawal',
+    'verification': 'Verification'
+  }
+  return typeMap[transaction.reference_type] || transaction.reference_type || 'Unknown'
+}
+
+// Get badge variant based on transaction type
+const getTypeVariant = (transaction) => {
+  switch (transaction.reference_type) {
+    case 'refill': return 'success'
+    case 'withdrawal': return 'warning'
+    case 'verification': return 'secondary'
+    default: return 'outline'
   }
 }
 
-const rejectRequest = (id) => {
-  if (confirm('Are you sure you want to reject this request?')) {
-    router.post(route('admin.wallet-requests.reject', id))
+// Get badge variant based on status
+const getStatusVariant = (status) => {
+  switch (status) {
+    case 'pending': return 'warning'
+    case 'in_process': return 'info'
+    case 'completed': return 'success'
+    case 'rejected': return 'destructive'
+    default: return 'secondary'
   }
+}
+
+// View transaction details
+const viewTransactionDetails = (transaction) => {
+  selectedTransaction.value = transaction
+  showDetailsDialog.value = true
+}
+
+// Show confirm dialog for actions
+const confirmAction = (type, id) => {
+  confirmActionType.value = type
+  confirmActionId.value = id
+  
+  if (type === 'approve') {
+    confirmDialogTitle.value = 'Approve Request'
+    confirmDialogMessage.value = 'Are you sure you want to approve this wallet request? This will process the transaction.'
+    confirmActionButtonText.value = 'Approve'
+    confirmActionButtonClass.value = 'bg-green-600 hover:bg-green-700 text-white'
+  } else if (type === 'reject') {
+    confirmDialogTitle.value = 'Reject Request'
+    confirmDialogMessage.value = 'Are you sure you want to reject this wallet request? This action cannot be undone.'
+    confirmActionButtonText.value = 'Reject'
+    confirmActionButtonClass.value = 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+  }
+  
+  showConfirmDialog.value = true
+}
+
+// Execute confirmed action
+const executeConfirmedAction = () => {
+  showConfirmDialog.value = false
+  
+  if (confirmActionType.value === 'approve') {
+    approveRequest(confirmActionId.value)
+  } else if (confirmActionType.value === 'reject') {
+    rejectRequest(confirmActionId.value)
+  }
+}
+
+const approveRequest = (id) => {
+  router.post(route('admin.wallet-requests.approve', id), {}, {
+    onSuccess: () => {
+      toast({
+        title: "Request Approved",
+        description: "The wallet request has been approved successfully.",
+        variant: "success",
+      })
+      showDetailsDialog.value = false
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to approve the request. Please try again.",
+        variant: "destructive",
+      })
+    }
+  })
+}
+
+const rejectRequest = (id) => {
+  const reason = prompt('Optional: Enter reason for rejection')
+  
+  router.post(route('admin.wallet-requests.reject', id), { reason }, {
+    onSuccess: () => {
+      toast({
+        title: "Request Rejected",
+        description: "The wallet request has been rejected.",
+        variant: "info",
+      })
+      showDetailsDialog.value = false
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reject the request. Please try again.",
+        variant: "destructive",
+      })
+    }
+  })
+}
+
+const showCompleteWithdrawalDialog = (id) => {
+  const reference = prompt('Enter GCash reference number to complete this withdrawal:')
+  if (reference) {
+    router.post(route('admin.wallet-requests.complete-withdrawal', id), {
+      gcash_reference: reference
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Withdrawal Completed",
+          description: "The withdrawal has been marked as completed.",
+          variant: "success",
+        })
+        showDetailsDialog.value = false
+      },
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to complete the withdrawal. Please try again.",
+          variant: "destructive",
+        })
+      }
+    })
+  }
+}
+
+const refreshData = () => {
+  isRefreshing.value = true
+  router.reload({
+    onFinish: () => {
+      isRefreshing.value = false
+    }
+  })
+}
+
+const isFilterActive = computed(() => {
+  return searchQuery.value || statusFilter.value !== 'all' || typeFilter.value !== 'all'
+})
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (searchQuery.value) count++
+  if (statusFilter.value !== 'all') count++
+  if (typeFilter.value !== 'all') count++
+  return count
+})
+
+const resetFilters = () => {
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  typeFilter.value = 'all'
 }
 </script>

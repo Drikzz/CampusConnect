@@ -2,11 +2,11 @@
     <div class="w-full mt-10 mb-64 px-4 md:px-16">
       <!-- Flash Messages -->
       <div v-if="props.flash?.success" 
-           class="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
+           class="mb-4 p-4 text-sm bg-primary/10 text-primary rounded-lg">
         {{ props.flash.success }}
       </div>
       <div v-if="props.flash?.error"
-           class="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">
+           class="mb-4 p-4 text-sm bg-destructive/10 text-destructive rounded-lg">
         {{ props.flash.error }}
       </div>
 
@@ -14,20 +14,20 @@
       <div class="flex justify-between items-center mb-8">
         <div class="flex items-center gap-4">
           <h1 class="text-2xl font-bold">My Dashboard</h1>
-          <span v-if="user.is_seller" class="px-3 py-1 text-sm font-medium bg-primary-color/10 text-primary-color rounded-full">
+          <span v-if="isSeller" class="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">
             Seller
           </span>
         </div>
-        <Link v-if="!user.is_seller" 
+        <Link v-if="!isSeller" 
               :href="route('dashboard.become-seller')" 
-              class="text-primary-color hover:text-primary-color/90 hover:underline">
+              class="text-primary hover:text-primary/90 hover:underline">
           Become a Seller
         </Link>
       </div>
 
       <!-- Stats Overview -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <template v-if="user.is_seller">
+        <template v-if="isSeller">
           <StatCard title="Total Sales" :value="stats.totalSales" icon="money" type="money" />
           <StatCard title="Active Products" :value="stats.activeProducts" icon="box" />
           <StatCard title="Pending Orders" :value="stats.pendingOrders" icon="clock" />
@@ -43,13 +43,13 @@
       <div class="flex flex-col md:flex-row gap-6">
         <!-- Sidebar Navigation -->
         <aside class="w-full md:w-64 md:sticky md:top-4 md:h-[calc(100vh-8rem)]">
-          <nav class="bg-white rounded-lg shadow p-4">
+          <nav class="bg-card text-card-foreground rounded-lg shadow p-4">
             <NavSection title="Profile">
               <li>
                 <Link :href="route('dashboard.profile')" 
                   :preserve-scroll="true"
-                  class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/profile') }">
+                  class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/profile') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -62,8 +62,8 @@
             <NavSection title="Shopping">
               <li>
                 <Link :href="route('dashboard.orders')"
-                  class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/orders') }">
+                  class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/orders') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
@@ -74,21 +74,20 @@
 
               <li>
                 <Link :href="route('dashboard.trades')"
-                  class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/orders') }">
+                  class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/trades') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                   </svg>
                   <span>My Trades</span>
                 </Link>
               </li>
 
-
               <li>
                 <Link :href="route('dashboard.wishlist')"
-                  class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/wishlist') }">
+                  class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/wishlist') }">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
@@ -98,12 +97,12 @@
               </li>
             </NavSection>
 
-            <template v-if="user.is_seller">
+            <template v-if="isSeller">
               <NavSection title="Seller Management">
                 <li>
                   <Link :href="route('seller.meetup-locations')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/meetup-locations') }">
+                    class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/meetup-locations') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -117,8 +116,8 @@
                 <!-- Add Trade Offers Link -->
                 <li>
                   <Link :href="route('seller.trade-offers')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/trade-offers') }">
+                    class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/trade-offers') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
@@ -129,9 +128,9 @@
 
                 <li>
                   <Link :href="route('seller.wallet.index')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
                     :class="{ 
-                      'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/wallet'),
+                      'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/wallet'),
                       'cursor-pointer': true // Always allow clicking
                     }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,9 +152,9 @@
                       :class="[
                         'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
                         !needsWalletSetup 
-                          ? 'text-gray-700 hover:bg-gray-50' 
-                          : 'text-gray-400 cursor-not-allowed',
-                        { 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/products') }
+                          ? 'text-foreground hover:bg-muted' 
+                          : 'text-muted-foreground cursor-not-allowed',
+                        { 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/products') }
                       ]">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -177,9 +176,9 @@
                           :class="[
                             'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors',
                             hasActivatedWallet 
-                              ? 'text-gray-700 hover:bg-gray-50' 
-                              : 'text-gray-400 cursor-not-allowed',
-                            { 'bg-primary-color/10 text-primary-color': $page.url.startsWith('/dashboard/seller/orders') }
+                              ? 'text-foreground hover:bg-muted' 
+                              : 'text-muted-foreground cursor-not-allowed',
+                            { 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/orders') }
                           ]">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -197,11 +196,11 @@
                 
                 <li>
                   <Link :href="route('seller.reviews')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': route().current('seller.reviews') }">
+                    class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                    :class="{ 'bg-primary/10 text-primary': route().current('seller.reviews') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976-2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
                     </svg>
                     <span>My Reviews</span>
                   </Link>
@@ -212,8 +211,8 @@
               <NavSection title="Seller">
                 <li>
                   <Link :href="route('dashboard.become-seller')"
-                    class="flex items-center gap-3 px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    :class="{ 'bg-primary-color/10 text-primary-color': route().current('dashboard.become-seller') }">
+                    class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
+                    :class="{ 'bg-primary/10 text-primary': route().current('dashboard.become-seller') }">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -226,7 +225,7 @@
 
             <NavSection title="System">
               <form @submit.prevent="logout">
-                <button type="submit" class="w-full flex items-center gap-3 px-4 py-2 text-gray-600 hover:text-primary-color hover:bg-primary-color/10 rounded-lg transition-colors">
+                <button type="submit" class="w-full flex items-center gap-3 px-4 py-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -240,7 +239,7 @@
 
         <!-- Main Content Area -->
         <div class="flex-1">
-          <div class="bg-white rounded-lg shadow">
+          <div class="bg-card text-card-foreground rounded-lg shadow">
             <div class="p-6">
               <slot />
             </div>
@@ -257,13 +256,23 @@ import StatCard from './Components/StatCard.vue'
 import NavSection from './Components/NavSection.vue'
 
 const props = defineProps({
-  user: Object,
-  stats: Object,
+  user: {
+    type: Object,
+    required: true
+  },
+  stats: {
+    type: Object,
+    required: true,
+    default: () => ({})
+  },
   flash: {
     type: Object,
     default: () => ({})
   }
 })
+
+// Add null checks for user properties
+const isSeller = computed(() => props.user?.is_seller ?? false)
 
 const page = usePage()
 
@@ -287,3 +296,26 @@ const needsWalletSetup = computed(() => {
   return props.user?.is_seller && (!props.stats?.wallet?.is_activated)
 })
 </script>
+
+<style scoped>
+/* Update any hardcoded colors to use theme variables */
+:deep(.bg-primary-color\/10) {
+  @apply bg-primary/10;
+}
+
+:deep(.text-primary-color) {
+  @apply text-primary;
+}
+
+:deep(.hover\:bg-gray-50) {
+  @apply hover:bg-muted;
+}
+
+:deep(.text-gray-700) {
+  @apply text-foreground;
+}
+
+:deep(.text-gray-500) {
+  @apply text-muted-foreground;
+}
+</style>

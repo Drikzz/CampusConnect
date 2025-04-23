@@ -3,12 +3,10 @@ import { createApp, h } from 'vue';
 import { createInertiaApp, Head, Link, router } from '@inertiajs/vue3';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import Layout from './Layouts/Layout.vue';
-import BecomeSeller from './Pages/Dashboard/BecomeSeller.vue';
-import ToastWrapper from '@/Layouts/ToastWrapper.vue';
 
 // Add global registration data cleanup function with clear logging
 const clearRegistrationData = () => {
-    console.log("Clearing registration data from sessionStorage");
+    //console.log("Clearing registration data from sessionStorage");
     const formFields = [
         'user_type_id', 
         'grade_level_id', 
@@ -32,9 +30,9 @@ const clearRegistrationData = () => {
 
 // Define specific registration routes with proper route structure
 const registrationRoutes = [
-    '/register',              // Route for register.personal-info
-    '/register/details',      // Route for register.details
-    '/register/profile-picture' // Route for register.profile-picture
+    '/register',
+    '/register/details',
+    '/register/profile-picture'
 ];
 
 // Add global navigation listener with improved route detection
@@ -42,7 +40,7 @@ router.on('navigate', (event) => {
     const currentPath = window.location.pathname;
     const targetPath = new URL(event.detail.page.url, window.location.origin).pathname;
     
-    console.log(`Navigation: ${currentPath} -> ${targetPath}`);
+    // console.log(`Navigation: ${currentPath} -> ${targetPath}`);
     
     // Check if navigating away from registration flow
     const isCurrentRegistrationRoute = registrationRoutes.some(route => currentPath.startsWith(route));
@@ -50,7 +48,7 @@ router.on('navigate', (event) => {
     
     // Only clear when navigating away from the entire registration flow
     if (isCurrentRegistrationRoute && !isTargetRegistrationRoute) {
-        console.log("Navigating away from registration - clearing data");
+        // console.log("Navigating away from registration - clearing data");
         clearRegistrationData();
     }
 });
@@ -77,9 +75,8 @@ createInertiaApp({
             .use(ZiggyVue)
             .component('Head', Head)
             .component('Link', Link)
-            .component('ToastWrapper', ToastWrapper)
             .mount(el);
-        
+            
         // Fix: Move this code after plugin initialization and remove the undefined check
         // Use the router instance that's already imported instead of accessing window.Inertia
         router.on('navigate', (event) => {
@@ -94,7 +91,6 @@ createInertiaApp({
         color: 'red',
         includeCSS: true,
         showSpinner: true,
-        // Add delay to reduce flickering for fast transitions
         delay: 250,
     },
 });
