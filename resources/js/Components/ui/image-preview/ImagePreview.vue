@@ -1,199 +1,179 @@
-<script setup>
-import { ref, computed, watch } from 'vue';
-import { Dialog, DialogContent } from "@/Components/ui/dialog";
-import { Button } from "@/Components/ui/button";
+<script>
+import { ref, onMounted, watch } from 'vue';
 
-const props = defineProps({
-  images: {
-    type: Array,
-    required: true,
-    default: () => []
-  },
-  alt: {
-    type: String,
-    default: 'Image'
-  }
-});
-
-const currentImageIndex = ref(0);
-const previewOpen = ref(false);
-
-// Reset current image index when images change
-watch(() => props.images, () => {
-  currentImageIndex.value = 0;
-});
-
-// Return image URL or placeholder if not available
-const processedImages = computed(() => {
-  if (!props.images || props.images.length === 0) {
-    return ['/images/placeholder-product.jpg'];
-  }
-
-  return props.images.map(image => {
-    if (typeof image === 'string') {
-      return image.startsWith('/storage') ? image : `/storage/${image}`;
+export default {
+  name: 'ImagePreview',
+  props: {
+    src: {
+      type: String,
+      required: false,
+      default: null
+    },
+    images: {
+      type: Array,
+      default: () => []
+    },
+    alt: {
+      type: String,
+      default: 'Image preview'
+    },
+    current: {
+      type: Number,
+      default: 0
+    },
+    showControls: {
+      type: Boolean,
+      default: true
     }
-    return image instanceof File ? URL.createObjectURL(image) : '/images/placeholder-product.jpg';
-  });
-});
+  },
 
-const currentImage = computed(() => {
-  return processedImages.value[currentImageIndex.value];
-});
+  setup(props, { emit }) {
+    const currentIndex = ref(props.current || 0);
+    const imageUrls = ref([]);
+    const loading = ref(true);
+    const error = ref(false);
+    
+    const processImages = () => {
+      loading.value = true;
+      error.value = false;
+      
+      // Handle either a single src or multiple images
+      if (props.src) {
+        imageUrls.value = [props.src];
+      } else if (props.images && props.images.length) {
+        // Convert any complex image objects to their URL strings
+        imageUrls.value = props.images.map(img => {
+          if (typeof img === 'string') return img;
+          if (img && img.isBlob && img.url) return img.url;
+          if (img && img.url) return img.url;
+          if (img && img.src) return img.src;
+          return img;
+        });
+      } else {
+        imageUrls.value = [''];
+        error.value = true;
+      }
+    };
 
-function nextImage() {
-  currentImageIndex.value = (currentImageIndex.value + 1) % processedImages.value.length;
-}
+    const handleImageError = () => {
+      error.value = true;
+      emit('error');
+    };
 
-function previousImage() {
-  currentImageIndex.value = (currentImageIndex.value - 1 + processedImages.value.length) % processedImages.value.length;
-}
+    const handleImageLoad = () => {
+      loading.value = false;
+    };
 
-function openPreview() {
-  previewOpen.value = true;
-}
+    const next = () => {
+      if (imageUrls.value.length <= 1) return;
+      currentIndex.value = (currentIndex.value + 1) % imageUrls.value.length;
+      emit('change', currentIndex.value);
+    };
 
-function closePreview() {
-  previewOpen.value = false;
-}
+    const prev = () => {
+      if (imageUrls.value.length <= 1) return;
+      currentIndex.value = (currentIndex.value - 1 + imageUrls.value.length) % imageUrls.value.length;
+      emit('change', currentIndex.value);
+    };
+
+    // Watch for prop changes
+    watch(() => props.src, processImages, { immediate: true });
+    watch(() => props.images, processImages, { immediate: true });
+    watch(() => props.current, (newVal) => {
+      currentIndex.value = newVal;
+    });
+
+    onMounted(() => {
+      processImages();
+    });
+
+    return {
+      currentIndex,
+      imageUrls,
+      loading,
+      error,
+      next,
+      prev,
+      handleImageError,
+      handleImageLoad
+    };
+  }
+};
 </script>
 
 <template>
-  <div class="image-preview-container">
-    <!-- Thumbnail display -->
-    <div class="relative rounded-md overflow-hidden cursor-pointer h-full" @click="openPreview">
-      <img 
-        :src="currentImage" 
-        :alt="alt"
-        class="w-full h-full object-cover transition-opacity duration-300"
-        @error="$event.target.src = '/images/placeholder-product.jpg'"
-      />
-      
-      <!-- Navigation buttons for thumbnails (only show if multiple images) -->
-      <div v-if="processedImages.length > 1" class="absolute bottom-2 right-2 flex gap-1">
-        <div class="px-2 py-1 bg-black/50 rounded text-xs text-white">
-          {{ currentImageIndex + 1 }}/{{ processedImages.length }}
-        </div>
-      </div>
-      
-      <div v-if="processedImages.length > 1" class="absolute inset-0 flex justify-between items-center px-1">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          class="h-7 w-7 rounded-full bg-black/30 hover:bg-black/50 text-white transform transition-transform hover:scale-110"
-          @click.stop="previousImage"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          class="h-7 w-7 rounded-full bg-black/30 hover:bg-black/50 text-white transform transition-transform hover:scale-110"
-          @click.stop="nextImage"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </Button>
+  <div class="image-preview-container relative overflow-hidden">
+    <img
+      v-if="imageUrls.length > 0 && currentIndex < imageUrls.length"
+      :src="imageUrls[currentIndex]"
+      :alt="alt"
+      class="w-full h-full object-contain"
+      @error="handleImageError"
+      @load="handleImageLoad"
+    />
+    <img
+      v-else
+      src="/images/placeholder-product.jpg"
+      :alt="alt"
+      class="w-full h-full object-contain"
+    />
+    
+    <!-- Loading indicator -->
+    <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-gray-900/60">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+    
+    <!-- Navigation controls -->
+    <div v-if="showControls && imageUrls.length > 1" class="image-navigation-controls absolute inset-0 flex items-center justify-between px-2">
+      <button 
+        @click.prevent="prev"
+        class="bg-white/70 dark:bg-gray-900/70 hover:bg-white/90 dark:hover:bg-gray-900/90 text-gray-800 dark:text-gray-200 rounded-full p-1 shadow"
+        aria-label="Previous image"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <button 
+        @click.prevent="next"
+        class="bg-white/70 dark:bg-gray-900/70 hover:bg-white/90 dark:hover:bg-gray-900/90 text-gray-800 dark:text-gray-200 rounded-full p-1 shadow"
+        aria-label="Next image"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Image indicator dots -->
+    <div v-if="imageUrls.length > 1" class="absolute bottom-2 left-0 right-0 flex justify-center">
+      <div class="flex space-x-1">
+        <button
+          v-for="(_, index) in imageUrls"
+          :key="index"
+          @click="currentIndex = index"
+          class="w-2 h-2 rounded-full transition-all duration-200"
+          :class="index === currentIndex ? 'bg-primary scale-125' : 'bg-gray-400 hover:bg-gray-600'"
+          aria-label="View image"
+        ></button>
       </div>
     </div>
-
-    <!-- Fullscreen preview dialog -->
-    <Dialog :open="previewOpen" @update:open="closePreview">
-      <DialogContent class="sm:max-w-3xl max-h-[90vh] p-0 bg-background dark:bg-gray-900 overflow-hidden">
-        <div class="relative h-full">
-          <!-- Main image -->
-          <div class="w-full h-full flex items-center justify-center p-4">
-            <img 
-              :key="currentImageIndex" 
-              :src="currentImage" 
-              :alt="alt"
-              class="max-w-full max-h-[70vh] object-contain transition-all duration-300 image-fade"
-              @error="$event.target.src = '/images/placeholder-product.jpg'"
-            />
-          </div>
-          
-          <!-- Navigation controls -->
-          <div v-if="processedImages.length > 1" class="absolute inset-x-0 bottom-4 flex justify-center gap-2">
-            <Button 
-              variant="secondary" 
-              size="sm"
-              @click="previousImage"
-              class="rounded-full bg-white/90 dark:bg-black/50 hover:bg-white dark:hover:bg-black/70 transform transition-transform hover:scale-105"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1">
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-              Previous
-            </Button>
-            <Button 
-              variant="secondary" 
-              size="sm"
-              @click="nextImage"
-              class="rounded-full bg-white/90 dark:bg-black/50 hover:bg-white dark:hover:bg-black/70 transform transition-transform hover:scale-105"
-            >
-              Next
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </Button>
-          </div>
-          
-          <!-- Close button -->
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            @click="closePreview"
-            class="absolute top-2 right-2 h-8 w-8 rounded-full bg-black/30 hover:bg-black/50 text-white transform transition-transform hover:scale-110"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </Button>
-          
-          <!-- Image counter -->
-          <div v-if="processedImages.length > 1" class="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
-            {{ currentImageIndex + 1 }}/{{ processedImages.length }}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>
 
 <style scoped>
 .image-preview-container {
   position: relative;
-  overflow: hidden;
   width: 100%;
   height: 100%;
 }
 
-.image-fade {
+.image-navigation-controls {
   opacity: 0;
-  animation: fadeIn 0.3s ease-in-out forwards;
+  transition: opacity 0.2s ease-in-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Add a subtle hover effect */
-.cursor-pointer:hover {
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.5);
-}
-
-/* Improve button hover transitions */
-button {
-  transition: all 0.2s ease-in-out;
-}
-
-/* Prevent dialog content from jumping */
-:deep(.dialog-content) {
-  will-change: transform;
+.image-preview-container:hover .image-navigation-controls {
+  opacity: 1;
 }
 </style>

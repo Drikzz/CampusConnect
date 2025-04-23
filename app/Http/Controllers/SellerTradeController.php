@@ -337,7 +337,6 @@ class SellerTradeController extends Controller
                 ->where('status', 'completed')
                 ->sum('total');
             
-            // Fix: This is likely also using buyer_id 
             $sellerStats['pending_orders'] = Order::where('seller_id', $user->id)
                 ->whereIn('status', ['pending', 'processing'])
                 ->count();
@@ -689,10 +688,9 @@ class SellerTradeController extends Controller
                     'available_from' => $location->available_from,
                     'available_until' => $location->available_until,
                     'is_default' => $location->is_default,
-                    'location' => $location->location ? [
-                        'id' => $location->location->id,
-                        'name' => $location->location->name
-                    ] : null
+                    'location_id' => $location->location ? $location->location->id : null,
+                    'latitude' => $location->location ? $location->location->latitude : null,
+                    'longitude' => $location->location ? $location->location->longitude : null
                 ];
             });
 
@@ -711,8 +709,8 @@ class SellerTradeController extends Controller
                         'profile_picture' => $seller->profile_picture ? asset('storage/' . $seller->profile_picture) : null
                     ]
                 ],
-                'meetup_locations' => $meetupLocations,
-                'default_location' => $meetupLocations->firstWhere('is_default', true)
+                'meetupLocations' => $meetupLocations,
+                'defaultLocation' => $meetupLocations->firstWhere('is_default', true)
             ]);
             
         } catch (\Exception $e) {
