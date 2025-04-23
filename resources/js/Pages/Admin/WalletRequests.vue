@@ -4,16 +4,92 @@
       <!-- Header with refresh button -->
       <div class="flex items-center justify-between">
         <h2 class="text-xl md:text-2xl font-bold text-foreground">Wallet Requests</h2>
-        <Button 
-          variant="outline" 
-          size="sm"
-          @click="refreshData"
-          :disabled="isRefreshing"
-          class="flex items-center gap-2"
-        >
-          <RefreshCwIcon class="h-4 w-4" :class="{'animate-spin': isRefreshing}" />
-          <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
-        </Button>
+        <div class="flex items-center gap-2">
+          <!-- Filter Dropdown -->
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" class="flex items-center gap-2">
+                <FilterIcon class="h-4 w-4" />
+                <span>Filter</span>
+                <Badge 
+                  v-if="isFilterActive" 
+                  variant="secondary" 
+                  class="ml-1 px-1.5 py-0.5 text-xs"
+                >
+                  {{ activeFilterCount }}
+                </Badge>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-80">
+              <div class="space-y-4">
+                <h4 class="font-medium flex items-center">
+                  <SearchIcon class="h-4 w-4 mr-2 text-muted-foreground" />
+                  Filters
+                </h4>
+                
+                <!-- Search Input -->
+                <div class="space-y-2">
+                  <Label for="search-query">Search</Label>
+                  <div class="relative">
+                    <SearchIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="search-query"
+                      v-model="searchQuery" 
+                      placeholder="Search by seller name or code..." 
+                      class="pl-9 w-full"
+                    />
+                  </div>
+                </div>
+                
+                <!-- Status filter -->
+                <div class="space-y-2">
+                  <Label for="status-filter">Status</Label>
+                  <Select id="status-filter" v-model="statusFilter" class="w-full">
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_process">In Process</option>
+                    <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
+                  </Select>
+                </div>
+                
+                <!-- Type filter -->
+                <div class="space-y-2">
+                  <Label for="type-filter">Type</Label>
+                  <Select id="type-filter" v-model="typeFilter" class="w-full">
+                    <option value="all">All Types</option>
+                    <option value="refill">Refill</option>
+                    <option value="withdrawal">Withdrawal</option>
+                    <option value="verification">Verification</option>
+                  </Select>
+                </div>
+                
+                <!-- Reset filters button -->
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  class="w-full mt-2" 
+                  @click="resetFilters"
+                  :disabled="!isFilterActive"
+                >
+                  Reset Filters
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <!-- Refresh button -->
+          <Button 
+            variant="outline" 
+            size="sm"
+            @click="refreshData"
+            :disabled="isRefreshing"
+            class="flex items-center gap-2"
+          >
+            <RefreshCwIcon class="h-4 w-4" :class="{'animate-spin': isRefreshing}" />
+            <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
+          </Button>
+        </div>
       </div>
       
       <!-- Stats Summary -->
@@ -31,34 +107,7 @@
           </div>
         </div>
       </div>
-      
-      <!-- Filter controls -->
-      <Card className="p-4">
-        <div class="flex flex-col sm:flex-row gap-3">
-          <div class="relative flex-1">
-            <SearchIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              v-model="searchQuery" 
-              placeholder="Search by seller name or code..." 
-              class="pl-9"
-            />
-          </div>
-          <Select v-model="statusFilter" class="w-full sm:w-48">
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_process">In Process</option>
-            <option value="completed">Completed</option>
-            <option value="rejected">Rejected</option>
-          </Select>
-          <Select v-model="typeFilter" class="w-full sm:w-48">
-            <option value="all">All Types</option>
-            <option value="refill">Refill</option>
-            <option value="withdrawal">Withdrawal</option>
-            <option value="verification">Verification</option>
-          </Select>
-        </div>
-      </Card>
-      
+
       <!-- Transactions Table -->
       <div class="rounded-md border">
         <Table>
@@ -245,7 +294,7 @@
       </DialogContent>
     </Dialog>
     
-    <!-- Simple Confirmation Dialog (inline implementation instead of using a separate component) -->
+    <!-- Simple Confirmation Dialog -->
     <Dialog :open="showConfirmDialog" @update:open="showConfirmDialog = $event">
       <DialogContent>
         <DialogHeader>
@@ -279,12 +328,14 @@ import { Button } from "@/Components/ui/button"
 import { Badge } from "@/Components/ui/badge"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/Components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/Components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover"
+import { Label } from "@/Components/ui/label"
 
 // Icons
 import { 
   UserCircleIcon, ClockIcon, CheckCircleIcon, WalletIcon, 
   EyeIcon, CheckIcon, XIcon, CheckSquareIcon, 
-  RefreshCwIcon, SearchIcon, SearchXIcon 
+  RefreshCwIcon, SearchIcon, SearchXIcon, FilterIcon 
 } from 'lucide-vue-next'
 
 const { toast } = useToast()
@@ -570,5 +621,23 @@ const refreshData = () => {
       isRefreshing.value = false
     }
   })
+}
+
+const isFilterActive = computed(() => {
+  return searchQuery.value || statusFilter.value !== 'all' || typeFilter.value !== 'all'
+})
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (searchQuery.value) count++
+  if (statusFilter.value !== 'all') count++
+  if (typeFilter.value !== 'all') count++
+  return count
+})
+
+const resetFilters = () => {
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  typeFilter.value = 'all'
 }
 </script>

@@ -1385,4 +1385,41 @@ class SellerController extends Controller
             'reviews' => $reviews
         ]);
     }
+
+    public function completeTrade($id)
+    {
+        try {
+            $trade = TradeTransaction::findOrFail($id);
+            
+            // Verify that the user is the seller for this trade
+            if ($trade->seller_id !== auth()->id() && $trade->seller_code !== auth()->user()->seller_code) {
+                return redirect()->back()->with('error', 'Unauthorized action');
+            }
+            
+            // Only accepted trades can be marked as completed
+            if ($trade->status !== 'accepted') {
+                return redirect()->back()->with('error', 'Only accepted trades can be marked as completed');
+            }
+            
+            // Update trade status to completed - this will trigger the observer
+            $trade->status = 'completed'; // Note: lowercase for TradeTransaction status
+            $trade->save();
+            
+            // Log successful update but don't manually call deduction here - the observer will handle it
+            Log::info('Trade marked as completed, observer should trigger deduction', [
+                'trade_id' => $trade->id,
+                'user_id' => auth()->id()
+            ]);
+            
+            return redirect()->back()->with('success', 'Trade marked as completed successfully');
+        } catch (\Exception $e) {
+            Log::error('Error completing trade: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'trade_id' => $id,
+                'user_id' => auth()->id()
+            ]);
+            
+            return redirect()->back()->with('error', 'Failed to mark trade as completed: ' . $e->getMessage());
+        }
+    }
 }
