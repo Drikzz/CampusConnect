@@ -26,6 +26,7 @@ use App\Http\Controllers\AdminLocationController;
 use App\Http\Controllers\AdminTransactionsController;
 use App\Http\Controllers\AdminUserBanController; // Import the AdminUserBanController at the top of the file
 use App\Http\Controllers\SellerTradeController;
+use App\Http\Controllers\AdminWalletController;
 
 // Public routes should be at the top, before any middleware groups
 Route::get('/', [ProductController::class, 'welcome'])->name('index');
@@ -344,6 +345,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/wallet/refunds/{id}/reject', [AdminController::class, 'rejectRefund'])
         ->name('wallet-requests.reject-refund');
 
+    // Admin wallet routes
+    Route::get('/wallet', [AdminWalletController::class, 'index'])->name('wallet');
+    Route::post('/wallet/update-deduction-rate', [AdminWalletController::class, 'updateDeductionRate'])->name('wallet.update-deduction-rate');
+    Route::get('/wallet/dashboard-data', [AdminWalletController::class, 'getDashboardData'])->name('wallet.dashboard-data');
+
+    // Add this route in the admin routes group
+    Route::get('/admin/wallet/seller-wallets', [AdminWalletController::class, 'getSellerWallets'])
+        ->name('admin.wallet.seller-wallets');
+
+    // Add this route in the admin routes group
+    Route::post('/admin/wallet/adjust-balance', [AdminWalletController::class, 'adjustWalletBalance'])
+        ->name('admin.wallet.adjust-balance');
+
     // Chart data routes
     Route::prefix('api/charts')->group(function () {
         Route::get('users', [AdminDashboardController::class, 'getUserChartDataFiltered']);
@@ -372,6 +386,24 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             })->name('debug-wrong-url');
         }
     });
+});
+
+// Debug route for development only
+if (config('app.env') === 'local') {
+    Route::get('/admin/wallet/debug-wallets', function() {
+        $controller = new \App\Http\Controllers\AdminWalletController();
+        $response = $controller->getSellerWallets();
+        dd($response->getData(true)); // Dump and die with the response data
+    })->middleware(['auth', 'admin']);
+}
+
+// Admin wallet routes
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/wallet', [AdminWalletController::class, 'index'])->name('admin.wallet');
+    Route::get('/admin/wallet/dashboard-data', [AdminWalletController::class, 'getDashboardData']);
+    Route::get('/admin/wallet/seller-wallets', [AdminWalletController::class, 'getSellerWallets']);
+    Route::post('/admin/wallet/update-deduction-rate', [AdminWalletController::class, 'updateDeductionRate']);
+    Route::post('/admin/wallet/adjust-balance', [AdminWalletController::class, 'adjustWalletBalance']);
 });
 
 // Admin transaction management routes

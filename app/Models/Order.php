@@ -27,7 +27,8 @@ class Order extends Model
         'dispute_resolution',
         'cancelled_at',
         'cancellation_reason',
-        'cancelled_by'  // Add this to fillable
+        'cancelled_by',
+        'wallet_deduction_processed'
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class Order extends Model
         'delivered_at' => 'datetime',
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'wallet_deduction_processed' => 'boolean',
     ];
 
     // Add status constants for better maintainability
@@ -185,5 +187,16 @@ class Order extends Model
     public function scopeDisputed($query)
     {
         return $query->where('status', 'Disputed');
+    }
+
+    /**
+     * Get wallet transactions associated with this order
+     */
+    public function walletTransactions()
+    {
+        return $this->hasMany(WalletTransaction::class, 'reference_id', 'id')
+            ->where('reference_type', 'order')
+            ->where('description', 'like', 'Platform fee%')
+            ->where('type', 'debit');
     }
 }

@@ -26,6 +26,8 @@ return new class extends Migration
             $table->timestamp('meetup_schedule')->nullable();
             $table->string('meetup_day')->nullable(); // Store day of week for easier filtering
             $table->time('preferred_time')->nullable(); // Store time separately for flexibility
+            // Flag to track if wallet deduction was processed
+            $table->boolean('wallet_deduction_processed')->default(false);
             $table->timestamps();
             $table->softDeletes();
             
