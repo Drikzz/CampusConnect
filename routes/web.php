@@ -224,6 +224,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/trade', [TradeController::class, 'index'])->name('trade.index');
         Route::get('/trade/{id}', [TradeController::class, 'show'])->name('trade.show');
         Route::get('/trade/{id}/meetup-locations', [TradeController::class, 'getMeetupLocations'])->name('trade.meetup-locations');
+        // Add new product details route for trades
+        Route::get('/trade/products/{id}/details', [TradeController::class, 'getProductDetails'])->name('trade.product.details');
         Route::post('/trade/submit', [TradeController::class, 'submit'])->name('trade.submit');
         Route::post('/trade/{id}/cancel', [TradeController::class, 'cancel'])->name('trade.cancel');
 

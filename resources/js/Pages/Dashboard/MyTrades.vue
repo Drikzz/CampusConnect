@@ -2,7 +2,7 @@
   <DashboardLayout 
     :user="auth.user" 
     :stats="stats" 
-    :flash="flash"
+    :flash="flash || {}"
     class="bg-background text-foreground"
   >
     <!-- Add toast container for notifications -->
@@ -176,7 +176,7 @@
 
     <!-- Trade Details Dialog -->
     <Dialog :open="showTradeDetails" @update:open="closeTradeDetails">
-      <DialogContent class="max-w-4xl max-h-[90vh] overflow-y-auto scroll-smooth animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]">
+      <DialogContent class="mx-4 w-[75%] sm:max-w-20xl overflow-y-auto max-h-[90vh] p-6 md:p-8 lg:p-10 bg-background dark:bg-gray-900 border-border dark:border-gray-700">
         <DialogHeader>
           <DialogTitle class="flex items-center justify-between">
             <span class="text-2xl font-semibold">Trade #{{ selectedTrade?.id }}</span>
@@ -200,12 +200,12 @@
                 <h4 class="font-semibold text-sm text-muted-foreground">Trading for:</h4>
                 <div class="border rounded-lg p-4">
                   <div class="flex gap-4">
-                    <!-- Product Image -->
+                    <!-- Product Image - Updated for better handling -->
                     <div class="w-24 aspect-square">
                       <img 
-                        v-if="selectedTrade.seller_product?.images?.length"
-                        :src="getOptimizedImageUrl(selectedTrade.seller_product.images[0])"
-                        :alt="selectedTrade.seller_product.name"
+                        v-if="selectedTrade.sellerProduct && selectedTrade.sellerProduct.images && selectedTrade.sellerProduct.images.length"
+                        :src="getOptimizedImageUrl(selectedTrade.sellerProduct.images[0])"
+                        :alt="selectedTrade.sellerProduct ? selectedTrade.sellerProduct.name : 'Product'"
                         class="w-full h-full object-cover backface-hidden transform-gpu antialiased"
                         style="image-rendering: -webkit-optimize-contrast"
                         @error="handleImageError"
@@ -218,17 +218,17 @@
                     <!-- Product Details -->
                     <div class="flex-1">
                       <div class="flex justify-between">
-                        <h5 class="font-semibold">{{ selectedTrade.seller_product.name }}</h5>
+                        <h5 class="font-semibold">{{ selectedTrade.sellerProduct ? selectedTrade.sellerProduct.name : 'Product' }}</h5>
                         <p class="font-semibold text-primary">
-                          {{ formatPrice(selectedTrade.seller_product.price) }}
+                          {{ formatPrice(selectedTrade.sellerProduct ? selectedTrade.sellerProduct.price : 0) }}
                         </p>
                       </div>
                       <div class="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                         <UserIcon class="h-4 w-4" />
                         <span>Seller: {{ selectedTrade.seller?.first_name }} {{ selectedTrade.seller?.last_name }}</span>
                       </div>
-                      <p v-if="selectedTrade.seller_product.description" class="text-sm text-muted-foreground mt-2">
-                        {{ selectedTrade.seller_product.description }}
+                      <p v-if="selectedTrade.sellerProduct && selectedTrade.sellerProduct.description" class="text-sm text-muted-foreground mt-2">
+                        {{ selectedTrade.sellerProduct.description }}
                       </p>
                     </div>
                   </div>
@@ -251,11 +251,12 @@
                     <!-- Item Image -->
                     <div class="w-24 aspect-square">
                       <img 
-                        v-if="item.images?.length"
+                        v-if="item.images && item.images.length"
                         :src="getOptimizedImageUrl(item.images[0])"
                         :alt="item.name"
                         class="w-full h-full object-cover backface-hidden transform-gpu antialiased"
                         style="image-rendering: -webkit-optimize-contrast"
+                        @error="handleImageError"
                       />
                       <div v-else class="flex items-center justify-center h-full bg-muted rounded-md">
                         <ImageIcon class="h-8 w-8 text-muted-foreground" />
@@ -311,6 +312,9 @@
                   </p>
                   <p class="text-sm text-muted-foreground">
                     {{ selectedTrade.meetup_location_name || 'Location not specified' }}
+                  </p>
+                  <p v-if="selectedTrade.preferred_time" class="text-sm text-muted-foreground">
+                    Time: {{ selectedTrade.preferred_time_formatted || formatTime(selectedTrade.preferred_time) }}
                   </p>
                 </div>
               </div>
@@ -443,166 +447,16 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <!-- Add Edit Trade Dialog -->
-    <Dialog :open="showEditTradeDialog" @update:open="closeEditTradeModal" class="overflow-visible">
-      <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto scroll-smooth animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]">
-        <DialogHeader>
-          <DialogTitle>Edit Trade Offer</DialogTitle>
-          <DialogDescription>
-            Make changes to your trade offer. The seller will be notified of your updates.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form @submit.prevent="submitEditedTrade" class="space-y-6">
-          <!-- Trade ID indicator -->
-          <div class="p-4 bg-muted rounded-lg space-y-2">
-            <h3 class="font-semibold text-sm text-gray-600">EDITING TRADE #{{ tradeToEdit?.id }}</h3>
-            <p class="text-sm text-gray-500">You can modify all aspects of your trade offer.</p>
-          </div>
-
-          <!-- Offered Items -->
-          <div v-for="(item, index) in editForm.offered_items" :key="index" class="border rounded-lg p-4 space-y-4">
-            <div class="flex justify-between items-center">
-              <h4 class="font-medium">Item {{ index + 1 }}</h4>
-              <Button 
-                v-if="editForm.offered_items.length > 1"
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                @click="removeOfferedItem(index)"
-              >
-                Remove
-              </Button>
-            </div>
-
-            <div class="space-y-4">
-              <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-2">
-                  <Label>Item Name</Label>
-                  <Input v-model="item.name" required />
-                </div>
-                <div class="space-y-2">
-                  <Label>Quantity</Label>
-                  <Input type="number" v-model="item.quantity" min="1" required />
-                </div>
-              </div>
-              
-              <div class="space-y-2">
-                <Label>Estimated Value (₱)</Label>
-                <Input type="number" v-model="item.estimated_value" min="0" step="0.01" required />
-              </div>
-
-              <div class="space-y-2">
-                <Label>Description</Label>
-                <Textarea v-model="item.description" rows="3" />
-              </div>
-
-              <!-- Current Images -->
-              <div v-if="item.current_images?.length" class="space-y-2">
-                <Label>Current Images</Label>
-                <div class="grid grid-cols-4 gap-2">
-                  <div v-for="(image, imgIndex) in item.current_images" 
-                       :key="imgIndex"
-                       class="relative aspect-square">
-                    <img :src="getOptimizedImageUrl(image)"
-                         :alt="item.name"
-                         class="w-full h-full object-cover backface-hidden transform-gpu antialiased"
-                         style="image-rendering: -webkit-optimize-contrast" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Button type="button" variant="outline" @click="addOfferedItem">
-            Add Another Item
-          </Button>
-
-          <!-- Additional Cash -->
-          <div class="space-y-2 border-t pt-4">
-            <Label>Additional Cash (₱)</Label>
-            <Input type="number" v-model="editForm.additional_cash" min="0" step="0.01" />
-          </div>
-
-          <!-- Meetup Details -->
-          <div class="space-y-4 border-t pt-4">
-            <h3 class="font-semibold">Meetup Schedule</h3>
-            
-            <!-- Current Schedule Display -->
-            <div v-if="tradeToEdit?.meetup_schedule || tradeToEdit?.meetup_location_name" class="p-4 bg-muted rounded-lg space-y-2">
-              <h4 class="font-medium text-sm">Current Schedule</h4>
-              <p class="text-sm text-muted-foreground">
-                {{ tradeToEdit.meetup_schedule ? formatDateTime(tradeToEdit.meetup_schedule, false) : 'Date not set' }}
-                <span v-if="tradeToEdit.meetup_location_name"> at {{ tradeToEdit.meetup_location_name }}</span>
-              </p>
-            </div>
-
-            <!-- Change Meetup Schedule Section -->
-            <div class="space-y-6">
-              <!-- Loop through each location -->
-              <div v-for="location in availableMeetupLocations" :key="location.id" class="space-y-3">
-                <!-- Create a section for each day the location is available -->
-                <div v-for="day in location.available_days" :key="location.id + '_' + day" class="relative">
-                  <label class="flex p-3 border rounded cursor-pointer select-none"
-                        :class="[
-                          tradeSchedule.meetup_location_id === location.id && tradeSchedule.selectedDay === day
-                          ? 'bg-accent/10' : 'hover:bg-gray-50'
-                        ]">
-                    <input 
-                      type="radio" 
-                      :value="`${location.id}_${day}`"
-                      v-model="tradeSchedule.meetingSelection"
-                      class="mr-3 mt-1" 
-                      @change="handleMeetupSelection(location, day)"
-                    />
-                    <div class="flex-1">
-                      <div class="font-medium text-gray-900">
-                        {{ location.name }} - {{ day }}
-                      </div>
-                      <div v-if="location.description" class="text-sm text-gray-500 mt-1">
-                        {{ location.description }}
-                      </div>
-                      <div class="text-sm text-gray-600 mt-1">
-                        Schedule: {{ formatTime(location.available_from) }} - {{ formatTime(location.available_until) }}
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Date Selection -->
-            <div class="space-y-2">
-              <Label>Select New Date</Label>
-              <MeetupDate
-                v-model="editForm.meetup_date"
-                :selected-day="tradeSchedule.selectedDay"
-                :is-date-disabled="!tradeSchedule.meetup_location_id"
-                @update:model-value="handleDateSelection"
-              />
-              <p v-if="tradeSchedule.selectedDay" class="text-sm text-muted-foreground">
-                Only {{ tradeSchedule.selectedDay }} dates are available for this location
-              </p>
-            </div>
-          </div>
-
-          <!-- Notes -->
-          <div class="space-y-2 border-t pt-4">
-            <Label>Notes for Seller</Label>
-            <Textarea v-model="editForm.notes" rows="4" />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" @click="closeEditTradeModal">
-              Cancel
-            </Button>
-            <Button type="submit" :disabled="loading">
-              {{ loading ? 'Saving...' : 'Save Changes' }}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <!-- Replace the Edit Trade Dialog with TradeForm -->
+    <TradeForm 
+      v-if="showEditTradeDialog && tradeToEdit && tradeToEdit.sellerProduct"
+      :product="tradeToEdit.sellerProduct"
+      :open="showEditTradeDialog === true"
+      :existing-trade="tradeToEdit"
+      :edit-mode="true"
+      @close="closeEditTradeModal"
+      @update:open="closeEditTradeModal"
+    />
 
     <!-- Fix the image preview dialog -->
     <Dialog :open="!!previewImageUrl" @update:open="previewImageUrl = null" class="image-preview-dialog">
@@ -628,7 +482,7 @@
     </Dialog>
 
     <!-- Add the Reviews Dialog -->
-    <Dialog :open="showReviewsDialog" @update:open="showReviewsDialog = $event">
+    <Dialog :open="!!showReviewsDialog" @update:open="showReviewsDialog = $event">
       <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto scroll-smooth animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]">
         <DialogHeader>
           <DialogTitle>Seller Reviews</DialogTitle>
@@ -655,7 +509,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, reactive } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import DashboardLayout from './DashboardLayout.vue';
 import { Link } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
@@ -707,6 +561,8 @@ import SellerReviews from '@/Components/SellerReviews.vue';
 import MeetupDate from '@/Components/ui/trade-calendar/meetup-date.vue';
 // Add import for ScrollArea
 import { ScrollArea } from '@/Components/ui/scroll-area';
+// Add the TradeForm import
+import TradeForm from '@/Components/TradeForm.vue';
 
 const props = defineProps({
   auth: {
@@ -719,6 +575,13 @@ const props = defineProps({
   },
   trades: {
     type: Object,
+  },
+  flash: {
+    type: Object,
+    default: () => ({
+      success: null,
+      error: null
+    })
   }
 });
 
@@ -731,7 +594,7 @@ const { toast } = useToast();
 
 // Watch for flash messages from the server and show toasts
 watch(() => page.props.flash, (flash) => {
-  console.log('Flash message detected:', flash); // Debug log
+  // console.log('Flash message detected:', flash); // Debug log
   if (flash?.success) {
     toast({
       title: 'Success',
@@ -883,22 +746,40 @@ const handleImageError = (event) => {
   event.target.src = '/images/placeholder-product.jpg';
 };
 
-// Improved image URL handling to ensure quality
+// Enhanced getOptimizedImageUrl to better handle different image formats
 const getOptimizedImageUrl = (image, fallbackImage = '/images/placeholder-product.jpg') => {
   if (!image) {
     return fallbackImage;
   }
-  // Add cache-busting for remotely served images and ensure high quality
-  if (image.startsWith('http://') || image.startsWith('https://')) {
+  
+  // If the image is already a full URL
+  if (typeof image === 'string' && (image.startsWith('http://') || image.startsWith('https://'))) {
     const baseUrl = image.split('?')[0];
     return `${baseUrl}?quality=100&t=${Date.now()}`;
   }
-  // If the image path starts with 'storage/', add the leading slash
-  if (image.startsWith('storage/')) {
-    return '/' + image;
+  
+  // If the image is a path to storage
+  if (typeof image === 'string') {
+    // If the image path starts with 'storage/', add the leading slash
+    if (image.startsWith('storage/')) {
+      return '/' + image;
+    }
+    
+    // If it already has a leading slash, return as is
+    if (image.startsWith('/')) {
+      return image;
+    }
+    
+    // Otherwise assume it needs the storage prefix
+    return `/storage/${image}`;
   }
-  // Otherwise assume it needs the storage prefix
-  return `/storage/${image}`;
+  
+  // Handle case where image might be an object with url property
+  if (typeof image === 'object' && image !== null && image.url) {
+    return getOptimizedImageUrl(image.url, fallbackImage);
+  }
+  
+  return fallbackImage;
 };
 
 // Add state for image preview
@@ -923,255 +804,239 @@ const previewImage = (imageUrl) => {
   img.src = url;
 }
 
+// Format time in 12-hour format
+const formatTime = (time) => {
+  if (!time) return '';
+  try {
+    const [hours, minutes] = time.split(':');
+    const hourNum = parseInt(hours);
+    const suffix = hourNum >= 12 ? 'PM' : 'AM';
+    const hour12 = hourNum % 12 || 12;
+    return `${hour12}:${minutes} ${suffix}`;
+  } catch (e) {
+    console.error('Error formatting time:', e);
+    return time;
+  }
+};
+
 /**
  * Opens the trade details dialog and sets trade data
  */
 const viewTradeDetails = async (trade) => {
-  selectedTrade.value = trade;
-  showTradeDetails.value = true;
-  chatState.messages = [];
-  chatState.error = null;
-  await fetchMessages(trade.id);
+  try {
+    selectedTrade.value = trade;
+    showTradeDetails.value = true;
+    chatState.messages = [];
+    chatState.error = null;
+
+    // First fetch complete trade details
+    const response = await axios.get(route('trades.details', trade.id));
+    if (response.data && response.data.success && response.data.trade) {
+      selectedTrade.value = response.data.trade;
+
+      // Now always fetch complete product details to ensure we have images and seller info
+      try {
+        const productResponse = await axios.get(`/trade/products/${selectedTrade.value.seller_product_id}/details`);
+        if (productResponse.data) {
+          // Merge the product details into the sellerProduct property
+          selectedTrade.value.sellerProduct = {
+            ...selectedTrade.value.sellerProduct,
+            ...productResponse.data,
+            // Ensure images array is properly formatted for rendering
+            images: Array.isArray(productResponse.data.images) 
+              ? productResponse.data.images 
+              : (typeof productResponse.data.images === 'string' 
+                ? [productResponse.data.images] 
+                : [])
+          };
+
+          // Store the seller information correctly
+          if (productResponse.data.seller) {
+            selectedTrade.value.seller = {
+              ...selectedTrade.value.seller,
+              ...productResponse.data.seller
+            };
+          }
+          
+          // console.log("Updated product with complete details:", selectedTrade.value.sellerProduct);
+        }
+      } catch (productError) {
+        console.error("Failed to load additional product details:", productError);
+      }
+
+      // Format the preferred time in 12-hour format if it exists
+      if (selectedTrade.value.preferred_time) {
+        selectedTrade.value.preferred_time_formatted = formatTime(selectedTrade.value.preferred_time);
+      }
+
+      // Process offered items to ensure images are properly formatted
+      if (selectedTrade.value.offered_items) {
+        selectedTrade.value.offered_items = selectedTrade.value.offered_items.map(item => {
+          // Ensure images is correctly formatted
+          if (typeof item.images === 'string') {
+            try {
+              // Try to parse JSON string
+              item.images = JSON.parse(item.images);
+            } catch (e) {
+              // If not valid JSON, treat as a single image path
+              item.images = [item.images];
+            }
+          }
+          
+          // If still not an array, convert to array
+          if (!Array.isArray(item.images)) {
+            item.images = item.images ? [item.images] : [];
+          }
+          
+          // Make sure each image is a properly formatted URL
+          item.images = item.images.map(img => getOptimizedImageUrl(img));
+          
+          return item;
+        });
+      }
+    }
+    
+    await fetchMessages(trade.id);
+  } catch (error) {
+    console.error('Error loading trade details:', error);
+    toast({
+      title: 'Error',
+      description: 'Failed to load complete trade details',
+      variant: 'destructive'
+    });
+  }
 }
 
 /**
- * Closes the trade details dialog and resets state
+ * Closes the trade details dialog and resets data
  */
 const closeTradeDetails = () => {
-  selectedTrade.value = null;
   showTradeDetails.value = false;
-}
-
-// Check if there are any trades eligible for deletion
-const hasDeleteEligibleTrades = computed(() => {
-  return props.trades.data?.some(trade => isTradeEligibleForDelete(trade)) || false;
-});
-
-// Function to get all eligible trade IDs for bulk deletion
-const getEligibleTradeIds = () => {
-  return props.trades.data
-    ?.filter(trade => isTradeEligibleForDelete(trade))
-    ?.map(trade => trade.id) || [];
+  selectedTrade.value = null;
 };
-
-// Delete trade functions
-const promptDeleteTrade = (tradeId) => {
-  tradeToDelete.value = tradeId;
-  showDeleteAlert.value = true;
-};
-
-const confirmDeleteTrade = () => {
-  if (tradeToDelete.value) {
-    showDeleteAlert.value = false;
-    router.delete(route('trades.delete', tradeToDelete.value), {
-      onSuccess: (page) => {
-        toast({
-          title: 'Success',
-          description: page.props.flash?.success || 'Trade deleted successfully',
-          variant: 'default'
-        });
-        tradeToDelete.value = null;
-      },
-      onError: (errors) => {
-        toast({
-          title: 'Error',
-          description: errors.message || 'Failed to delete trade',
-          variant: 'destructive'
-        });
-        tradeToDelete.value = null;
-      }
-    });
-  }
-}
-
-// Bulk delete function
-const confirmBulkDelete = () => {
-  const tradeIds = getEligibleTradeIds();
-  if (tradeIds.length > 0) {
-    showBulkDeleteAlert.value = false;
-    router.delete(route('trades.bulk-delete'), {
-      data: { trade_ids: tradeIds },
-      onSuccess: (page) => {
-        toast({
-          title: 'Success',
-          description: page.props.flash?.success || 'Trades deleted successfully',
-          variant: 'default'
-        });
-      },
-      onError: (errors) => {
-        toast({
-          title: 'Error',
-          description: errors.message || 'Failed to delete trades',
-          variant: 'destructive'
-        });
-      }
-    });
-  }
-}
 
 /**
- * Open edit trade dialog and initialize form with trade data
+ * Opens the edit trade dialog and prepares data
  */
 const editTrade = async (trade) => {
   showTradeDetails.value = false;
-  tradeToEdit.value = trade;
-
-  // Initialize form with trade data
-  editForm.meetup_location_id = trade.meetup_location?.id || '';
-  editForm.additional_cash = trade.additional_cash || 0;
-  editForm.notes = trade.notes || '';
-
-  // Initialize offered items with deep clone of current items
-  editForm.offered_items = trade.offered_items?.map(item => ({
-    id: item.id,
-    name: item.name,
-    quantity: item.quantity,
-    estimated_value: parseFloat(item.estimated_value),
-    description: item.description || '',
-    images: [], // For new images
-    current_images: item.images || [] // Keep track of existing images
-  })) || [];
-
-  // Set the date if it exists
-  if (trade.meetup_schedule) {
-    selectedDate.value = new Date(trade.meetup_schedule);
-    editForm.meetup_date = new Date(trade.meetup_schedule);
-  } else {
-    selectedDate.value = null;
-    editForm.meetup_date = null;
-  }
-
-  // Load available meetup locations
-  try {
-    const response = await axios.get(`/trades/product/${trade.seller_product_id}/meetup-locations`);
-    if (response.data.success) {
-      availableMeetupLocations.value = response.data.meetup_locations || [];
-      // Set the current location in tradeSchedule if it exists
-      if (trade.meetup_location_id) {
-        tradeSchedule.meetup_location_id = trade.meetup_location_id;
-      }
-    } else {
-      availableMeetupLocations.value = [];
-      toast({
-        title: 'Warning',
-        description: 'Could not load meetup locations',
-        variant: 'default'
-      });
-    }
-  } catch (error) {
-    console.error('Error loading meetup locations:', error);
-    availableMeetupLocations.value = [];
-    toast({
-      title: 'Warning',
-      description: 'Could not load meetup locations',
-      variant: 'default'
-    });
-  }
-
-  showEditTradeDialog.value = true;
-}
-
-// Add validation and submission functions
-const editForm = reactive({
-  additional_cash: 0,
-  meetup_location_id: '',
-  meetup_date: null,
-  meetup_time: '',
-  notes: '',
-  offered_items: [],
-  selected_location: null,
-  meetup_schedules: []
-});
-
-watch(() => editForm.meetup_location_id, (newVal) => {
-  const location = availableMeetupLocations.value.find(loc => loc.id === newVal);
-  editForm.selected_location = location;
-});
-
-const submitEditedTrade = async () => {
-  if (!tradeToEdit.value) return;
   
-  loading.value = true;
+  // Initialize with basic data we already have
+  tradeToEdit.value = {
+    ...trade,
+    sellerProduct: trade.seller_product || null
+  };
+  
+  // Load trade details with all related data
   try {
-    const formData = new FormData();
-    formData.append('additional_cash', editForm.additional_cash);
-    formData.append('notes', editForm.notes);
-    formData.append('meetup_location_id', tradeSchedule.meetup_location_id || null);
-    formData.append('meetup_date', selectedDate.value ? format(selectedDate.value, 'yyyy-MM-dd') : null);
-
-    // Append offered items data
-    editForm.offered_items.forEach((item, index) => {
-      formData.append(`offered_items[${index}][id]`, item.id);
-      formData.append(`offered_items[${index}][name]`, item.name);
-      formData.append(`offered_items[${index}][quantity]`, item.quantity);
-      formData.append(`offered_items[${index}][estimated_value]`, item.estimated_value);
-      formData.append(`offered_items[${index}][description]`, item.description || '');
+    const response = await axios.get(route('trades.details', trade.id));
+    if (response.data && response.data.success && response.data.trade) {
+      // Update with complete data from API
+      tradeToEdit.value = {
+        ...response.data.trade,
+        sellerProduct: response.data.trade.sellerProduct || null
+      };
       
-      // Append any new images
-      if (item.images?.length) {
-        item.images.forEach((image, imageIndex) => {
-          formData.append(`offered_items[${index}][new_images][${imageIndex}]`, image);
-        });
-      }
-      // Append current images to keep
-      if (item.current_images?.length) {
-        formData.append(`offered_items[${index}][current_images]`, JSON.stringify(item.current_images));
-      }
-    });
+      // Always fetch full product details to ensure we have complete data
+      try {
+        const productResponse = await axios.get(`/trade/products/${tradeToEdit.value.seller_product_id}/details`);
+        if (productResponse.data) {
+          tradeToEdit.value.sellerProduct = {
+            ...tradeToEdit.value.sellerProduct,
+            ...productResponse.data
+          };
 
-    const response = await axios.patch(
-      route('trades.update', tradeToEdit.value.id), 
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+          // Store the seller information correctly
+          if (productResponse.data.seller) {
+            tradeToEdit.value.seller = {
+              ...tradeToEdit.value.seller,
+              ...productResponse.data.seller
+            };
+          }
+        }
+      } catch (productError) {
+        console.error("Failed to load additional product details for editing:", productError);
+        
+        // Try alternative API endpoint if the first attempt failed
+        try {
+          const fallbackResponse = await axios.get(`/api/products/${tradeToEdit.value.seller_product_id}`);
+          if (fallbackResponse.data) {
+            tradeToEdit.value.sellerProduct = {
+              ...tradeToEdit.value.sellerProduct,
+              ...fallbackResponse.data
+            };
+            
+            // Store the seller information correctly if available
+            if (fallbackResponse.data.seller) {
+              tradeToEdit.value.seller = {
+                ...tradeToEdit.value.seller,
+                ...fallbackResponse.data.seller
+              };
+            }
+          }
+        } catch (fallbackError) {
+          console.error("All attempts to load product details failed:", fallbackError);
         }
       }
-    );
+      
+      // Make sure offered items have the correct image format
+      if (tradeToEdit.value.offered_items) {
+        tradeToEdit.value.offered_items = tradeToEdit.value.offered_items.map(item => {
+          // Process images properly
+          let images = [];
+          if (item.images) {
+            if (typeof item.images === 'string') {
+              try {
+                images = JSON.parse(item.images);
+                if (!Array.isArray(images)) {
+                  images = [images];
+                }
+              } catch (e) {
+                images = [item.images];
+              }
+            } else if (Array.isArray(item.images)) {
+              images = item.images;
+            }
+          }
 
-    if (response.data.success) {
-      toast({
-        title: 'Success',
-        description: 'Trade updated successfully',
-        variant: 'default'
-      });
-      closeEditTradeModal();
+          // Map each image to a full URL
+          images = images.map(img => getOptimizedImageUrl(img));
+
+          return {
+            ...item,
+            // Store properly formatted images as current_images for editing
+            current_images: images,
+            // Initialize empty array for new images
+            images: []
+          };
+        });
+      }
+      
+      // console.log("Trade data loaded for editing:", tradeToEdit.value);
+      
+      if (!tradeToEdit.value.sellerProduct) {
+        toast({
+          title: 'Warning',
+          description: 'Product information is missing for this trade',
+          variant: 'warning'
+        });
+        return;
+      }
+
+      // Ensure it's a boolean, not the trade ID
+      showEditTradeDialog.value = true;
+    } else {
+      throw new Error('Invalid response format');
     }
   } catch (error) {
-    console.error('Error updating trade:', error);
+    console.error('Error loading trade details:', error);
     toast({
       title: 'Error',
-      description: error.response?.data?.message || 'Failed to update trade',
+      description: 'Failed to load trade details for editing',
       variant: 'destructive'
     });
-  } finally {
-    loading.value = false;
   }
-}
-
-/**
- * Show modal for editing trade from a button click
- */
-const showEditTradeModal = (trade) => {
-  editTrade(trade);
-}
-
-/**
- * Close edit trade dialog and reset form
- */
-const closeEditTradeModal = () => {
-  tradeToEdit.value = null;
-  showEditTradeDialog.value = false;
-  selectedDate.value = null;
-  tradeSchedule.meetup_location_id = '';
-  tradeSchedule.meetup_date = null;
-  tradeSchedule.selectedDay = '';
-  editForm.meetup_location_id = '';
-  editForm.meetup_date = null;
-  if (selectedTrade.value && showTradeDetails.value) {
-    fetchMessages(selectedTrade.value.id);
-  }
-}
+};
 
 // Add new state variables for chat
 const newMessage = ref('');
@@ -1215,7 +1080,7 @@ const scrollToBottom = () => {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
     });
   }
-}
+};
 
 const fetchMessages = async (tradeId) => {
   if (!tradeId) return; 
@@ -1253,7 +1118,7 @@ const refreshMessages = () => {
   if (selectedTrade.value?.id) {
     fetchMessages(selectedTrade.value.id);
   }
-}
+};
 
 const sendMessage = async () => {
   if (!selectedTrade.value?.id || !newMessage.value.trim()) return;
@@ -1283,7 +1148,7 @@ const sendMessage = async () => {
   } finally {
     isSendingMessage.value = false;
   }
-}
+};
 
 /**
  * Opens the cancel trade confirmation dialog
@@ -1325,15 +1190,93 @@ const confirmCancelTrade = () => {
           variant: 'destructive'
         });
         tradeToCancel.value = null;
-      }
+      },
     });
   }
-}
+};
+
+// Check if there are any trades eligible for deletion
+const hasDeleteEligibleTrades = computed(() => {
+  return props.trades.data?.some(trade => isTradeEligibleForDelete(trade)) || false;
+});
+
+// Function to get all eligible trade IDs for bulk deletion
+const getEligibleTradeIds = () => {
+  return props.trades.data
+    ?.filter(trade => isTradeEligibleForDelete(trade))
+    ?.map(trade => trade.id) || [];
+};
+
+// Delete trade functions
+const promptDeleteTrade = (tradeId) => {
+  tradeToDelete.value = tradeId;
+  showDeleteAlert.value = true;
+};
+
+const confirmDeleteTrade = () => {
+  if (tradeToDelete.value) {
+    showDeleteAlert.value = false;
+    router.delete(route('trades.delete', tradeToDelete.value), {
+      onSuccess: (page) => {
+        toast({
+          title: 'Success',
+          description: page.props.flash?.success || 'Trade deleted successfully',
+          variant: 'default'
+        });
+        tradeToDelete.value = null;
+      },
+      onError: (errors) => {
+        toast({
+          title: 'Error',
+          description: errors.message || 'Failed to delete trade',
+          variant: 'destructive'
+        });
+        tradeToDelete.value = null;
+      },
+    });
+  }
+};
+
+// Bulk delete function
+const confirmBulkDelete = () => {
+  const tradeIds = getEligibleTradeIds();
+  if (tradeIds.length > 0) {
+    showBulkDeleteAlert.value = false;
+    router.delete(route('trades.bulk-delete'), {
+      data: { trade_ids: tradeIds },
+      onSuccess: (page) => {
+        toast({
+          title: 'Success',
+          description: page.props.flash?.success || 'Trades deleted successfully',
+          variant: 'default'
+        });
+      },
+      onError: (errors) => {
+        toast({
+          title: 'Error',
+          description: errors.message || 'Failed to delete trades',
+          variant: 'destructive'
+        });
+      },
+    });
+  }
+};
+
+/**
+ * Close edit trade dialog and reset form
+ */
+const closeEditTradeModal = () => {
+  tradeToEdit.value = null;
+  showEditTradeDialog.value = false;
+  if (selectedTrade.value && showTradeDetails.value) {
+    fetchMessages(selectedTrade.value.id);
+  }
+};
 
 // Check if a trade is eligible for deletion (completed, cancelled, or rejected)
 const isTradeEligibleForDelete = (trade) => {
   return ['completed', 'canceled', 'rejected'].includes(trade.status);
-}
+};
 
 // Add state for reviews dialog
 const showReviewsDialog = ref(false);
@@ -1343,7 +1286,7 @@ const showReviewsDialog = ref(false);
  */
 const openReviewDialog = () => {
   showReviewsDialog.value = true;
-}
+};
 
 /**
  * Handle review submission completion
@@ -1357,7 +1300,7 @@ const handleReviewSubmitted = () => {
   setTimeout(() => {
     showReviewsDialog.value = false;
   }, 1500);
-}
+};
 
 /**
  * Opens the reviews dialog directly from a trade card
@@ -1367,7 +1310,7 @@ const openReviewDialogForTrade = (trade) => {
     selectedTrade.value = trade;
   }
   showReviewsDialog.value = true;
-}
+};
 
 // Add this function in your script setup section, before the component props
 const getStatusVariant = (status) => {
@@ -1384,7 +1327,7 @@ const getStatusVariant = (status) => {
 const formatDate = (date) => {
   if (!date) return 'Select date';
   return format(new Date(date), 'MMMM d, yyyy');
-}
+};
 
 // Add these helper functions after the other functions in the script setup section:
 const addOfferedItem = () => {
@@ -1419,19 +1362,6 @@ const getSelectedLocationName = () => {
     loc => loc.id === editForm.meetup_location_id
   );
   return location?.full_name || '';
-};
-
-// Add helper function for time formatting
-const formatTime = (time) => {
-  if (!time) return '';
-  const [hours, minutes] = time.split(':');
-  const date = new Date();
-  date.setHours(parseInt(hours), parseInt(minutes));
-  return date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit', 
-    hour12: true 
-  });
 };
 
 // Add computed property for available days
@@ -1490,7 +1420,7 @@ const loadMeetupLocations = async (productId) => {
       variant: 'destructive'
     });
   }
-}
+};
 
 // Add function to select a schedule
 const selectSchedule = (schedule) => {
@@ -1550,7 +1480,7 @@ watch(
       if (isNaN(dateObj.getTime())) throw new Error('Invalid date');
       
       editForm.meetup_date = format(dateObj, 'yyyy-MM-dd');
-      console.log("Selected date:", editForm.meetup_date);
+      // console.log("Selected date:", editForm.meetup_date);
     } catch (error) {
       console.error('Date conversion error:', error);
       editForm.meetup_date = '';
@@ -1594,7 +1524,7 @@ const handleMeetupSelection = (location, day) => {
             variant: "destructive"
         });
     }
-};
+}
 
 // Enhanced handleDateSelection function
 const handleDateSelection = (date) => {
@@ -1640,13 +1570,14 @@ watch(() => [tradeSchedule.meetup_location_id, tradeSchedule.selectedDay], () =>
     editForm.meetup_date = null;
 }, { deep: true });
 
-// Add debugging to check days being loaded from meetup locations
-watch(() => availableMeetupLocations.value, (locations) => {
-  if (locations && locations.length) {
-    console.log('Available days from meetup locations:', 
-      locations.flatMap(loc => loc.available_days || [])
-        .filter((value, index, self) => self.indexOf(value) === index)
-    );
-  }
-}, { immediate: true });
+// // Add debugging to check days being loaded from meetup locations
+// watch(() => availableMeetupLocations.value, (locations) => {
+//   if (locations && locations.length) {
+//     console.log('Available days from meetup locations:', 
+//       locations.flatMap(loc => loc.available_days || [])
+//         .filter((value, index, self) => self.indexOf(value) === index)
+//     );
+//   }
+// }, { immediate: true });
+
 </script>
