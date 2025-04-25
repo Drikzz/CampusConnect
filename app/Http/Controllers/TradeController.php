@@ -306,9 +306,9 @@ class TradeController extends Controller
                 'offered_items.*.estimated_value' => 'required|numeric|min:0',
                 'offered_items.*.description' => 'nullable|string',
                 'offered_items.*.condition' => 'required|string|in:new,used_like_new,used_good,used_fair',
-                'offered_items.*.image_files' => 'required|array|min:1',
-                'offered_items.*.image_files.*' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-                'offered_items.*.images_json' => 'required|string',
+                'offered_items.*.image_files' => 'sometimes|array',
+                'offered_items.*.image_files.*' => 'sometimes|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+                'offered_items.*.images_json' => 'sometimes|string',
             ]);
             
             DB::beginTransaction();
@@ -349,13 +349,26 @@ class TradeController extends Controller
             foreach ($validated['offered_items'] as $index => $item) {
                 $uploadedImages = [];
                 
+                // Check for existing images from MyTrades view (already in storage)
+                $existingImages = [];
+                if (isset($item['current_images']) && is_array($item['current_images'])) {
+                    foreach ($item['current_images'] as $currentImage) {
+                        // Clean up storage path format
+                        $path = str_replace('/storage/', '', $currentImage);
+                        if (Storage::disk('public')->exists($path)) {
+                            $existingImages[] = $path;
+                        }
+                    }
+                }
+                
+                // Process image files
                 if ($request->hasFile("offered_items.{$index}.image_files")) {
                     $files = $request->file("offered_items.{$index}.image_files");
-                    $imagesJson = json_decode($item['images_json'] ?? '[]', true);
+                    $imagesJson = isset($item['images_json']) ? json_decode($item['images_json'] ?? '[]', true) : [];
                     
                     foreach ($files as $fileIndex => $file) {
                         // Check if we have metadata for this file
-                        $fileInfo = $imagesJson[$fileIndex] ?? null;
+                        $fileInfo = isset($imagesJson[$fileIndex]) ? $imagesJson[$fileIndex] : null;
                         
                         // If file is a cropped image with a storage path, use that path
                         if ($fileInfo && isset($fileInfo['is_cropped']) && $fileInfo['is_cropped'] && 
@@ -376,6 +389,25 @@ class TradeController extends Controller
                     }
                 }
                 
+                // Handle base64 images for blob URLs (when coming from MyTrades)
+                if (isset($item['blob_images']) && is_array($item['blob_images'])) {
+                    foreach ($item['blob_images'] as $blobIndex => $blobData) {
+                        if (isset($blobData['data']) && isset($blobData['extension'])) {
+                            // Generate a unique filename
+                            $filename = 'trade_items/' . uniqid() . '.' . $blobData['extension'];
+                            
+                            // Convert base64 to file and store
+                            $imageData = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $blobData['data']));
+                            Storage::disk('public')->put($filename, $imageData);
+                            
+                            $uploadedImages[] = $filename;
+                        }
+                    }
+                }
+                
+                // Combine existing and new images
+                $allImages = array_merge($existingImages, $uploadedImages);
+                
                 // Important: Store images as a plain JSON array of strings, not as a string of a JSON array
                 TradeOfferedItem::create([
                     'trade_transaction_id' => $trade->id,
@@ -384,7 +416,7 @@ class TradeController extends Controller
                     'estimated_value' => $item['estimated_value'],
                     'description' => $item['description'] ?? '',
                     'condition' => $item['condition'],
-                    'images' => json_encode($uploadedImages, JSON_UNESCAPED_SLASHES)
+                    'images' => json_encode($allImages, JSON_UNESCAPED_SLASHES)
                 ]);
             }
             

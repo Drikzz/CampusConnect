@@ -23,6 +23,12 @@ const { toast } = useToast();
 provide('globalToast', toast); // Make toast available to all child components
 
 const isOpen = ref(false);
+
+// Add function to close sidebar
+const closeSidebar = () => {
+  isOpen.value = false;
+};
+
 const mode = useColorMode();
 const page = usePage();
 const searchQuery = ref('');
@@ -259,11 +265,12 @@ watch(() => page.props.flash.toast, (flashToast) => {
               </div>
 
               <div class="grid gap-4 py-4">
-                <!-- Mobile Navigation -->
+                <!-- Mobile Navigation - Update to close sidebar on click -->
                 <Button 
                   variant="ghost" 
                   asChild 
                   class="w-full justify-start"
+                  @click="closeSidebar"
                 >
                   <Link :href="route('products')">Shop Now</Link>
                 </Button>
@@ -271,23 +278,24 @@ watch(() => page.props.flash.toast, (flashToast) => {
                   variant="ghost" 
                   asChild 
                   class="w-full justify-start"
+                  @click="closeSidebar"
                 >
                   <Link href="/trade">Trade Now</Link>
                 </Button>
 
-                <!-- Auth links for mobile -->
+                <!-- Auth links for mobile - Update to close sidebar on click -->
                 <Separator />
                 <div class="space-y-4">
                   <template v-if="!auth?.user">
-                    <Button variant="outline" asChild class="w-full">
+                    <Button variant="outline" asChild class="w-full" @click="closeSidebar">
                       <Link :href="route('login')">Login</Link>
                     </Button>
-                    <Button variant="default" asChild class="w-full">
+                    <Button variant="default" asChild class="w-full" @click="closeSidebar">
                       <Link :href="route('register.personal-info')">Sign Up</Link>
                     </Button>
                   </template>
                   <template v-else>
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" asChild @click="closeSidebar">
                       <Link href="/dashboard/profile">My Profile</Link>
                     </Button>
                   </template>

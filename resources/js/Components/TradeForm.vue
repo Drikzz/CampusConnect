@@ -15,7 +15,6 @@ import { RadioGroup, RadioGroupItem } from "@/Components/ui/radio-group";
 import TradeSummaryDialog from './TradeSummaryDialog.vue';
 import { ImageUploader } from "@/Components/ui/image-uploader";
 import { ImagePreview } from "@/Components/ui/image-preview";
-import axios from 'axios';
 
 const globalToast = inject('globalToast', null);
 const { toast: localToast } = useToast();
@@ -46,22 +45,10 @@ const props = defineProps({
     open: {
         type: Boolean,
         required: true
-    },
-    existingTrade: {
-        type: Object,
-        default: null
-    },
-    editMode: {
-        type: Boolean,
-        default: false
     }
 });
 
-const isProductValid = computed(() => {
-    return props.product && typeof props.product === 'object' && props.product.id;
-});
-
-const emit = defineEmits(['close', 'update:open', 'updateSuccess']);
+const emit = defineEmits(['close', 'update:open']);
 const loading = ref(false);
 const errors = ref({});
 const meetupLocations = ref([]);
@@ -72,7 +59,7 @@ const isMapReady = ref(false);
 const showSummaryDialog = ref(false);
 
 const form = useForm({
-    seller_product_id: isProductValid.value ? props.product.id : null,
+    seller_product_id: props.product.id,
     meetup_location_id: '',
     meetup_date: '',
     preferred_time: '',
@@ -111,12 +98,7 @@ const handleCroppedImage = (croppedImageData, itemIndex) => {
   }
   
   const blob = new Blob([ab], { type: 'image/jpeg' });
-  const timestamp = Date.now();
-  const fileName = `trade_items/${timestamp}-item-${itemIndex}.jpg`;
-  const file = new File([blob], fileName, { type: 'image/jpeg' });
-  
-  file.isCropped = true;
-  file.storagePath = `storage/${fileName}`;
+  const file = new File([blob], `item-${itemIndex}-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
   
   if (!form.offered_items[itemIndex].images) {
     form.offered_items[itemIndex].images = [];
@@ -126,7 +108,9 @@ const handleCroppedImage = (croppedImageData, itemIndex) => {
   clearItemFieldError(itemIndex, 'images');
 };
 
+// Modify this function to ensure errors are strings, not arrays
 const handleImageUploaderError = (itemIndex, errorMessage) => {
+  // Convert array to string if needed
   const errorString = Array.isArray(errorMessage) ? errorMessage[0] : errorMessage;
   errors.value[`item_${itemIndex}_images`] = errorString;
 };
@@ -141,24 +125,15 @@ const conditionOptions = [
 ];
 
 const productImageUrl = computed(() => {
-  if (productDetails.value && productDetails.value.images && productDetails.value.images.length > 0) {
-    return productDetails.value.images[0];
-  }
-  
-  if (props.product?.images && props.product.images.length > 0) {
-    const image = props.product.images[0];
-    if (typeof image === 'string') {
-      return image;
-    }
-  }
-  
-  return '/images/placeholder-product.jpg';
+  return props.product?.images?.[0] 
+    ? `/storage/${props.product.images[0]}` 
+    : '/images/placeholder-product.jpg';
 });
 
 const sellerName = computed(() => {
-  if (!isProductValid.value || !props.product.seller) return 'Unknown Seller';
-  
-  return `${props.product.seller.first_name || ''} ${props.product.seller.last_name || ''}`.trim() || 'Unknown Seller';
+  return props.product?.seller 
+    ? `${props.product.seller.first_name} ${props.product.seller.last_name}`
+    : 'Unknown Seller';
 });
 
 const sellerProfilePicture = computed(() => {
@@ -184,19 +159,23 @@ const productEffectivePrice = computed(() => {
     : parseFloat(props.product.price);
 });
 
-const showValueValidation = ref(false);
+const showValueValidation = ref(false); // Add this flag to track whether to show validation
 
+// Update the isValueSufficient computed property
 const isValueSufficient = computed(() => {
+  // Only validate if we're actually showing validation
   if (!showValueValidation.value) return true;
   return totalOfferedValue.value >= productEffectivePrice.value;
 });
 
+// Create a computed property for the value error message
 const totalValueErrorMessage = computed(() => {
   if (isValueSufficient.value) return '';
   return `The total estimated value of your offer (₱${formatPrice(totalOfferedValue.value)}) must be at least the product's value (₱${formatPrice(productEffectivePrice.value)})`;
 });
 
 watch(() => form.offered_items, () => {
+  // Only enable validation if user has started adding values
   const hasValues = form.offered_items.some(item => 
     item.estimated_value > 0 || item.quantity > 1 || item.name || item.description
   ) || form.additional_cash > 0;
@@ -348,10 +327,6 @@ watch(
 );
 
 const handleDialogClose = (isOpen) => {
-    if (typeof isOpen !== 'boolean') {
-        isOpen = false;
-    }
-    
     if (!isOpen) {
         closeDialog();
     }
@@ -394,10 +369,13 @@ watch(() => selectedScheduleId.value, (newValue, oldValue) => {
   }
 }, { immediate: true });
 
+// Add watchers to clear errors when corresponding fields change
 watch(() => selectedScheduleId.value, (newValue) => {
+  // Clear the specific schedule error when a day is selected or deselected
   if (errors.value && errors.value.meetup_schedule) {
     delete errors.value.meetup_schedule;
   }
+  // Also clear date/time if the day selection is cleared
   if (!newValue) {
       form.meetup_date = '';
       form.preferred_time = '';
@@ -474,22 +452,18 @@ const removeOfferedItem = (index) => {
     }
 };
 
-const getFilePreview = (file) => {
-  if (typeof file === 'string') {
-    return file;
-  }
-  return URL.createObjectURL(file);
-};
-
 const getFormattedMeetupSchedule = () => {
   if (!form.meetup_date || !form.preferred_time || !selectedScheduleDay.value) {
     return null;
   }
   
+  // Format for Laravel Carbon parsing: YYYY-MM-DD HH:MM
+  // The controller expects this to be split by comma
   return `${form.meetup_date}, ${form.preferred_time}`;
 }
 
 const validateLocationAndSchedule = () => {
+  // Clear only location-related errors
   if (errors.value.meetup_schedule) delete errors.value.meetup_schedule;
 
   let isValid = true;
@@ -497,13 +471,15 @@ const validateLocationAndSchedule = () => {
   if (!form.meetup_location_id) {
     errors.value.meetup_schedule = 'Please select a meetup location first';
     isValid = false;
-    return isValid;
+    return isValid; // Stop if no location selected
   }
 
+  // Check if there are available schedules for this location
   const locationData = schedulesByLocation.value[form.meetup_location_id];
   if (!locationData || !locationData.schedules || locationData.schedules.length === 0) {
     errors.value.meetup_schedule = 'This location has no available schedules';
     isValid = false;
+    // No return here, allow other checks if needed, but mark as invalid
   }
 
   return isValid;
@@ -519,10 +495,12 @@ const scrollToFirstError = () => {
         'meetup_schedule',
         'meetup_date',
         'preferred_time',
-        'total_offered_value',
-        'offered_items',
+        'total_offered_value', // Add the new error key here
+        'offered_items', // General items error
+        // Specific item errors will be handled below
     ];
 
+    // Find the first error based on priority
     for (const fieldName of errorPriority) {
         if (errors.value[fieldName]) {
             targetField = document.querySelector(`[data-error="${fieldName}"]`);
@@ -530,6 +508,7 @@ const scrollToFirstError = () => {
         }
     }
 
+    // If not found yet, look for specific item field errors
     if (!targetField) {
         for (const key of errorFields) {
             if (key.startsWith('offered_items.') || key.startsWith('item_')) {
@@ -537,7 +516,9 @@ const scrollToFirstError = () => {
                 if (match) {
                     const index = match[1];
                     const field = match[2];
+                    // Try finding the input directly
                     targetField = document.querySelector(`#item_${field}_${index}`);
+                    // If input not found, target the item container
                     if (!targetField) {
                          targetField = document.querySelector(`[data-item-index="${index}"]`);
                     }
@@ -547,6 +528,7 @@ const scrollToFirstError = () => {
         }
     }
 
+    // Fallback: find any element with the error class or the first error container
     if (!targetField) {
         targetField = document.querySelector('.border-destructive') || document.querySelector('[data-error]');
     }
@@ -563,55 +545,59 @@ const scrollToFirstError = () => {
   });
 };
 
+// Add this helper to clear errors for specific items in the array
 const clearItemFieldError = (index, fieldName) => {
   const errorKey = `offered_items.${index}.${fieldName}`;
   if (errors.value && errors.value[errorKey]) {
     delete errors.value[errorKey];
   }
+  // Also clear the older format if it exists
   const oldErrorKey = `item_${index}_${fieldName}`;
    if (errors.value && errors.value[oldErrorKey]) {
     delete errors.value[oldErrorKey];
   }
 };
 
-const updateItemImages = (index, images) => {
-  form.offered_items[index].images = images;
-  if (errors.value[`offered_items.${index}.images`]) {
-    delete errors.value[`offered_items.${index}.images`];
-  }
-};
-
+// Ensure consistent error format in all validation functions
 const submitTradeOffer = () => {
+  // Enable validation immediately at the start for all fields
   showValueValidation.value = true;
 
   console.log('--- submitTradeOffer called ---', new Date().toLocaleTimeString());
+  // Clear ALL errors before submission
   errors.value = {};
   
+  // Track all validation results instead of returning early
   let isValid = true;
 
+  // Step 1: Validate Location is selected and has schedules
   if (!validateLocationAndSchedule()) {
     console.log('Validation failed: Location/Schedule Availability');
     isValid = false;
   }
 
+  // Step 2: Validate Day (Schedule ID) is selected
   if (!selectedScheduleId.value) {
     console.log('Validation failed: Day not selected');
     errors.value.meetup_schedule = 'Please select an available day first';
     isValid = false;
   }
 
+  // Step 3: Validate Date is selected
   if (!form.meetup_date) {
     console.log('Validation failed: Date not selected');
     errors.value.meetup_date = 'Please select a valid meetup date';
     isValid = false;
   }
 
+  // Step 4: Validate Time is selected
   if (!form.preferred_time) {
     console.log('Validation failed: Time not selected');
     errors.value.preferred_time = 'Please select a preferred time';
     isValid = false;
   }
 
+  // Step 5: Validate Offered Items - but now without validating individual estimated values
   let isItemsValid = true;
 
   if (!form.offered_items || form.offered_items.length === 0) {
@@ -619,24 +605,30 @@ const submitTradeOffer = () => {
     isItemsValid = false;
   } else {
     form.offered_items.forEach((item, index) => {
+      // Check name field
       if (!item.name) {
         errors.value[`offered_items.${index}.name`] = 'Item name is required';
-        errors.value[`item_${index}_name`] = 'Item name is required';
+        errors.value[`item_${index}_name`] = 'Item name is required'; // Add both formats for consistency
         isItemsValid = false;
       }
       
+      // Check quantity field
       if (!item.quantity || item.quantity < 1) {
         errors.value[`offered_items.${index}.quantity`] = 'Quantity must be at least 1';
-        errors.value[`item_${index}_quantity`] = 'Quantity must be at least 1';
+        errors.value[`item_${index}_quantity`] = 'Quantity must be at least 1'; // Add both formats
         isItemsValid = false;
       }
       
+      // REMOVED individual estimated value validation
+      
+      // Check condition field
       if (!item.condition) {
         errors.value[`offered_items.${index}.condition`] = 'Condition is required';
-        errors.value[`item_${index}_condition`] = 'Condition is required';
+        errors.value[`item_${index}_condition`] = 'Condition is required'; // Add both formats
         isItemsValid = false;
       }
       
+      // Check images field
       if (!item.images || item.images.length === 0) {
         errors.value[`offered_items.${index}.images`] = 'At least one image is required';
         errors.value[`item_${index}_images`] = 'At least one image is required';
@@ -650,6 +642,7 @@ const submitTradeOffer = () => {
     isValid = false;
   }
 
+  // Step 6: Validate Total Offered Value
   console.log(`Comparing Offered: ${totalOfferedValue.value} vs Product: ${productEffectivePrice.value}`);
   if (totalOfferedValue.value < productEffectivePrice.value) {
     console.log('Validation failed: Total offered value too low');
@@ -657,36 +650,34 @@ const submitTradeOffer = () => {
     isValid = false;
   }
 
+  // Only proceed to summary if all validations pass
   if (!isValid) {
     console.log('Validation failed. Showing all errors.');
     scrollToFirstError();
     return;
   }
 
+  // If all validations pass, show the summary dialog
   console.log('All validations passed. Showing summary dialog.');
   showSummaryDialog.value = true;
 };
 
 const confirmAndSubmit = () => {
-  loading.value = true;
-  
+  loading.value = true; // Set loading state
+
   const formData = new FormData();
   const formattedSchedule = getFormattedMeetupSchedule();
-  
+
+  // This check should ideally not be needed if validation passed, but keep as safeguard
   if (!formattedSchedule) {
     errors.value = { ...errors.value, meetup_schedule: 'Invalid meetup schedule details' };
     loading.value = false;
-    showSummaryDialog.value = false;
+    showSummaryDialog.value = false; // Only close if there's an error
     scrollToFirstError();
     return;
   }
-  
-  const isUpdate = props.editMode && props.existingTrade?.id;
-  
-  if (isUpdate) {
-      formData.append('trade_id', props.existingTrade.id);
-  }
-  
+
+  // Append all data (same as before)
   formData.append('meetup_schedule', formattedSchedule);
   formData.append('selected_day', selectedScheduleDay.value);
   formData.append('seller_product_id', form.seller_product_id);
@@ -694,97 +685,54 @@ const confirmAndSubmit = () => {
   formData.append('preferred_time', form.preferred_time);
   formData.append('additional_cash', form.additional_cash || 0);
   formData.append('notes', form.notes || '');
-  
+
   form.offered_items.forEach((item, index) => {
-      if (isUpdate && item.id) {
-          formData.append(`offered_items[${index}][id]`, item.id);
-      }
-      
-      formData.append(`offered_items[${index}][name]`, item.name);
-      formData.append(`offered_items[${index}][quantity]`, item.quantity);
-      formData.append(`offered_items[${index}][estimated_value]`, item.estimated_value);
-      formData.append(`offered_items[${index}][description]`, item.description || '');
-      formData.append(`offered_items[${index}][condition]`, item.condition);
-      
-      if (item.current_images && item.current_images.length > 0) {
-          formData.append(
-              `offered_items[${index}][current_images]`, 
-              JSON.stringify(item.current_images)
-          );
-      }
-      
-      const imageInfoArray = [];
-      if (item.images && item.images.length > 0) {
-          item.images.forEach((image, imageIndex) => {
-              if (image instanceof File) {
-                  const uniqueFilename = image.isCropped 
-                      ? image.storagePath.replace(/^\/?(storage\/)?/, '') 
-                      : `trade_items/${Date.now()}-${image.name}`;
-                  
-                  formData.append(`offered_items[${index}][image_files][]`, image);
-                  
-                  imageInfoArray.push({
-                      original_name: image.name, 
-                      size: image.size, 
-                      type: image.type, 
-                      unique_key: uniqueFilename,
-                      is_cropped: !!image.isCropped,
-                      storage_path: image.storagePath ? image.storagePath.replace(/^\/?(storage\/)?/, '') : null
-                  });
-              }
+    // ... (existing image processing logic remains the same) ...
+    formData.append(`offered_items[${index}][name]`, item.name);
+    formData.append(`offered_items[${index}][quantity]`, item.quantity);
+    formData.append(`offered_items[${index}][estimated_value]`, item.estimated_value);
+    formData.append(`offered_items[${index}][description]`, item.description || '');
+    formData.append(`offered_items[${index}][condition]`, item.condition);
+
+    const imageInfoArray = [];
+    if (item.images && item.images.length > 0) {
+      item.images.forEach((image, imageIndex) => {
+        if (image instanceof File) {
+          const uniqueFilename = `offered_item_${index}_image_${imageIndex}_${Date.now()}_${image.name}`;
+          formData.append(`offered_items[${index}][image_files][]`, image);
+          imageInfoArray.push({
+            original_name: image.name, size: image.size, type: image.type, unique_key: uniqueFilename
           });
-          
-          if (imageInfoArray.length > 0) {
-              formData.append(`offered_items[${index}][images_json]`, JSON.stringify(imageInfoArray));
-          }
-      }
-  });
-  
-  const routeUrl = isUpdate 
-      ? route('trades.update', props.existingTrade.id) 
-      : route('trade.submit');
-  
-  const method = isUpdate ? 'post' : 'post';
-  
-  if (isUpdate) {
-      formData.append('_method', 'PATCH');
-  }
-  
-  router[method](routeUrl, formData, {
-      forceFormData: true,
-      preserveScroll: true,
-      onSuccess: () => {
-        toast({ 
-            title: "Success", 
-            description: isUpdate ? "Trade updated successfully!" : "Trade offer submitted successfully!", 
-            variant: "success" 
-        });
-        showSummaryDialog.value = false;
-        
-        if (isUpdate) {
-            emit('updateSuccess');
         }
-        
-        nextTick(() => {
-          closeDialog();
-        });
+      });
+      formData.append(`offered_items[${index}][images_json]`, JSON.stringify(imageInfoArray));
+    }
+  });
+
+  // Perform the actual submission
+  router.post(route('trade.submit'), formData, {
+    forceFormData: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({ title: "Success", description: "Trade offer submitted successfully!", variant: "success" });
+      // Only close dialogs after successful submission
+      showSummaryDialog.value = false;
+      closeDialog(); 
     },
-      onError: (validationErrors) => {
-          showSummaryDialog.value = false;
-          errors.value = validationErrors;
-          toast({ 
-              title: "Error", 
-              description: "Please check the form for errors", 
-              variant: "destructive" 
-          });
-          
-          nextTick(() => {
-              scrollToFirstError();
-          });
-      },
-      onFinish: () => {
-          loading.value = false;
-      }
+    onError: (validationErrors) => {
+      // When there are errors, close the summary dialog and show errors on the form
+      showSummaryDialog.value = false;
+      errors.value = validationErrors; // Show errors from backend
+      toast({ title: "Error", description: "Please check the form for errors", variant: "destructive" });
+      
+      // Wait for DOM update before scrolling
+      nextTick(() => {
+        scrollToFirstError();
+      });
+    },
+    onFinish: () => {
+      loading.value = false; // Reset loading state
+    }
   });
 };
 
@@ -800,6 +748,7 @@ const selectLocationFromMap = (location) => {
   
   console.log('Selecting location from map:', location);
   
+  // Clear ALL schedule-related errors when selecting a new location
   if (errors.value.meetup_schedule) delete errors.value.meetup_schedule;
   if (errors.value.meetup_date) delete errors.value.meetup_date;
   if (errors.value.preferred_time) delete errors.value.preferred_time;
@@ -821,33 +770,43 @@ const selectLocationFromMap = (location) => {
     return;
   }
   
+  // Reset form values related to scheduling
   form.meetup_location_id = locationId;
   console.log('Set meetup_location_id to:', locationId);
   
+  // Clear these values when changing location
   selectedScheduleId.value = '';
   form.meetup_date = '';
   form.preferred_time = '';
   selectedSchedule.value = null;
   
+  // Close popups
   markers.value.forEach(marker => {
     if (marker.isPopupOpen()) {
       marker.closePopup();
     }
   });
   
+  // Only hide the map after location is selected
   showMap.value = false;
   
+  // Set a default schedule if available (first one for this location)
   nextTick(() => {
     const locationData = schedulesByLocation.value[locationId];
     if (locationData && locationData.schedules && locationData.schedules.length > 0) {
+      // Auto-select the first schedule for better UX - REMOVED THIS LINE
+      // selectedScheduleId.value = locationData.schedules[0].id;
+      // console.log('Auto-selected schedule:', selectedScheduleId.value); // REMOVED
     }
   });
 };
 
+// Add this helper to clear errors when users interact with specific fields
 const clearFieldError = (fieldName) => {
   if (errors.value && errors.value[fieldName]) {
     delete errors.value[fieldName];
   }
+  // Clear any other error that might be displayed prematurely
   if (fieldName === 'meetup_schedule' && errors.value.meetup_date) {
     delete errors.value.meetup_date;
   }
@@ -924,23 +883,20 @@ const closeDialog = () => {
     form.reset();
     errors.value = {};
     selectedSchedule.value = null;
-    showValueValidation.value = false;
+    showValueValidation.value = false; // Reset validation flag
     emit('close');
     emit('update:open', false);
 };
 
 const formatTime = (time) => {
-  if (!time) return '';
-  try {
+    if (!time) return '';
     const [hours, minutes] = time.split(':');
-    const hourNum = parseInt(hours);
-    const suffix = hourNum >= 12 ? 'PM' : 'AM';
-    const hour12 = hourNum % 12 || 12;
-    return `${hour12}:${minutes} ${suffix}`;
-  } catch (e) {
-    console.error('Error formatting time:', e);
-    return time;
-  }
+    const date = new Date(2000, 0, 1, hours, minutes);
+    return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    }).toLowerCase();
 };
 
 const formatPrice = (price) => {
@@ -1004,274 +960,23 @@ const schedulesByLocation = computed(() => {
   return grouped;
 });
 
-const productDetails = ref(null);
-const isLoadingProduct = ref(false);
-const productLoadError = ref(null);
-
-const loadCompleteProductDetails = async () => {
-  if (!props.product?.id) return;
-  
-  isLoadingProduct.value = true;
-  
-  try {
-    const response = await axios.get(`/trade/products/${props.product.id}/details`);
-      
-    if (response.data) {
-      productDetails.value = response.data;
-      updateProductWithDetails();
-    }
-  } catch (error) {
-    console.error('Failed to load product details:', error);
-    productLoadError.value = 'Failed to load product details';
-  } finally {
-    isLoadingProduct.value = false;
-  }
-};
-
-const updateProductWithDetails = () => {
-  if (props.product && productDetails.value) {
-    props.product.images = ensureArrayFormat(productDetails.value.images);
-    
-    if (productDetails.value.seller) {
-      props.product.seller = productDetails.value.seller;
-    }
-    
-    console.log('Updated product with complete details:', props.product);
-  }
-};
-
-const ensureArrayFormat = (images) => {
-  if (!images) return [];
-  if (Array.isArray(images)) return images;
-  return typeof images === 'string' ? [images] : [];
-};
-
-const prepareOfferForSummary = (formData) => {
-  const prepared = { ...formData };
-  
-  if (prepared.offered_items && Array.isArray(prepared.offered_items)) {
-    prepared.offered_items = prepared.offered_items.map(item => {
-      const itemCopy = { ...item };
-      
-      let processedImages = [];
-      
-      if (itemCopy.images) {
-        // Process current_images first - these are existing images from the database
-        if (itemCopy.current_images && Array.isArray(itemCopy.current_images) && itemCopy.current_images.length > 0) {
-          // Current images are already processed paths, use them directly
-          itemCopy.current_images.forEach(imgPath => {
-            if (typeof imgPath === 'string' && !processedImages.includes(imgPath)) {
-              processedImages.push(imgPath);
-            }
-          });
-        }
-        
-        // Then process new images (File objects)
-        if (Array.isArray(itemCopy.images)) {
-          itemCopy.images.forEach(img => {
-            if (img instanceof File) {
-              // For cropped images that already have a storage path
-              if (img.isCropped && img.storagePath) {
-                const cleanPath = img.storagePath.replace(/^\/?(storage\/)?/, '');
-                processedImages.push(cleanPath);
-              } else {
-                // For edit mode, skip blob URLs as we should already have current_images
-                if (!props.editMode) {
-                  // For new files in new trades, create blob URLs for preview
-                  const blobUrl = URL.createObjectURL(img);
-                  processedImages.push({ 
-                    isBlob: true,
-                    url: blobUrl,
-                    originalName: img.name
-                  });
-                }
-              }
-            } else if (typeof img === 'string' && !processedImages.includes(img)) {
-              // Clean up any storage prefix and add string paths
-              const cleanPath = img.replace(/^\/?(storage\/)?/, '');
-              processedImages.push(cleanPath);
-            }
-          });
-        } else if (typeof itemCopy.images === 'string') {
-          // Single string path
-          const cleanPath = itemCopy.images.replace(/^\/?(storage\/)?/, '');
-          processedImages.push(cleanPath);
-        } else if (itemCopy.images instanceof File) {
-          // Single File object
-          if (itemCopy.images.isCropped && itemCopy.images.storagePath) {
-            const cleanPath = itemCopy.images.storagePath.replace(/^\/?(storage\/)?/, '');
-            processedImages.push(cleanPath);
-          } else if (!props.editMode) {
-            // For new trades, create blob URL for preview
-            const blobUrl = URL.createObjectURL(itemCopy.images);
-            processedImages.push({ 
-              isBlob: true,
-              url: blobUrl,
-              originalName: itemCopy.images.name
-            });
-          }
-        }
-      }
-      
-      console.log("Image data before preparing for summary:", itemCopy.images);
-      console.log("Image data after preparing for summary:", processedImages);
-      
-      return {
-        ...itemCopy,
-        images: processedImages
-      };
-    });
-  }
-  
-  return prepared;
-};
-
-const initializeFormWithExistingTrade = async () => {
-  const trade = props.existingTrade;
-  console.log("Initializing form with existing trade:", trade);
-  
-  if (trade.seller_product_id) {
-    await loadCompleteProductDetails();
-  }
-  
-  form.seller_product_id = trade.seller_product_id || props.product.id;
-  form.meetup_location_id = trade.meetup_location_id?.toString() || '';
-  form.additional_cash = parseFloat(trade.additional_cash || 0);
-  form.notes = trade.notes || '';
-  
-  // Handle meetup schedule
-  if (trade.meetup_schedule) {
-    const meetupDate = new Date(trade.meetup_schedule);
-    if (!isNaN(meetupDate.getTime())) {
-      const year = meetupDate.getFullYear();
-      const month = String(meetupDate.getMonth() + 1).padStart(2, '0');
-      const day = String(meetupDate.getDate()).padStart(2, '0');
-      form.meetup_date = `${year}-${month}-${day}`;
-      
-      const hours = String(meetupDate.getHours()).padStart(2, '0');
-      const minutes = String(meetupDate.getMinutes()).padStart(2, '0');
-      form.preferred_time = `${hours}:${minutes}`;
-      
-      const dayIndex = meetupDate.getDay();
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayName = days[dayIndex];
-      
-      fetchMeetupLocations().then(() => {
-        nextTick(() => {
-          if (form.meetup_location_id) {
-            const locationSchedules = availableSchedules.value.filter(
-              schedule => schedule.meetup_location_id.toString() === form.meetup_location_id.toString()
-            );
-            
-            const matchingSchedule = locationSchedules.find(
-              schedule => schedule.day.toLowerCase() === dayName.toLowerCase()
-            );
-            
-            if (matchingSchedule) {
-              console.log("Setting selected schedule to:", matchingSchedule.id);
-              selectedScheduleId.value = matchingSchedule.id;
-              
-              showMap.value = false;
-            }
-          }
-        });
-      });
-    }
-  }
-  
-  // Process offered items - properly decode images from JSON
-  if (trade.offered_items && Array.isArray(trade.offered_items) && trade.offered_items.length > 0) {
-    form.offered_items = trade.offered_items.map(item => {
-      let processedImages = [];
-      
-      // Handle images from database which are stored as JSON
-      if (item.images) {
-        try {
-          // First, ensure we're working with an array of paths
-          let imagePaths;
-          
-          if (typeof item.images === 'string') {
-            // Try to parse if this is a JSON string
-            try {
-              imagePaths = JSON.parse(item.images);
-            } catch (e) {
-              // Not a JSON string, treat as a single path
-              imagePaths = [item.images];
-            }
-          } else if (Array.isArray(item.images)) {
-            // Already an array
-            imagePaths = item.images;
-          } else {
-            // Fallback for unknown format
-            imagePaths = [];
-          }
-          
-          // Ensure array format
-          imagePaths = Array.isArray(imagePaths) ? imagePaths : [imagePaths];
-          
-          // Process each path to ensure consistent format
-          processedImages = imagePaths.map(path => {
-            // Handle URLs
-            if (typeof path === 'string') {
-              // Remove storage prefix if present - will be added when rendering
-              return path.replace(/^\/?(storage\/)?/, '');
-            }
-            return path;
-          });
-        } catch (e) {
-          console.error("Error processing image paths:", e);
-          processedImages = [];
-        }
-      }
-      
-      // If item has current_images (from previous edit), use those too
-      if (item.current_images && Array.isArray(item.current_images)) {
-        processedImages = [...processedImages, ...item.current_images.map(path => {
-          if (typeof path === 'string') {
-            return path.replace(/^\/?(storage\/)?/, '');
-          }
-          return path;
-        })];
-      }
-      
-      // Convert to a set and back to array to remove duplicates
-      processedImages = [...new Set(processedImages)];
-      
-      // Log what we're processing for debugging
-      console.log("Processing images for item:", item.name, processedImages);
-      
-      return {
-        ...item,
-        images: [], // Empty array for new images to add
-        current_images: processedImages // Store processed paths here
-      };
-    });
-  }
-};
-
 onMounted(async () => {
   await loadLeaflet();
-  
-  await loadCompleteProductDetails();
-  
-  if (props.editMode && props.existingTrade) {
-    await initializeFormWithExistingTrade();
-  }
   
   nextTick(() => {
     setTimeout(() => {
       isMapReady.value = true;
       
-      if (props.editMode && props.existingTrade?.meetup_location_id) {
-        showMap.value = false;
-        return;
+      if (!mapElement.value) {
+        console.log('Map element not immediately available, setting up with delay');
+        setTimeout(() => {
+          initMap();
+        }, 500);
+      } else {
+        initMap();
       }
       
       showMap.value = true;
-      
-      setTimeout(() => {
-        initMap();
-      }, 500);
     }, 300);
   });
 });
@@ -1293,10 +998,6 @@ const initMap = () => {
     console.warn('Leaflet library not loaded');
     return;
   }
-  
-  if (!showMap.value) return;
-  
-  if (props.editMode && form.meetup_location_id) return;
   
   if (!mapElement.value) {
     if (mapInitAttempts.value < MAX_INIT_ATTEMPTS) {
@@ -1330,9 +1031,9 @@ const initMap = () => {
       attributionControl: false,
       zoomControl: true,
       minZoom: 2,
-      closePopupOnClick: true,
-      scrollWheelZoom: true,
-      zoomAnimation: true
+      closePopupOnClick: true, // Close popups when clicking elsewhere on map
+      scrollWheelZoom: true,   // Allow zoom with mouse wheel
+      zoomAnimation: true      // Animate zoom transitions
     }).setView(defaultCenter, defaultZoom);
     
     L.value.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1347,6 +1048,7 @@ const initMap = () => {
       }
     }, 300);
     
+    console.log('Map initialized successfully');
   } catch (error) {
     console.error('Error initializing map:', error);
   }
@@ -1357,6 +1059,7 @@ const updateMapMarkers = () => {
     return;
   }
   try {
+    // Close any open popups before removing markers or changing bounds
     if (map.value) {
       map.value.closePopup();
     }
@@ -1402,13 +1105,17 @@ const updateMapMarkers = () => {
       const marker = L.value.marker([lat, lng], { icon })
           .addTo(map.value);
           
+      // Create popup but don't bind it initially
       const popup = L.value.popup({
         autoPan: true,
         closeButton: true,
       }).setContent(popupContent);
       
+      // Add a click handler to open popup
       marker.on('click', () => {
+        // Close any other open popups first
         map.value.closePopup();
+        // Now open this popup
         marker.bindPopup(popup).openPopup();
       });
       
@@ -1423,7 +1130,7 @@ const updateMapMarkers = () => {
                 btn.parentNode.replaceChild(newBtn, btn);
               }
               newBtn.addEventListener('click', () => {
-                map.value.closePopup();
+                map.value.closePopup(); // Close popup before handling location
                 const locationData = {
                   id: location.id,
                   name: location.name,
@@ -1440,6 +1147,7 @@ const updateMapMarkers = () => {
         }, 50);
       });
       
+      // Explicitly handle popup close to clean up
       marker.on('popupclose', () => {
         marker.unbindPopup();
       });
@@ -1448,6 +1156,7 @@ const updateMapMarkers = () => {
       bounds.extend([lat, lng]);
     });
     if (markers.value.length > 0) {
+      // Ensure popup is closed before fitting bounds
       map.value.closePopup();
       map.value.fitBounds(bounds, {
         padding: [50, 50],
@@ -1486,539 +1195,473 @@ watch(() => showMap.value, (isVisible) => {
 
 <template>
     <Dialog 
-      :open="open && !showSummaryDialog" 
-      @update:open="handleDialogClose"
-      modal
+        :open="open && !showSummaryDialog" 
+        @update:open="handleDialogClose"
+        modal
     >
         <DialogContent class="mx-4 w-[75%] sm:max-w-20xl overflow-y-auto max-h-[90vh] p-6 md:p-8 lg:p-10 bg-background dark:bg-gray-900 border-border dark:border-gray-700">
-            <div v-if="isLoadingProduct" class="flex flex-col items-center justify-center py-12">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                <p class="mt-4 text-muted-foreground">Loading product details...</p>
-            </div>
-            
-            <div v-else-if="productLoadError" class="flex flex-col items-center justify-center py-12 text-destructive">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mb-4">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <p class="text-lg font-medium">Failed to load product details</p>
-                <p class="text-sm mt-2">{{ productLoadError }}</p>
-                <Button 
-                    type="button" 
-                    variant="outline" 
-                    @click="closeDialog" 
-                    class="mt-6"
-                >
-                    Close
-                </Button>
-            </div>
-            
-            <template v-else>
-                <DialogHeader>
-                    <DialogTitle class="text-foreground dark:text-white font-medium text-xl">Trade for {{ capitalizeFirst(productDetails?.name || product.name) }}</DialogTitle>
-                    <DialogDescription class="text-muted-foreground dark:text-gray-400">
-                        Offer your items in exchange for this product. The seller will review your offer.
-                    </DialogDescription>
-                </DialogHeader>
-                
-                <form @submit.prevent="submitTradeOffer" class="space-y-6">
-                    <div class="flex items-center gap-4 p-3 sm:p-4 bg-accent/5 dark:bg-gray-800/50 rounded-lg border border-border dark:border-gray-700">
-                        <div class="w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-md shrink-0 border border-border dark:border-gray-700">
-                            <img
-                                :src="productImageUrl"
-                                :alt="productDetails?.name || product.name"
-                                class="w-full h-full object-cover"
-                                @error="$event.target.src = '/images/placeholder-product.jpg'"
-                            />
-                        </div>
-                        <div>
-                            <h3 class="font-medium text-base sm:text-lg text-foreground dark:text-white">
-                                {{ capitalizeFirst(productDetails?.name || product.name) }}
-                            </h3>
-                            <p class="text-muted-foreground dark:text-gray-400 text-sm sm:text-base">
-                                <span v-if="(productDetails || product).discounted_price && (productDetails || product).discounted_price < (productDetails || product).price">
-                                    <span class="line-through text-muted-foreground mr-1">₱{{ formatPrice((productDetails || product).price) }}</span>
-                                    <span class="text-primary-color dark:text-primary-color">₱{{ formatPrice((productDetails || product).discounted_price) }}</span>
-                                </span>
-                                <span v-else class="text-primary-color dark:text-primary-color">₱{{ formatPrice((productDetails || product).price) }}</span>
-                            </p>
-                        </div>
+            <DialogHeader>
+                <DialogTitle class="text-foreground dark:text-white font-medium text-xl">Trade for {{ capitalizeFirst(product.name) }}</DialogTitle>
+                <DialogDescription class="text-muted-foreground dark:text-gray-400">
+                    Offer your items in exchange for this product. The seller will review your offer.
+                </DialogDescription>
+            </DialogHeader>
+            <form @submit.prevent="submitTradeOffer" class="space-y-6">
+                <div class="flex items-center gap-4 p-3 sm:p-4 bg-accent/5 dark:bg-gray-800/50 rounded-lg border border-border dark:border-gray-700">
+                    <div class="w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-md shrink-0 border border-border dark:border-gray-700">
+                        <ImagePreview 
+                            :images="props.product?.images || []" 
+                            :alt="product.name"
+                        />
                     </div>
-                    
-                    <div class="border-t border-border dark:border-gray-700 py-3 sm:py-4">
-                        <h4 class="font-medium mb-2 text-foreground dark:text-white">Seller Information</h4>
-                        <div v-if="productDetails?.seller || product?.seller" class="flex items-start gap-3">
-                            <img 
-                                :src="(productDetails?.seller?.profile_picture || product?.seller?.profile_picture || '/images/placeholder-avatar.jpg')" 
-                                class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0 border border-border dark:border-gray-700"
-                                @error="$event.target.src = '/images/placeholder-avatar.jpg'"
-                            >
-                            <div class="space-y-1">
-                                <p class="font-medium text-foreground dark:text-white">
-                                    {{ (productDetails?.seller?.name) || 
-                                       ((productDetails?.seller?.first_name || product?.seller?.first_name) + ' ' + 
-                                       (productDetails?.seller?.last_name || product?.seller?.last_name)) }}
+                    <div>
+                        <h3 class="font-medium text-base sm:text-lg text-foreground dark:text-white">{{ capitalizeFirst(product.name) }}</h3>
+                        <p class="text-muted-foreground dark:text-gray-400 text-sm sm:text-base">
+                          <span v-if="product.discounted_price && product.discounted_price < product.price">
+                            <span class="line-through text-muted-foreground mr-1">₱{{ formatPrice(product.price) }}</span>
+                            <span class="text-primary-color dark:text-primary-color">₱{{ formatPrice(product.discounted_price) }}</span>
+                          </span>
+                          <span v-else class="text-primary-color dark:text-primary-color">₱{{ formatPrice(product.price) }}</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="border-t border-border dark:border-gray-700 py-3 sm:py-4">
+                    <h4 class="font-medium mb-2 text-foreground dark:text-white">Seller Information</h4>
+                    <div v-if="props.product?.seller" class="flex items-start gap-3">
+                        <img :src="sellerProfilePicture" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0 border border-border dark:border-gray-700">
+                        <div class="space-y-1">
+                            <p class="font-medium text-foreground dark:text-white">{{ sellerName }}</p>
+                            <div class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 space-y-0.5">
+                                <p class="flex items-center gap-2">
+                                    <span class="font-medium">@{{ props.product.seller.username }}</span>
                                 </p>
-                                <div class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 space-y-0.5">
-                                    <p class="flex items-center gap-2">
-                                        <span class="font-medium">
-                                            @{{ productDetails?.seller?.username || product?.seller?.username }}
-                                        </span>
-                                    </p>
-                                    <p v-if="productDetails?.seller?.location || product?.seller?.location" class="flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
-                                            <circle cx="12" cy="10" r="3"></circle>
-                                        </svg>
-                                        {{ productDetails?.seller?.location || product?.seller?.location }}
-                                    </p>
-                                </div>
+                                <p v-if="props.product.seller.phone" class="flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    </svg>
+                                    {{ props.product.seller.phone }}
+                                </p>
                             </div>
                         </div>
-                        <div v-else class="text-muted-foreground dark:text-gray-400">
-                            Seller information not available
-                        </div>
                     </div>
+                    <div v-else class="text-muted-foreground dark:text-gray-400">
+                        Seller information not available
+                    </div>
+                </div>
+
+                <div class="mb-4 sm:mb-6" data-error="meetup_schedule">
+                    <h3 class="font-medium mb-3 sm:mb-4 text-foreground dark:text-white">Step 1: Select Meetup Location</h3>
+                    <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">Select a location where you'd like to meet the seller.</p>
                     
-                    <div class="mb-4 sm:mb-6" data-error="meetup_schedule">
-                        <h3 class="font-medium mb-3 sm:mb-4 text-foreground dark:text-white">Step 1: Select Meetup Location</h3>
-                        <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">Select a location where you'd like to meet the seller.</p>
-                        
-                        <div v-if="isLoadingMeetupLocations" class="flex justify-center items-center h-[250px] sm:h-[300px] border border-border dark:border-gray-700 rounded-md bg-background dark:bg-gray-800">
-                            <div class="text-muted-foreground dark:text-gray-400">Loading available meetup locations...</div>
-                        </div>
-                        <div v-else-if="Object.keys(schedulesByLocation).length === 0" class="flex justify-center items-center h-[250px] sm:h-[300px] border border-border dark:border-gray-700 rounded-md bg-background dark:bg-gray-800">
-                            <div class="text-amber-600">No meetup locations available. Contact the seller for arrangements.</div>
-                        </div>
-                        <div v-else>
-                            <div v-if="form.meetup_location_id" class="mb-4 border border-border dark:border-gray-700 p-3 sm:p-4 rounded-lg bg-accent/5 dark:bg-gray-800/50">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <h4 class="font-medium text-base sm:text-lg text-foreground dark:text-white">
-                                            {{ schedulesByLocation[form.meetup_location_id]?.name || 'Selected Location' }}
-                                        </h4>
-                                        <p v-if="schedulesByLocation[form.meetup_location_id]?.description" class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mt-1">
-                                            {{ schedulesByLocation[form.meetup_location_id].description }}
-                                        </p>
-                                    </div>
-                                    <div class="flex flex-col sm:flex-row gap-2">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            type="button"
-                                            @click="toggleMapView"
-                                            class="text-xs px-2 py-1 h-auto bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
-                                        >
-                                            {{ showMap ? 'Hide Map' : 'Show Map' }}
-                                        </Button>
-                                        <Button 
-                                            variant="destructive" 
-                                            size="sm" 
-                                            type="button"
-                                            @click="resetLocationSelection"
-                                            class="text-xs px-2 py-1 h-auto"
-                                        >
-                                            Change Location
-                                        </Button>
-                                    </div>
+                    <div v-if="isLoadingMeetupLocations" class="flex justify-center items-center h-[250px] sm:h-[300px] border border-border dark:border-gray-700 rounded-md bg-background dark:bg-gray-800">
+                        <div class="text-muted-foreground dark:text-gray-400">Loading available meetup locations...</div>
+                    </div>
+                    <div v-else-if="Object.keys(schedulesByLocation).length === 0" class="flex justify-center items-center h-[250px] sm:h-[300px] border border-border dark:border-gray-700 rounded-md bg-background dark:bg-gray-800">
+                        <div class="text-amber-600">No meetup locations available. Contact the seller for arrangements.</div>
+                    </div>
+                    <div v-else>
+                        <div v-if="form.meetup_location_id" class="mb-4 border border-border dark:border-gray-700 p-3 sm:p-4 rounded-lg bg-accent/5 dark:bg-gray-800/50">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-medium text-base sm:text-lg text-foreground dark:text-white">
+                                        {{ schedulesByLocation[form.meetup_location_id]?.name || 'Selected Location' }}
+                                    </h4>
+                                    <p v-if="schedulesByLocation[form.meetup_location_id]?.description" class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mt-1">
+                                        {{ schedulesByLocation[form.meetup_location_id].description }}
+                                    </p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        type="button"
+                                        @click="toggleMapView"
+                                        class="text-xs px-2 py-1 h-auto bg-white dark:bg-gray-800 border-border dark:border-gray-700 dark:text-white"
+                                    >
+                                        {{ showMap ? 'Hide Map' : 'Show Map' }}
+                                    </Button>
+                                    <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        type="button"
+                                        @click="resetLocationSelection"
+                                        class="text-xs px-2 py-1 h-auto"
+                                    >
+                                        Change Location
+                                    </Button>
                                 </div>
                             </div>
-                            
-                            <div 
-                                v-show="showMap || !form.meetup_location_id" 
-                                ref="mapElement" 
-                                id="trade-map" 
-                                class="w-full rounded-md border border-border dark:border-gray-700 h-[250px] sm:h-[300px] transition-all duration-300"
-                            ></div>
-                            
-                            <div v-if="(showMap || !form.meetup_location_id) && 
-                                  Object.values(schedulesByLocation).some(loc => loc.use_default_coordinates)" 
-                                class="text-xs text-amber-600 mt-1 flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1">
-                                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
-                                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                                </svg>
-                                Some locations use approximate campus coordinates
-                            </div>
-                            
-                            <div v-if="form.meetup_location_id" class="mt-4">
-                                <h4 class="font-medium text-sm sm:text-base mb-2 text-foreground dark:text-white">
-                                  Step 2: Select an available day:
-                                </h4>
-                                <div class="space-y-2">
-                                    <RadioGroup v-model="selectedScheduleId">
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                                            <div v-for="schedule in schedulesByLocation[form.meetup_location_id]?.schedules" 
-                                                :key="schedule.id"
-                                                class="relative">
-                                                <RadioGroupItem 
-                                                    :value="schedule.id"
-                                                    :id="`schedule-${schedule.id}`"
-                                                    class="peer sr-only" 
-                                                />
-                                                <Label 
-                                                    :for="`schedule-${schedule.id}`"
-                                                    class="flex p-3 items-center gap-2 border border-border dark:border-gray-700 rounded-md cursor-pointer
-                                                          hover:bg-accent/5 dark:hover:bg-gray-800/80 peer-focus:ring-2 peer-focus:ring-primary 
-                                                          peer-data-[state=checked]:border-primary-color peer-data-[state=checked]:bg-accent/10
-                                                          text-foreground dark:text-white bg-background dark:bg-gray-800"
-                                                >
-                                                    <div class="flex-1">
-                                                        <div class="text-foreground dark:text-white font-medium">
-                                                            {{ capitalizeFirst(schedule.day) }}
-                                                        </div>
-                                                        <div class="text-muted-foreground dark:text-gray-400 text-xs">
-                                                            {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
-                                                        </div>
+                        </div>
+                        
+                        <div 
+                            v-show="showMap || !form.meetup_location_id" 
+                            ref="mapElement" 
+                            id="trade-map" 
+                            class="w-full rounded-md border border-border dark:border-gray-700 h-[250px] sm:h-[300px] transition-all duration-300"
+                        ></div>
+                        
+                        <div v-if="(showMap || !form.meetup_location_id) && 
+                              Object.values(schedulesByLocation).some(loc => loc.use_default_coordinates)" 
+                            class="text-xs text-amber-600 mt-1 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                            Some locations use approximate campus coordinates
+                        </div>
+                        
+                        <div v-if="form.meetup_location_id" class="mt-4">
+                            <h4 class="font-medium text-sm sm:text-base mb-2 text-foreground dark:text-white">
+                              Step 2: Select an available day:
+                            </h4>
+                            <div class="space-y-2">
+                                <RadioGroup v-model="selectedScheduleId">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                        <div v-for="schedule in schedulesByLocation[form.meetup_location_id]?.schedules" 
+                                            :key="schedule.id"
+                                            class="relative">
+                                            <RadioGroupItem 
+                                                :value="schedule.id"
+                                                :id="`schedule-${schedule.id}`"
+                                                class="peer sr-only" 
+                                            />
+                                            <Label 
+                                                :for="`schedule-${schedule.id}`"
+                                                class="flex p-3 items-center gap-2 border border-border dark:border-gray-700 rounded-md cursor-pointer
+                                                      hover:bg-accent/5 dark:hover:bg-gray-800/80 peer-focus:ring-2 peer-focus:ring-primary 
+                                                      peer-data-[state=checked]:border-primary-color peer-data-[state=checked]:bg-accent/10
+                                                      text-foreground dark:text-white bg-background dark:bg-gray-800"
+                                            >
+                                                <div class="flex-1">
+                                                    <div class="text-foreground dark:text-white font-medium">
+                                                        {{ capitalizeFirst(schedule.day) }}
                                                     </div>
-                                                </Label>
-                                            </div>
+                                                    <div class="text-muted-foreground dark:text-gray-400 text-xs">
+                                                        {{ schedule.timeFrom }} - {{ schedule.timeUntil }}
+                                                    </div>
+                                                </div>
+                                            </Label>
                                         </div>
-                                    </RadioGroup>
-                                </div>
+                                    </div>
+                                </RadioGroup>
                             </div>
                         </div>
-
-                        <p v-if="errors.meetup_schedule" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.meetup_schedule }}</p>
                     </div>
 
-                    <div class="mb-4 sm:mb-6" data-error="meetup_date">
-                        <h3 class="font-medium mb-2 text-foreground dark:text-white">Step 3: Select Meetup Date</h3>
-                        <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">
-                            {{ selectedScheduleId 
-                                ? `Choose a ${selectedScheduleDay} date for your meetup.`
-                                : 'Please select a meetup schedule first to enable date selection.' }}
-                        </p>
-                        <div class="relative">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger as="div" class="w-full">
-                                      <MeetupDate
-                                        :model-value="form.meetup_date"
-                                        :selected-day="selectedScheduleDay"
-                                        :is-date-disabled="!selectedScheduleId"
-                                        @update:model-value="handleDateSelection"
-                                        :class="[
-                                            {'opacity-50': !selectedScheduleId},
-                                            {'pointer-events-none': !selectedScheduleId},
-                                            {'border-destructive': errors.meetup_date && form.meetup_date === ''},
-                                            'bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white'
-                                        ]"
-                                    />
-                                    </TooltipTrigger>
-                                    <TooltipContent v-if="!selectedScheduleId" class="bg-popover dark:bg-gray-800 text-popover-foreground dark:text-white p-2 rounded shadow-lg max-w-xs">
-                                        You need to select a meetup schedule first to enable date selection
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        </div>
-                        <p v-if="errors.meetup_date" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.meetup_date }}</p>
-                    </div>
+                    <p v-if="errors.meetup_schedule" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.meetup_schedule }}</p>
+                </div>
 
-                    <div class="mb-4 sm:mb-6" data-error="preferred_time">
-                        <h3 class="font-medium mb-2 text-foreground dark:text-white">Step 4: Select Preferred Time</h3>
-                        <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">
-                            {{ selectedSchedule 
-                                ? `Choose a time between ${selectedSchedule.timeFrom} and ${selectedSchedule.timeUntil}.`
-                                : 'Please select a meetup schedule and date first.' }}
-                        </p>
-                        
+                <div class="mb-4 sm:mb-6" data-error="meetup_date">
+                    <h3 class="font-medium mb-2 text-foreground dark:text-white">Step 3: Select Meetup Date</h3>
+                    <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">
+                        {{ selectedScheduleId 
+                            ? `Choose a ${selectedScheduleDay} date for your meetup.`
+                            : 'Please select a meetup schedule first to enable date selection.' }}
+                    </p>
+                    <div class="relative">
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger as="div" class="w-full">
-                                    <div class="relative w-full">
-                                        <Select 
-                                            :model-value="form.preferred_time" 
-                                            @update:model-value="setPreferredTime"
-                                            :disabled="!form.meetup_date || !selectedSchedule"
-                                        >
-                                            <SelectTrigger 
-                                                class="w-full bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                                                :class="{'opacity-50 cursor-not-allowed': !form.meetup_date || !selectedSchedule}"
-                                            >
-                                                <SelectValue>
-                                                    <template v-if="form.preferred_time">
-                                                        <div class="flex items-center">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                                                                <circle cx="12" cy="12" r="10"></circle>
-                                                                <polyline points="12 6 12 12 16 14"></polyline>
-                                                            </svg>
-                                                            {{ formatTime(form.preferred_time) }}
-                                                        </div>
-                                                    </template>
-                                                    <template v-else>Select a time</template>
-                                                </SelectValue>
-                                            </SelectTrigger>
-                                            <SelectContent position="popper" class="bg-popover dark:bg-gray-800 border-border dark:border-gray-700">
-                                                <div class="max-h-[200px] overflow-y-auto p-1">
-                                                    <SelectItem value="placeholder" disabled>Select a time</SelectItem>
-                                                    <SelectItem 
-                                                        v-for="slot in availableTimeSlots" 
-                                                        :key="slot.value" 
-                                                        :value="slot.value"
-                                                        class="text-foreground dark:text-white hover:bg-accent/5 dark:hover:bg-gray-700"
-                                                    >
-                                                        {{ slot.display }}
-                                                    </SelectItem>
-                                                </div>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                  <MeetupDate
+                                    :model-value="form.meetup_date"
+                                    :selected-day="selectedScheduleDay"
+                                    :is-date-disabled="!selectedScheduleId"
+                                    @update:model-value="handleDateSelection"
+                                    :class="[
+                                        {'opacity-50': !selectedScheduleId},
+                                        {'pointer-events-none': !selectedScheduleId},
+                                        {'border-destructive': errors.meetup_date && form.meetup_date === ''},
+                                        'bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white'
+                                    ]"
+                                />
                                 </TooltipTrigger>
-                                <TooltipContent v-if="!form.meetup_date || !selectedSchedule" class="bg-popover dark:bg-gray-800 text-popover-foreground dark:text-white p-2 rounded shadow-lg max-w-xs z-50">
-                                    {{ !selectedScheduleId 
-                                        ? 'You need to select a meetup schedule first' 
-                                        : 'You need to select a meetup date before choosing a time' }}
+                                <TooltipContent v-if="!selectedScheduleId" class="bg-popover dark:bg-gray-800 text-popover-foreground dark:text-white p-2 rounded shadow-lg max-w-xs">
+                                    You need to select a meetup schedule first to enable date selection
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
-                        
-                        <div v-if="form.meetup_date && selectedSchedule && !form.preferred_time" class="mt-3 flex flex-wrap gap-2">
-                            <p class="text-xs text-muted-foreground dark:text-gray-400 w-full mb-1">Quick select:</p>
-                            <Button 
-                                v-for="slot in availableTimeSlots.slice(0, 4)" 
-                                :key="slot.value"
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="setPreferredTime(slot.value)"
-                                :class="[
-                                    'text-xs sm:text-sm h-8 bg-white dark:bg-gray-800 border-border dark:border-gray-700',
-                                    form.preferred_time === slot.value ? 'bg-primary-color text-white dark:bg-primary-color dark:text-white' : ''
-                                ]"
-                            >
-                                {{ slot.display }}
-                            </Button>
-                            <span v-if="availableTimeSlots.length > 4" class="text-xs text-muted-foreground dark:text-gray-400 self-center">
-                                +{{ availableTimeSlots.length - 4 }} more options
-                            </span>
-                        </div>
-
-                        <p v-if="errors.preferred_time" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.preferred_time }}</p>
                     </div>
+                    <p v-if="errors.meetup_date" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.meetup_date }}</p>
+                </div>
 
-                    <div class="space-y-2" data-error="total_offered_value">
-                        <Label for="additional_cash" class="text-sm text-foreground dark:text-white">Additional Cash to Match Item Value (₱) <span class="text-muted-foreground dark:text-gray-400 text-xs">(Optional)</span></Label>
-                        <Input 
-                            id="additional_cash"
-                            type="number"
-                            v-model="form.additional_cash"
-                            min="0"
-                            step="0.01"
-                            class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                            :class="{ 'border-destructive': !isValueSufficient }"
-                        />
-                        <p class="text-xs text-muted-foreground dark:text-gray-400">
-                            Add cash to increase your total offer value. Combined with your item estimated value.
-                        </p>
-                        <p v-if="errors.additional_cash" class="text-destructive text-xs sm:text-sm">{{ errors.additional_cash }}</p>
-                        <p v-if="errors.total_offered_value" class="text-destructive text-xs sm:text-sm">{{ errors.total_offered_value }}</p>
-                        <p v-else-if="!isValueSufficient" class="text-destructive text-xs">{{ totalValueErrorMessage }}</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <Label for="notes" class="text-sm text-foreground dark:text-white">Notes for Seller <span class="text-muted-foreground dark:text-gray-400 text-xs">(Optional)</span></Label>
-                        <Textarea 
-                            id="notes"
-                            v-model="form.notes"
-                            placeholder="Add any details about your trade offer here..."
-                            class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                        />
-                    </div>
-
-                    <div class="space-y-4" data-error="offered_items">
-                        <div class="flex justify-between items-center">
-                            <h3 class="font-medium text-base sm:text-lg text-foreground dark:text-white">Items to Offer</h3>
-                            <Button 
-                                type="button" 
-                                variant="outline" 
-                                size="sm" 
-                                @click="addOfferedItem"
-                                class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                            >
-                                Add Another Item
-                            </Button>
-                        </div>
-                        
-                        <div v-for="(item, index) in form.offered_items" :key="index" :data-item-index="index" class="p-3 sm:p-4 border border-border dark:border-gray-700 rounded-lg space-y-3 sm:space-y-4 bg-accent/5 dark:bg-gray-800/50">
-                            <div class="flex justify-between">
-                                <h4 class="font-medium text-sm sm:text-base text-foreground dark:text-white">Item {{ index + 1 }}</h4>
-                                <Button 
-                                    v-if="form.offered_items.length > 1" 
-                                    type="button"
-                                    variant="ghost" 
-                                    size="sm" 
-                                    @click="removeOfferedItem(index)"
-                                    class="h-8 text-xs text-foreground dark:text-white hover:bg-accent/10 dark:hover:bg-gray-700"
-                                >
-                                    Remove
-                                </Button>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                <div class="space-y-1 sm:space-y-2">
-                                    <Label :for="`item_name_${index}`" class="text-sm text-foreground dark:text-white">Item Name*</Label>
-                                    <Input 
-                                        :id="`item_name_${index}`"
-                                        v-model="item.name"
-                                        @input="clearItemFieldError(index, 'name')"
-                                        class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                                        :class="{ 'border-destructive': errors[`offered_items.${index}.name`] || errors[`item_${index}_name`] }"
-                                    />
-                                    <p v-if="errors[`offered_items.${index}.name`]" class="text-destructive text-xs">
-                                        {{ errors[`offered_items.${index}.name`] }}
-                                    </p>
-                                    <p v-else-if="errors[`item_${index}_name`]" class="text-destructive text-xs"> 
-                                        {{ errors[`item_${index}_name`] }}
-                                    </p>
-                                </div>
-                                <div class="space-y-1 sm:space-y-2">
-                                    <Label :for="`item_quantity_${index}`" class="text-sm text-foreground dark:text-white">Quantity*</Label>
-                                    <Input 
-                                        :id="`item_quantity_${index}`" 
-                                        type="number" 
-                                        v-model="item.quantity"
-                                        @input="clearItemFieldError(index, 'quantity')"
-                                        min="1"
-                                        class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                                        :class="{ 'border-destructive': errors[`offered_items.${index}.quantity`] || errors[`item_${index}_quantity`] }"
-                                    />
-                                    <p v-if="errors[`offered_items.${index}.quantity`]" class="text-destructive text-xs">
-                                        {{ errors[`offered_items.${index}.quantity`] }}
-                                    </p>
-                                     <p v-else-if="errors[`item_${index}_quantity`]" class="text-destructive text-xs"> 
-                                        {{ errors[`item_${index}_quantity`] }}
-                                    </p>
-                                </div>
-                                
-                                <div class="space-y-1 sm:space-y-2">
-                                    <Label :for="`item_value_${index}`" class="text-sm text-foreground dark:text-white">Estimated Value (₱)*</Label>
-                                    <Input 
-                                        :id="`item_value_${index}`" 
-                                        type="number" 
-                                        v-model="item.estimated_value"
-                                        @input="clearItemFieldError(index, 'estimated_value')"
-                                        step="0.01"
-                                        class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                                        :class="{ 'border-destructive': !isValueSufficient }"
-                                    />
-                                    <p v-if="!isValueSufficient" class="text-destructive text-xs">
-                                        {{ totalValueErrorMessage }}
-                                    </p>
-                                </div>
-                                
-                                <div class="space-y-1 sm:space-y-2">
-                                    <Label :for="`item_condition_${index}`" class="text-sm text-foreground dark:text-white">Condition*</Label>
+                <div class="mb-4 sm:mb-6" data-error="preferred_time">
+                    <h3 class="font-medium mb-2 text-foreground dark:text-white">Step 4: Select Preferred Time</h3>
+                    <p class="text-xs sm:text-sm text-muted-foreground dark:text-gray-400 mb-2">
+                        {{ selectedSchedule 
+                            ? `Choose a time between ${selectedSchedule.timeFrom} and ${selectedSchedule.timeUntil}.`
+                            : 'Please select a meetup schedule and date first.' }}
+                    </p>
+                    
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger as="div" class="w-full">
+                                <div class="relative w-full">
                                     <Select 
-                                        v-model="item.condition"
-                                        @update:model-value="clearItemFieldError(index, 'condition')"
+                                        :model-value="form.preferred_time" 
+                                        @update:model-value="setPreferredTime"
+                                        :disabled="!form.meetup_date || !selectedSchedule"
                                     >
-                                        <SelectTrigger class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
-                                            :class="{ 'border-destructive': errors[`offered_items.${index}.condition`] || errors[`item_${index}_condition`] }">
-                                            <SelectValue placeholder="Select condition" />
+                                        <SelectTrigger 
+                                            class="w-full bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                                            :class="{'opacity-50 cursor-not-allowed': !form.meetup_date || !selectedSchedule}"
+                                        >
+                                            <SelectValue>
+                                                <template v-if="form.preferred_time">
+                                                    <div class="flex items-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                                        </svg>
+                                                        {{ availableTimeSlots.find(slot => slot.value === form.preferred_time)?.display || form.preferred_time }}
+                                                    </div>
+                                                </template>
+                                                <template v-else>Select a time</template>
+                                            </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent class="bg-popover dark:bg-gray-800 border-border dark:border-gray-700">
-                                            <SelectItem 
-                                                v-for="option in conditionOptions" 
-                                                :key="option.value" 
-                                                :value="option.value"
-                                                class="text-foreground dark:text-white"
-                                            >
-                                                {{ option.label }}
-                                            </SelectItem>
+                                        <SelectContent position="popper" class="bg-popover dark:bg-gray-800 border-border dark:border-gray-700">
+                                            <div class="max-h-[200px] overflow-y-auto p-1">
+                                                <SelectItem value="placeholder" disabled>Select a time</SelectItem>
+                                                <SelectItem 
+                                                    v-for="slot in availableTimeSlots" 
+                                                    :key="slot.value" 
+                                                    :value="slot.value"
+                                                    class="text-foreground dark:text-white hover:bg-accent/5 dark:hover:bg-gray-700"
+                                                >
+                                                    {{ slot.display }}
+                                                </SelectItem>
+                                            </div>
                                         </SelectContent>
                                     </Select>
-                                    <p v-if="errors[`offered_items.${index}.condition`]" class="text-destructive text-xs">
-                                        {{ errors[`offered_items.${index}.condition`] }}
-                                    </p>
-                                    <p v-else-if="errors[`item_${index}_condition`]" class="text-destructive text-xs"> 
-                                        {{ errors[`item_${index}_condition`] }}
-                                    </p>
                                 </div>
-                                
-                                 <div class="space-y-1 sm:space-y-2 sm:col-span-2">
-                                    <Label class="text-sm text-foreground dark:text-white">Upload Images*</Label> 
-                                    
-                                    <ImageUploader
-                                      v-model="item.images" 
-                                      :initial-images="item.current_images || []"
-                                      :multiple="true"
-                                      :hasError="!!errors[`offered_items.${index}.images`]"
-                                      :errorMessage="errors[`offered_items.${index}.images`] || ''"
-                                      @update:modelValue="updateItemImages(index, $event)"
-                                    />
-                                    <p class="text-xs text-muted-foreground dark:text-gray-400">
-                                        {{ item.current_images && item.current_images.length ? 'Add more images or remove existing ones.' : 'Upload at least one image of your offered item.' }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                         <p v-if="errors.offered_items && typeof errors.offered_items === 'string'" class="text-destructive text-xs sm:text-sm mt-2">
-                            {{ errors.offered_items }}
-                        </p>
+                            </TooltipTrigger>
+                            <TooltipContent v-if="!form.meetup_date || !selectedSchedule" class="bg-popover dark:bg-gray-800 text-popover-foreground dark:text-white p-2 rounded shadow-lg max-w-xs z-50">
+                                {{ !selectedScheduleId 
+                                    ? 'You need to select a meetup schedule first' 
+                                    : 'You need to select a meetup date before choosing a time' }}
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    
+                    <div v-if="form.meetup_date && selectedSchedule && !form.preferred_time" class="mt-3 flex flex-wrap gap-2">
+                        <p class="text-xs text-muted-foreground dark:text-gray-400 w-full mb-1">Quick select:</p>
+                        <Button 
+                            v-for="slot in availableTimeSlots.slice(0, 4)" 
+                            :key="slot.value"
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="setPreferredTime(slot.value)"
+                            :class="[
+                                'text-xs sm:text-sm h-8 bg-white dark:bg-gray-800 border-border dark:border-gray-700',
+                                form.preferred_time === slot.value ? 'bg-primary-color text-white dark:bg-primary-color dark:text-white' : ''
+                            ]"
+                        >
+                            {{ slot.display }}
+                        </Button>
+                        <span v-if="availableTimeSlots.length > 4" class="text-xs text-muted-foreground dark:text-gray-400 self-center">
+                            +{{ availableTimeSlots.length - 4 }} more options
+                        </span>
                     </div>
-                    <DialogFooter class="flex justify-between pt-2 sm:pt-4 border-t border-border dark:border-gray-700">
+
+                    <p v-if="errors.preferred_time" class="text-destructive text-xs sm:text-sm mt-2">{{ errors.preferred_time }}</p>
+                </div>
+
+                <!-- Add rest of the form elements with updated styling -->
+                <div class="space-y-2" data-error="total_offered_value">
+                    <Label for="additional_cash" class="text-sm text-foreground dark:text-white">Additional Cash to Match Item Value (₱) <span class="text-muted-foreground dark:text-gray-400 text-xs">(Optional)</span></Label>
+                    <Input 
+                        id="additional_cash"
+                        type="number"
+                        v-model="form.additional_cash"
+                        min="0"
+                        step="0.01"
+                        class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                        :class="{ 'border-destructive': !isValueSufficient }"
+                    />
+                    <p class="text-xs text-muted-foreground dark:text-gray-400">
+                        Add cash to increase your total offer value. Combined with your item estimated value.
+                    </p>
+                    <p v-if="errors.additional_cash" class="text-destructive text-xs sm:text-sm">{{ errors.additional_cash }}</p>
+                    <p v-if="errors.total_offered_value" class="text-destructive text-xs sm:text-sm">{{ errors.total_offered_value }}</p>
+                    <p v-else-if="!isValueSufficient" class="text-destructive text-xs">{{ totalValueErrorMessage }}</p>
+                </div>
+
+                <div class="space-y-2">
+                    <Label for="notes" class="text-sm text-foreground dark:text-white">Notes for Seller <span class="text-muted-foreground dark:text-gray-400 text-xs">(Optional)</span></Label>
+                    <Textarea 
+                        id="notes"
+                        v-model="form.notes"
+                        placeholder="Add any details about your trade offer here..."
+                        class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                    />
+                </div>
+
+                <div class="space-y-4" data-error="offered_items">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-medium text-base sm:text-lg text-foreground dark:text-white">Items to Offer</h3>
                         <Button 
                             type="button" 
                             variant="outline" 
-                            @click="closeDialog"
-                            class="text-xs sm:text-sm bg-white dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                            size="sm" 
+                            @click="addOfferedItem"
+                            class="bg-white dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
                         >
-                            Cancel
+                            Add Another Item
                         </Button>
-                        <Button 
-                            type="submit" 
-                            :disabled="loading"
-                            class="text-xs sm:text-sm bg-primary-color hover:bg-opacity-90 text-white"
-                        >
-                            {{ loading ? 'Submitting...' : 'Submit Trade Offer' }}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </template>
+                    </div>
+                    
+                    <!-- ...rest of the items section... -->
+                    <div v-for="(item, index) in form.offered_items" :key="index" :data-item-index="index" class="p-3 sm:p-4 border border-border dark:border-gray-700 rounded-lg space-y-3 sm:space-y-4 bg-accent/5 dark:bg-gray-800/50">
+                        <div class="flex justify-between">
+                            <h4 class="font-medium text-sm sm:text-base text-foreground dark:text-white">Item {{ index + 1 }}</h4>
+                            <Button 
+                                v-if="form.offered_items.length > 1" 
+                                type="button"
+                                variant="ghost" 
+                                size="sm" 
+                                @click="removeOfferedItem(index)"
+                                class="h-8 text-xs text-foreground dark:text-white hover:bg-accent/10 dark:hover:bg-gray-700"
+                            >
+                                Remove
+                            </Button>
+                        </div>
+                        <!-- Item form fields -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div class="space-y-1 sm:space-y-2">
+                                <Label :for="`item_name_${index}`" class="text-sm text-foreground dark:text-white">Item Name*</Label>
+                                <Input 
+                                    :id="`item_name_${index}`"
+                                    v-model="item.name"
+                                    @input="clearItemFieldError(index, 'name')"
+                                    class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                                    :class="{ 'border-destructive': errors[`offered_items.${index}.name`] || errors[`item_${index}_name`] }"
+                                />
+                                <p v-if="errors[`offered_items.${index}.name`]" class="text-destructive text-xs">
+                                    {{ errors[`offered_items.${index}.name`] }}
+                                </p>
+                                <p v-else-if="errors[`item_${index}_name`]" class="text-destructive text-xs"> 
+                                    {{ errors[`item_${index}_name`] }}
+                                </p>
+                            </div>
+                            <!-- ...more item fields... -->
+                            <div class="space-y-1 sm:space-y-2">
+                                <Label :for="`item_quantity_${index}`" class="text-sm text-foreground dark:text-white">Quantity*</Label>
+                                <Input 
+                                    :id="`item_quantity_${index}`" 
+                                    type="number" 
+                                    v-model="item.quantity"
+                                    @input="clearItemFieldError(index, 'quantity')"
+                                    min="1"
+                                    class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                                    :class="{ 'border-destructive': errors[`offered_items.${index}.quantity`] || errors[`item_${index}_quantity`] }"
+                                />
+                                <p v-if="errors[`offered_items.${index}.quantity`]" class="text-destructive text-xs">
+                                    {{ errors[`offered_items.${index}.quantity`] }}
+                                </p>
+                                 <p v-else-if="errors[`item_${index}_quantity`]" class="text-destructive text-xs"> 
+                                    {{ errors[`item_${index}_quantity`] }}
+                                </p>
+                            </div>
+                            
+                            <div class="space-y-1 sm:space-y-2">
+                                <Label :for="`item_value_${index}`" class="text-sm text-foreground dark:text-white">Estimated Value (₱)*</Label>
+                                <Input 
+                                    :id="`item_value_${index}`" 
+                                    type="number" 
+                                    v-model="item.estimated_value"
+                                    @input="clearItemFieldError(index, 'estimated_value')"
+                                    step="0.01"
+                                    class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                                    :class="{ 'border-destructive': !isValueSufficient }"
+                                />
+                                <p v-if="!isValueSufficient" class="text-destructive text-xs">
+                                    {{ totalValueErrorMessage }}
+                                </p>
+                            </div>
+                            
+                            <div class="space-y-1 sm:space-y-2">
+                                <Label :for="`item_condition_${index}`" class="text-sm text-foreground dark:text-white">Condition*</Label>
+                                <Select 
+                                    v-model="item.condition"
+                                    @update:model-value="clearItemFieldError(index, 'condition')"
+                                >
+                                    <SelectTrigger class="bg-background dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                                        :class="{ 'border-destructive': errors[`offered_items.${index}.condition`] || errors[`item_${index}_condition`] }">
+                                        <SelectValue placeholder="Select condition" />
+                                    </SelectTrigger>
+                                    <SelectContent class="bg-popover dark:bg-gray-800 border-border dark:border-gray-700">
+                                        <SelectItem 
+                                            v-for="option in conditionOptions" 
+                                            :key="option.value" 
+                                            :value="option.value"
+                                            class="text-foreground dark:text-white"
+                                        >
+                                            {{ option.label }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p v-if="errors[`offered_items.${index}.condition`]" class="text-destructive text-xs">
+                                    {{ errors[`offered_items.${index}.condition`] }}
+                                </p>
+                                <p v-else-if="errors[`item_${index}_condition`]" class="text-destructive text-xs"> 
+                                    {{ errors[`item_${index}_condition`] }}
+                                </p>
+                            </div>
+                            
+                            <!-- ... rest of item fields ... -->
+                             <div class="space-y-1 sm:space-y-2 sm:col-span-2">
+                                <Label class="text-sm text-foreground dark:text-white">Upload Images*</Label> 
+                                <ImageUploader
+                                    v-model="form.offered_items[index].images"
+                                    :hasError="!!errors[`offered_items.${index}.images`] || !!errors[`item_${index}_images`]"
+                                    :errorMessage="errors[`offered_items.${index}.images`] || errors[`item_${index}_images`] || ''"
+                                    @error="(msg) => handleImageUploaderError(index, msg)"
+                                    @update:modelValue="() => clearItemFieldError(index, 'images')"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                     <p v-if="errors.offered_items && typeof errors.offered_items === 'string'" class="text-destructive text-xs sm:text-sm mt-2">
+                        {{ errors.offered_items }}
+                    </p>
+                </div>
+                <DialogFooter class="flex justify-between pt-2 sm:pt-4 border-t border-border dark:border-gray-700">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        @click="closeDialog"
+                        class="text-xs sm:text-sm bg-white dark:bg-gray-800 border-border dark:border-gray-700 text-foreground dark:text-white"
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="submit" 
+                        :disabled="loading"
+                        class="text-xs sm:text-sm bg-primary-color hover:bg-opacity-90 text-white"
+                    >
+                        {{ loading ? 'Submitting...' : 'Submit Trade Offer' }}
+                    </Button>
+                </DialogFooter>
+            </form>
         </DialogContent>
     </Dialog>
-
     <TradeSummaryDialog
-      :open="showSummaryDialog"
-      :product="product" 
-      :product-image-url="productImageUrl || (product.images && product.images.length > 0 ? product.images[0] : '')"
-      :offer="prepareOfferForSummary(form)"
-      :total-offered-value="totalOfferedValue"
-      :selected-location-name="schedulesByLocation[form.meetup_location_id]?.name"
-      :selected-day="selectedScheduleDay"
-      :selected-time-display="formatTime(form.preferred_time)"
-      :loading="loading"
-      :edit-mode="editMode"
-      @confirm="confirmAndSubmit"
-      @cancel="cancelSummary"
-      @update:open="showSummaryDialog = $event"
+        :open="showSummaryDialog"
+        :product="product"
+        :offer="form"
+        :total-offered-value="totalOfferedValue"
+        :selected-location-name="schedulesByLocation[form.meetup_location_id]?.name"
+        :selected-day="selectedScheduleDay"
+        :selected-time-display="availableTimeSlots.find(slot => slot.value === form.preferred_time)?.display"
+        @confirm="confirmAndSubmit"
+        @cancel="cancelSummary"
     />
 </template>
 
 <style scoped>
-/* Add this style to hide the form dialog visually but keep it in DOM */
-.visually-hidden {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  visibility: hidden !important;
-  position: fixed !important;
-  top: -9999px !important;
-  left: -9999px !important;
-  z-index: -1 !important;
-}
-
-/* Ensure TradeSummaryDialog appears on top */
-:deep(.trade-summary-dialog) {
-  z-index: 100 !important;
-}
-
-/* Make sure dialog appears below the summary */
-:deep(.dialog-content) {
-  z-index: 50;
-}
-
+/* Keep existing styles */
 :deep(.custom-map-marker) {
   background: transparent;
   border: none;
@@ -2121,6 +1764,7 @@ watch(() => showMap.value, (isVisible) => {
   z-index: 1;
 }
 
+/* Enhance dark mode styling for leaflet */
 .dark :deep(.leaflet-container) {
   filter: brightness(0.85) contrast(1.1);
 }
@@ -2138,6 +1782,7 @@ watch(() => showMap.value, (isVisible) => {
   color: white;
 }
 
+/* Keep the rest of your styles */
 :deep(.checkbox) {
   border-color: hsl(var(--border));
 }
@@ -2156,6 +1801,7 @@ watch(() => showMap.value, (isVisible) => {
   cursor: pointer !important;
 }
 
+/* Add this at the end of your style section */
 @keyframes highlight-pulse {
   0% { box-shadow: 0 0 0 rgba(var(--destructive-rgb), 0.4); }
   50% { box-shadow: 0 0 15px rgba(var(--destructive-rgb), 0.7); }
@@ -2167,6 +1813,7 @@ watch(() => showMap.value, (isVisible) => {
   scroll-margin: 100px;
 }
 
+/* Add new styles for drag and drop */
 [class*="border-dashed"] {
   cursor: pointer;
 }

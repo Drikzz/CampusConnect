@@ -208,18 +208,10 @@ const removeFile = (index) => {
 };
 
 const getFilePreview = (file) => {
-  // If it's already a string URL, return it
   if (typeof file === 'string') {
     return file;
   }
-  
-  // For File objects, create an object URL
-  if (file instanceof File) {
-    return URL.createObjectURL(file);
-  }
-  
-  // Default fallback
-  return '/images/placeholder-product.jpg';
+  return URL.createObjectURL(file);
 };
 
 const handleDragOver = (event) => {
@@ -241,43 +233,6 @@ const openFileBrowser = () => {
 const getFileUrl = (file) => {
   if (!file) return null;
   return URL.createObjectURL(file);
-};
-
-// Fix URL normalization
-const normalizeImageUrl = (url) => {
-  if (!url) return '/images/placeholder-product.jpg';
-  
-  // Check if it's a blob URL
-  if (url.startsWith('blob:')) {
-    return url; // Return blob URLs unchanged
-  }
-  
-  // Check if it's already a full URL
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  
-  // Remove any double storage prefixes
-  if (url.startsWith('/storage/storage/')) {
-    url = url.replace('/storage/storage/', '/storage/');
-  }
-  
-  // Ensure paths are correct
-  if (url.startsWith('/images/')) {
-    return url;
-  }
-  
-  // Standard path handling
-  if (!url.startsWith('/')) {
-    return `/storage/${url}`;
-  }
-  
-  return url;
-};
-
-// Add this function to handle image loading errors
-const handleImageError = (event) => {
-  event.target.src = '/images/placeholder-product.jpg';
 };
 </script>
 
@@ -336,12 +291,12 @@ const handleImageError = (event) => {
         :key="index" 
         class="relative group border border-border dark:border-gray-700 rounded-md overflow-hidden aspect-square"
       >
-      <img 
-        :src="normalizeImageUrl(typeof file === 'string' ? file : getFilePreview(file))"
-        :alt="'Image preview'" 
-        class="max-h-full max-w-full object-contain"
-        @error="handleImageError"
-      />
+        <img 
+          :src="getFilePreview(file)" 
+          class="w-full h-full object-cover"
+          @error="$event.target.src = '/images/placeholder-product.jpg'"
+          :alt="`Preview ${index + 1}`"
+        />
         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
           <Button 
             type="button" 
