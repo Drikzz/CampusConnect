@@ -49,6 +49,9 @@ return new class extends Migration
             // If order is cancelled or disputed
             $table->string('cancellation_reason')->nullable();
             $table->string('cancelled_by')->nullable(); // buyer or seller
+            
+            // Flag to track if wallet deduction was processed
+            $table->boolean('wallet_deduction_processed')->default(false);
 
             // Add indexes for frequently queried columns
             $table->index('status');

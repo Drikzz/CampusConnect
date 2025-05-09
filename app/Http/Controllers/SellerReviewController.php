@@ -73,15 +73,18 @@ class SellerReviewController extends Controller
             }
 
             if (!$transaction) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid or incomplete transaction',
-                    'debug' => [
-                        'transaction_id' => $validated['transaction_id'],
-                        'transaction_type' => $validated['transaction_type'],
-                        'user_id' => Auth::id()
-                    ]
-                ], 403);
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid or incomplete transaction',
+                        'debug' => [
+                            'transaction_id' => $validated['transaction_id'],
+                            'transaction_type' => $validated['transaction_type'],
+                            'user_id' => Auth::id()
+                        ]
+                    ], 403);
+                }
+                return back()->withErrors(['error' => 'Invalid or incomplete transaction']);
             }
 
             // Check if user already reviewed this seller
@@ -90,10 +93,13 @@ class SellerReviewController extends Controller
                 ->first();
 
             if ($existingReview) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You have already reviewed this seller'
-                ], 422);
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You have already reviewed this seller'
+                    ], 422);
+                }
+                return back()->withErrors(['error' => 'You have already reviewed this seller']);
             }
 
             // Create the review
@@ -106,18 +112,29 @@ class SellerReviewController extends Controller
                 'order_id' => $validated['transaction_type'] === 'order' ? $validated['transaction_id'] : null,
             ]);
 
-            return response()->json([
-                'success' => true,
-                'review' => $review,
-                'message' => 'Review submitted successfully'
-            ]);
+            // Handle response based on request type
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'review' => $review,
+                    'message' => 'Review submitted successfully'
+                ]);
+            }
+
+            // For Inertia requests, redirect back with success flash message for toast
+            return back()->with('success', 'Review submitted successfully');
+            
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error submitting review: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 500);
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error submitting review: ' . $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ], 500);
+            }
+            
+            return back()->withErrors(['error' => 'Error submitting review: ' . $e->getMessage()]);
         }
     }
 
