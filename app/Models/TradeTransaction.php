@@ -9,23 +9,28 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class TradeTransaction extends Model
 {
     use HasFactory, SoftDeletes;
-    
+
     protected $fillable = [
         'buyer_id',
         'seller_id',
         'seller_code',
         'seller_product_id',
-        'meetup_location_id',  // ✓ This is correctly defined
+        'meetup_location_id',
         'additional_cash',
-        'notes',
         'status',
-        'meetup_schedule',     // ✓ This is correctly defined
+        'notes',
+        'meetup_schedule',
+        'meetup_day',
+        'preferred_time',
+        'wallet_deduction_processed'
     ];
-    
+
     protected $casts = [
-        'meetup_schedule' => 'datetime',  // ✓ Properly cast to datetime
+        'additional_cash' => 'decimal:2',
+        'meetup_schedule' => 'datetime',
+        'wallet_deduction_processed' => 'boolean',
     ];
-    
+
     /**
      * Get the buyer associated with the trade.
      */
@@ -33,7 +38,7 @@ class TradeTransaction extends Model
     {
         return $this->belongsTo(User::class, 'buyer_id');
     }
-    
+
     /**
      * Get the seller associated with the trade.
      * First tries seller_id, then falls back to seller_code
@@ -44,11 +49,11 @@ class TradeTransaction extends Model
         if (!empty($this->seller_id)) {
             return $this->belongsTo(User::class, 'seller_id');
         }
-        
+
         // Otherwise use the seller_code relationship
         return $this->belongsTo(User::class, 'seller_code', 'seller_code');
     }
-    
+
     /**
      * Get the product being traded for.
      */
@@ -56,23 +61,23 @@ class TradeTransaction extends Model
     {
         return $this->belongsTo(Product::class, 'seller_product_id');
     }
-    
+
     /**
      * Get the offered items for this trade.
      */
     public function offeredItems()
     {
-        return $this->hasMany(TradeOfferedItem::class);
+        return $this->hasMany(TradeOfferedItem::class, 'trade_transaction_id');
     }
-    
+
     /**
      * Get the negotiation messages for this trade.
      */
     public function negotiations()
     {
-        return $this->hasMany(TradeNegotiation::class);
+        return $this->hasMany(TradeNegotiation::class, 'trade_transaction_id');
     }
-    
+
     /**
      * Get the messages for this trade.
      */
@@ -80,13 +85,13 @@ class TradeTransaction extends Model
     {
         return $this->hasMany(TradeMessage::class);
     }
-    
+
     /**
      * Get the meetup location for this trade.
      */
     public function meetupLocation()
     {
-        return $this->belongsTo(MeetupLocation::class, 'meetup_location_id');  // ✓ Correct relationship
+        return $this->belongsTo(MeetupLocation::class, 'meetup_location_id');
     }
 
     /**

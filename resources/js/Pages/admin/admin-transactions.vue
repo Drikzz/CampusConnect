@@ -81,7 +81,20 @@
               <p class="mt-2 text-muted-foreground">Loading transaction data...</p>
             </div>
           </div>
-          <TransactionChart v-else :transaction-data="chartData" @filter-change="handleFilterChange" />
+          <div v-else-if="chartError" class="flex items-center justify-center h-64">
+            <div class="text-center">
+              <ExclamationTriangleIcon class="h-10 w-10 mx-auto mb-2 text-destructive" />
+              <p class="text-muted-foreground">{{ chartError }}</p>
+              <Button @click="reloadChartData()" size="sm" class="mt-3">Try Again</Button>
+            </div>
+          </div>
+          <TransactionChart 
+            v-else 
+            :key="chartKey" 
+            :transaction-data="chartData" 
+            :initial-date-range="filterDateRange"
+            @filter-change="handleFilterChange" 
+          />
         </div>
 
         <!-- Transaction Management -->
@@ -159,10 +172,11 @@ import { router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import TransactionTable from '@/Components/Admin/TransactionTable.vue'
 import TransactionChart from '@/Components/Admin/Charts/TransactionChart.vue'
-import { 
-  ShoppingCartIcon, ArrowsRightLeftIcon, BanknotesIcon
+import {
+  ShoppingCartIcon, ArrowsRightLeftIcon, BanknotesIcon, ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 import axios from 'axios'
+import { Button } from '@/Components/ui/button'
 
 const props = defineProps({
   stats: {
@@ -205,11 +219,36 @@ const isLoading = ref(true)
 const filterType = ref(props.filters.type || 'all')
 const filterStatus = ref(props.filters.status || 'all')
 const filterDateRange = ref(props.filters.date_range || '30days')
+const chartError = ref(null)
+const chartKey = ref(Date.now())
+const originalChartData = ref(null) // Store original chart data for client-side filtering
 
-// Add enhanced guard mechanism for filter changes
+// Improved flags for better state management
+const isInternalUpdate = ref(false)  // Flag to mark updates initiated by this component
+const currentRequestId = ref(0)
+const activeRequestId = ref(null)
 const isProcessingFilterChange = ref(false)
 const lastProcessedFilter = ref(null)
 const filterChangeTimeout = ref(null)
+
+// Watch for changes in props.filters to update local state - Fix the loop by checking isInternalUpdate
+watch(() => props.filters, (newFilters) => {
+  // Skip the update if it was initiated by this component
+  if (isInternalUpdate.value) {
+    return;
+  }
+  
+  // Only update if values are different to prevent loops
+  if (newFilters.date_range && newFilters.date_range !== filterDateRange.value) {
+    filterDateRange.value = newFilters.date_range;
+  }
+  if (newFilters.type && newFilters.type !== filterType.value) {
+    filterType.value = newFilters.type;
+  }
+  if (newFilters.status && newFilters.status !== filterStatus.value) {
+    filterStatus.value = newFilters.status;
+  }
+}, { deep: true });
 
 // Transaction type tabs
 const transactionTypes = [
@@ -241,11 +280,28 @@ const filteredItems = computed(() => {
     items = props.transactions.wallet || []
   }
   
+  // Apply status filtering locally if needed
+  if (filterStatus.value !== 'all') {
+    items = items.filter(item => {
+      // Improved status comparison with null/undefined checks
+      let itemStatus = item.status || '';
+      let filterStatusStr = filterStatus.value || '';
+      
+      // Normalize both to lowercase for case-insensitive comparison
+      return itemStatus.toLowerCase() === filterStatusStr.toLowerCase();
+    });
+  }
+  
   return items
 })
 
 // Handle filter changes
 function handleTypeChange() {
+  currentPage.value = 1; // Reset to first page on filter change
+  
+  // Set flag to prevent watch from reprocessing this update
+  isInternalUpdate.value = true;
+  
   router.get(route('admin.transactions'), {
     type: filterType.value,
     status: filterStatus.value,
@@ -253,11 +309,26 @@ function handleTypeChange() {
   }, {
     preserveState: true,
     preserveScroll: true,
-    only: ['transactions', 'stats']
-  })
+    only: ['transactions', 'stats'],
+    onSuccess: () => {
+      // Reset the flag after the update completes
+      setTimeout(() => {
+        isInternalUpdate.value = false;
+      }, 300);
+    },
+    onError: (errors) => {
+      isInternalUpdate.value = false;
+      console.error('Error applying type filter:', errors);
+    }
+  });
 }
 
 function handleStatusChange() {
+  currentPage.value = 1; // Reset to first page on filter change
+  
+  // Set flag to prevent watch from reprocessing this update
+  isInternalUpdate.value = true;
+  
   router.get(route('admin.transactions'), {
     type: filterType.value,
     status: filterStatus.value,
@@ -265,18 +336,36 @@ function handleStatusChange() {
   }, {
     preserveState: true,
     preserveScroll: true,
-    only: ['transactions', 'stats']
-  })
+    only: ['transactions', 'stats'],
+    onSuccess: () => {
+      // Reset the flag after the update completes
+      setTimeout(() => {
+        isInternalUpdate.value = false;
+      }, 300);
+    },
+    onError: (errors) => {
+      isInternalUpdate.value = false;
+      console.error('Error applying status filter:', errors);
+    }
+  });
 }
 
-// Handle chart filter changes
+// Enhanced chart filter change handler with better state synchronization
 function handleFilterChange(filters) {
+  console.log('Chart filter change received:', filters);
+  
   // Create a filter signature for comparison
   const filterSignature = `${filters.dateRange}-${filters.category}`;
   
-  // Enhanced guard: check if we're already processing this exact filter combination
-  if (isProcessingFilterChange.value && lastProcessedFilter.value === filterSignature) {
-    console.log('Skipping duplicate filter change', filterSignature);
+  // Reset processing state for new filters
+  if (lastProcessedFilter.value !== filterSignature) {
+    isProcessingFilterChange.value = false;
+    lastProcessedFilter.value = null;
+  }
+  
+  // Skip if already processing this filter combination
+  if (isProcessingFilterChange.value) {
+    console.log('Already processing filter change, skipping:', filterSignature);
     return;
   }
   
@@ -285,14 +374,71 @@ function handleFilterChange(filters) {
     clearTimeout(filterChangeTimeout.value);
   }
   
+  // Reset error state
+  chartError.value = null;
+  
   // Set guard and remember what we're processing
   isProcessingFilterChange.value = true;
   lastProcessedFilter.value = filterSignature;
-  console.log('Processing filter change:', filterSignature);
   
   // Update local filter state
   filterDateRange.value = filters.dateRange;
+  
+  // Try to filter client-side first (faster and reduces server load)
+  if (originalChartData.value && originalChartData.value.labels && originalChartData.value.datasets) {
+    try {
+      // Apply client-side filtering
+      const filteredData = filterTransactionData(originalChartData.value, filters);
+      chartData.value = filteredData;
+      chartKey.value = Date.now(); // Force chart re-render
+      
+      // Update URL parameters to keep in sync with chart filters (don't need server round-trip)
+      router.get(route('admin.transactions'), {
+        type: filterType.value,
+        status: filterStatus.value,
+        date_range: filters.dateRange
+      }, {
+        preserveState: true,
+        preserveScroll: true,
+        only: [], // Don't reload any data
+        replace: true, // Replace current history entry instead of adding a new one
+      });
+      
+      // Reset processing state
+      setTimeout(() => {
+        isProcessingFilterChange.value = false;
+      }, 300);
+      
+      return; // Exit early - we've handled this client-side
+    } catch (error) {
+      console.error('Client-side filtering failed, falling back to server:', error);
+    }
+  }
+  
+  // If client-side filtering didn't work, continue with server-side filtering
   isLoading.value = true;
+  
+  // Synchronize with route parameters to keep URL in sync with chart filters
+  router.get(route('admin.transactions'), {
+    type: filterType.value,
+    status: filterStatus.value,
+    date_range: filters.dateRange
+  }, {
+    preserveState: true,
+    preserveScroll: true,
+    only: ['transactions', 'stats'],
+    replace: true, // Replace current history entry instead of adding a new one
+    onSuccess: () => {
+      console.log('Chart filter URL parameters updated successfully');
+    },
+    onError: (errors) => {
+      console.error('Error updating chart filter URL parameters:', errors);
+    }
+  });
+  
+  // Generate a unique request ID for this filter change
+  const requestId = ++currentRequestId.value;
+  activeRequestId.value = requestId;
   
   // Debounce the API call
   filterChangeTimeout.value = setTimeout(() => {
@@ -304,44 +450,215 @@ function handleFilterChange(filters) {
       }
     })
     .then(response => {
-      if (response.data && response.data.labels && response.data.datasets) {
-        // Update chart data
-        chartData.value = response.data;
+      // Only process if this is still the active request
+      if (requestId !== activeRequestId.value) {
+        console.log(`Skipping stale response for request ${requestId}`);
+        return;
+      }
+      
+      // Enhanced data validation
+      if (validateChartData(response.data)) {
+        try {
+          // Create a deep copy of the data to ensure proper reactivity
+          const deepCopiedData = JSON.parse(JSON.stringify(response.data));
+          
+          // Store original data for client-side filtering
+          originalChartData.value = deepCopiedData;
+          
+          // Update chart data and force re-render with new key
+          chartData.value = deepCopiedData;
+          chartKey.value = Date.now();
+          console.log('Chart data updated successfully');
+        } catch (error) {
+          console.error('Error processing chart data:', error);
+          chartError.value = 'Failed to process chart data. Please try again.';
+        }
+      } else {
+        console.error('Invalid chart data structure:', response.data);
+        chartError.value = 'Received invalid chart data from server.';
       }
     })
     .catch(error => {
       console.error('Failed to fetch chart data:', error);
+      chartError.value = 'Failed to load chart data. Please try again.';
     })
     .finally(() => {
-      isLoading.value = false;
-      
-      // Reset the processing flag after a longer delay
-      // to ensure all reactivity has settled
-      setTimeout(() => {
-        isProcessingFilterChange.value = false;
-      }, 300);
+      // Only update loading state if this is the active request
+      if (requestId === activeRequestId.value) {
+        isLoading.value = false;
+        
+        // Reset the processing flag after a longer delay
+        setTimeout(() => {
+          if (requestId === activeRequestId.value) {
+            isProcessingFilterChange.value = false;
+          }
+        }, 300);
+      }
     });
   }, 200); // Debounce for 200ms
 }
 
-// Initialize chart data on component mount
-onMounted(() => {
-  // Fetch initial chart data
+// Enhanced data validation function
+function validateChartData(data) {
+  // Check if data exists and has proper structure
+  if (!data || typeof data !== 'object') return false;
+  
+  // Check for labels array
+  if (!Array.isArray(data.labels)) return false;
+  
+  // Check for datasets array
+  if (!Array.isArray(data.datasets) || data.datasets.length === 0) return false;
+  
+  // Validate each dataset has required properties
+  return data.datasets.every(dataset => {
+    return (
+      typeof dataset === 'object' &&
+      dataset !== null &&
+      typeof dataset.label === 'string' &&
+      Array.isArray(dataset.data) &&
+      dataset.data.length === data.labels.length
+    );
+  });
+}
+
+// Add these functions from Dashboard.vue for client-side filtering
+function filterTransactionData(data, filters) {
+  // Clone the data to avoid mutating the original
+  const filteredData = JSON.parse(JSON.stringify(data));
+  
+  if (!filteredData || !filteredData.labels || !filteredData.datasets) {
+    console.warn('Cannot filter invalid transaction data structure');
+    return filteredData;
+  }
+  
+  // Apply date range filter
+  const { startIndex, endIndex } = getDateRangeIndices(filteredData.labels, filters.dateRange);
+  
+  filteredData.labels = filteredData.labels.slice(startIndex, endIndex);
+  
+  // Filter datasets based on category
+  if (filters.category && filters.category !== 'all') {
+    filteredData.datasets = filteredData.datasets.filter(dataset => {
+      // Keep datasets that match the selected category
+      const label = dataset.label.toLowerCase();
+      if (filters.category === 'orders' && label.includes('order')) return true;
+      if (filters.category === 'trades' && label.includes('trade')) return true;
+      if (filters.category === 'wallet' && (label.includes('wallet') || label.includes('transaction'))) return true;
+      return false;
+    }).map(dataset => ({
+      ...dataset,
+      data: dataset.data.slice(startIndex, endIndex)
+    }));
+  } else {
+    // Just apply date range filter to all datasets
+    filteredData.datasets = filteredData.datasets.map(dataset => ({
+      ...dataset,
+      data: dataset.data.slice(startIndex, endIndex)
+    }));
+  }
+  
+  return filteredData;
+}
+
+// Helper function to get start and end indices based on date range
+function getDateRangeIndices(labels, dateRange) {
+  if (!labels || !Array.isArray(labels)) {
+    return { startIndex: 0, endIndex: 0 };
+  }
+  
+  let startIndex = 0;
+  const endIndex = labels.length;
+  
+  // Calculate start index based on date range
+  switch (dateRange) {
+    case '7days':
+      startIndex = Math.max(0, labels.length - 7);
+      break;
+    case '30days':
+      startIndex = Math.max(0, labels.length - 30);
+      break;
+    case '90days':
+      startIndex = Math.max(0, labels.length - 90);
+      break;
+    case 'year':
+      startIndex = Math.max(0, labels.length - 365);
+      break;
+    case 'all':
+    default:
+      startIndex = 0;
+  }
+  
+  return { startIndex, endIndex };
+}
+
+// Function to reload chart data after error
+function reloadChartData() {
+  chartError.value = null;
+  isLoading.value = true;
+  
   axios.get('/api/admin/transactions/chart', {
     params: {
-      date_range: filterDateRange.value
+      date_range: filterDateRange.value,
+      category: 'all'
     }
   })
   .then(response => {
-    if (response.data && response.data.labels && response.data.datasets) {
-      chartData.value = response.data
+    if (validateChartData(response.data)) {
+      const deepCopiedData = JSON.parse(JSON.stringify(response.data));
+      originalChartData.value = deepCopiedData; // Store original data
+      chartData.value = deepCopiedData;
+      chartKey.value = Date.now();
+    } else {
+      chartError.value = 'Received invalid chart data from server.';
     }
   })
   .catch(error => {
-    console.error('Failed to fetch chart data:', error)
+    console.error('Failed to reload chart data:', error);
+    chartError.value = 'Failed to reload chart data. Please try again.';
   })
   .finally(() => {
-    isLoading.value = false
+    isLoading.value = false;
+  });
+}
+
+// Initialize chart data on component mount
+onMounted(() => {
+  // Make sure local filters match URL parameters
+  if (props.filters) {
+    filterType.value = props.filters.type || 'all';
+    filterStatus.value = props.filters.status || 'all';
+    filterDateRange.value = props.filters.date_range || '30days';
+    console.log('Initialized filters from URL:', { 
+      type: filterType.value,
+      status: filterStatus.value,
+      dateRange: filterDateRange.value
+    });
+  }
+
+  // Fetch initial chart data with current filters from URL
+  axios.get('/api/admin/transactions/chart', {
+    params: {
+      date_range: filterDateRange.value,
+      category: 'all'
+    }
   })
-})
+  .then(response => {
+    if (validateChartData(response.data)) {
+      // Deep copy to ensure reactivity
+      const deepCopiedData = JSON.parse(JSON.stringify(response.data));
+      originalChartData.value = deepCopiedData; // Store original data for client-side filtering
+      chartData.value = deepCopiedData;
+    } else {
+      console.error('Invalid initial chart data structure:', response.data);
+      chartError.value = 'Received invalid chart data from server.';
+    }
+  })
+  .catch(error => {
+    console.error('Failed to fetch chart data:', error);
+    chartError.value = 'Failed to load chart data. Please try again.';
+  })
+  .finally(() => {
+    isLoading.value = false;
+  });
+});
 </script>

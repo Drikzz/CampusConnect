@@ -283,19 +283,39 @@
                   />
                 </div>
               </div>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2 items-center">
                 <Select v-model="filters.type" class="w-full sm:w-auto">
-                  <option value="">All Types</option>
+                  <option value="all">All Types</option>
                   <option value="listing">Listing Fee</option>
                   <option value="refund">Refund</option>
                   <option value="escrow">Escrow Release</option>
+                  <option value="refill">Wallet Refill</option>
+                  <option value="withdrawal">Withdrawal</option>
                 </Select>
                 <Select v-model="filters.status" class="w-full sm:w-auto">
-                  <option value="">All Statuses</option>
+                  <option value="all">All Statuses</option>
                   <option value="pending">Pending</option>
+                  <option value="in_process">In Process</option>
                   <option value="completed">Completed</option>
                   <option value="rejected">Rejected</option>
                 </Select>
+                <Select v-model="filters.dateRange" class="w-full sm:w-auto">
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
+                </Select>
+                <Button 
+                  v-if="isFiltering" 
+                  variant="outline" 
+                  size="sm" 
+                  @click="resetFilters"
+                  class="flex items-center gap-1"
+                >
+                  <RefreshCwIcon class="h-3 w-3" />
+                  Reset
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -510,9 +530,9 @@ const platformFees = ref({
 const search = ref('')
 const sellerSearch = ref('')
 const filters = ref({
-  type: '',
-  status: '',
-  dateRange: null
+  type: 'all',
+  status: 'all',
+  dateRange: 'all'
 })
 
 const showModal = ref(false)
@@ -536,25 +556,72 @@ const filteredSellers = computed(() => {
   )
 })
 
-// Filtered transactions based on search and filters
+// Check if any filters are active
+const isFiltering = computed(() => {
+  return search.value.trim() !== '' || 
+    filters.value.type !== 'all' || 
+    filters.value.status !== 'all' || 
+    filters.value.dateRange !== 'all'
+})
+
+// Reset all transaction filters
+const resetFilters = () => {
+  search.value = ''
+  filters.value = {
+    type: 'all',
+    status: 'all',
+    dateRange: 'all'
+  }
+}
+
+// Enhanced filtered transactions based on search and filters
 const filteredTransactions = computed(() => {
   if (!props.transactions) return []
   
   return props.transactions.filter(transaction => {
     // Filter by search
     const searchMatch = !search.value || 
-      transaction.user_name.toLowerCase().includes(search.value.toLowerCase()) ||
+      transaction.user_name?.toLowerCase().includes(search.value.toLowerCase()) ||
+      transaction.id?.toString().includes(search.value) ||
       (transaction.description && transaction.description.toLowerCase().includes(search.value.toLowerCase()))
     
     // Filter by type
-    const typeMatch = !filters.value.type || 
-      transaction.type.toLowerCase() === filters.value.type.toLowerCase()
+    const typeMatch = filters.value.type === 'all' || 
+      transaction.type?.toLowerCase() === filters.value.type.toLowerCase()
     
     // Filter by status
-    const statusMatch = !filters.value.status || 
-      transaction.status.toLowerCase() === filters.value.status.toLowerCase()
+    const statusMatch = filters.value.status === 'all' || 
+      transaction.status?.toLowerCase() === filters.value.status.toLowerCase()
+    
+    // Filter by date range
+    let dateMatch = true
+    if (filters.value.dateRange !== 'all' && transaction.created_at) {
+      const txDate = new Date(transaction.created_at)
+      const today = new Date()
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0))
       
-    return searchMatch && typeMatch && statusMatch
+      switch (filters.value.dateRange) {
+        case 'today':
+          dateMatch = txDate >= startOfDay
+          break
+        case 'week':
+          const startOfWeek = new Date(today)
+          startOfWeek.setDate(today.getDate() - today.getDay()) // Start of week (Sunday)
+          startOfWeek.setHours(0, 0, 0, 0)
+          dateMatch = txDate >= startOfWeek
+          break
+        case 'month':
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+          dateMatch = txDate >= startOfMonth
+          break
+        case 'year':
+          const startOfYear = new Date(today.getFullYear(), 0, 1)
+          dateMatch = txDate >= startOfYear
+          break
+      }
+    }
+      
+    return searchMatch && typeMatch && statusMatch && dateMatch
   })
 })
 

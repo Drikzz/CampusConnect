@@ -26,6 +26,11 @@ const props = defineProps({
       datasets: []
     })
   },
+  // Add a prop to receive initial date range from parent
+  initialDateRange: {
+    type: String,
+    default: '30days'
+  },
   // New props to support ShadCN-style flat data structure
   data: {
     type: Array,
@@ -47,10 +52,11 @@ const props = defineProps({
 
 const emit = defineEmits(['filter-change'])
 
-// Add a tracker for previous filters to prevent loops
+// Improved tracker for previous filters with deep copy
 const previousFilters = ref(null)
-// Add flag to track if update is coming from parent
+// Better flag system with longer timeout
 const isReceivingParentUpdate = ref(false)
+const parentUpdateTimeout = ref(null)
 
 // Chart data structure
 const chartData = ref({
@@ -116,6 +122,11 @@ const processedChartData = computed(() => {
 // Update chartData whenever transactionData changes
 watch(() => props.transactionData, (newData) => {
   if (newData && newData.labels && newData.datasets) {
+    // Cancel any pending timeout
+    if (parentUpdateTimeout.value) {
+      clearTimeout(parentUpdateTimeout.value);
+    }
+    
     // Set flag to indicate this is a parent-driven update
     isReceivingParentUpdate.value = true;
     
@@ -175,10 +186,10 @@ watch(() => props.transactionData, (newData) => {
     };
     chartData.value = processedData;
 
-    // Reset the flag after a short delay to allow reactivity to settle
-    setTimeout(() => {
+    // Reset the flag after a longer delay to prevent race conditions
+    parentUpdateTimeout.value = setTimeout(() => {
       isReceivingParentUpdate.value = false;
-    }, 100);
+    }, 500); // Increased from 100ms to 500ms
   }
 }, { immediate: true, deep: true })
 
@@ -339,23 +350,31 @@ const transactionCategories = [
   { value: 'wallet', label: 'Wallet' }
 ]
 
-// Handle filter changes from the chart component
+// Improved filter handling function with better object comparison
 async function handleFilterChange(filters) {
-  // Guard: skip if we're currently processing a parent update
-  if (isReceivingParentUpdate.value) return;
-  
-  // Guard: check if these are actually new filter values
-  if (previousFilters.value && 
-      previousFilters.value.dateRange === filters.dateRange &&
-      previousFilters.value.category === filters.category) {
-    return // Skip duplicate filter changes
+  // Better guard: skip if we're currently processing a parent update
+  if (isReceivingParentUpdate.value) {
+    console.log('Skipping filter change during parent update');
+    return;
   }
   
-  // Store current filters
-  previousFilters.value = { ...filters }
+  // Deep compare current filters with previous ones
+  const hasChanged = !previousFilters.value || 
+    previousFilters.value.dateRange !== filters.dateRange || 
+    previousFilters.value.category !== filters.category;
+    
+  // Skip if the filters haven't actually changed
+  if (!hasChanged) {
+    console.log('Filters unchanged, skipping event emission');
+    return;
+  }
+  
+  // Store current filters (deep copy to prevent reference issues)
+  previousFilters.value = { ...filters };
   
   // Emit the filter change up to parent component
-  emit('filter-change', filters)
+  console.log('Emitting filter change:', filters);
+  emit('filter-change', filters);
   
   // Optional direct API call for server-side filtering
   if (filters.useServerData) {
@@ -371,4 +390,13 @@ async function handleFilterChange(filters) {
     }
   }
 }
+
+// Add a mounted hook to initialize previousFilters with initialDateRange
+onMounted(() => {
+  // Initialize the previous filters state with initial date range
+  previousFilters.value = { 
+    dateRange: props.initialDateRange || '30days', 
+    category: 'all' 
+  };
+});
 </script>
