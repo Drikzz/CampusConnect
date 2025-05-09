@@ -37,4 +37,22 @@ class TradeMessage extends Model
     {
         return $this->belongsTo(User::class, 'sender_id');
     }
+
+    /**
+     * Create a new message for a trade
+     * 
+     * @param int $tradeId
+     * @param int $senderId
+     * @param string $message
+     * @return static
+     */
+    public static function createMessage($tradeId, $senderId, $message)
+    {
+        return static::create([
+            'trade_transaction_id' => $tradeId,
+            'sender_id' => $senderId,
+            'message' => $message,
+            'read_at' => null // New messages start unread
+        ]);
+    }
 }

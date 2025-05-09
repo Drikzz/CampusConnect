@@ -717,16 +717,17 @@ class TradeController extends Controller
     }
 
     /**
-     * Get messages for a trade
+     * Get messages for a trade and ensure a message thread exists if needed
      *
-     * @param TradeTransaction $trade
-     * @return \Illuminate\Http\Response
+     * @param Request $request
+     * @param int $tradeId
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function getMessages(Request $request, $trade)
+    public function getMessages(Request $request, $tradeId)
     {
         try {
             // Find the trade
-            $tradeTransaction = TradeTransaction::findOrFail($trade);
+            $tradeTransaction = TradeTransaction::findOrFail($tradeId);
             
             // Verify that the user is either the buyer or the seller
             if (Auth::id() !== $tradeTransaction->buyer_id && Auth::id() !== $tradeTransaction->seller_id) {
@@ -736,19 +737,35 @@ class TradeController extends Controller
                 ], 403);
             }
             
-            // Get the messages with user information - now using the TradeMessage model
+            // Check if there are any messages
+            $messageCount = TradeMessage::where('trade_transaction_id', $tradeId)->count();
+            
+            // If no messages, create an initial welcome message
+            if ($messageCount === 0) {
+                // Create a welcome message from the seller
+                TradeMessage::create([
+                    'trade_transaction_id' => $tradeId,
+                    'sender_id' => $tradeTransaction->seller_id,
+                    'message' => "Welcome to your trade conversation! You can discuss details about your trade here."
+                ]);
+            }
+            
+            // Get the messages with user information
             $messages = TradeMessage::with('user:id,first_name,last_name,username,profile_picture')
-                ->where('trade_transaction_id', $tradeTransaction->id)
+                ->where('trade_transaction_id', $tradeId)
                 ->orderBy('created_at', 'asc')
                 ->get();
             
             // Format the messages for the response
             $formattedMessages = $messages->map(function($message) {
-                $profilePicture = $message->user && $message->user->profile_picture ? 
-                    (file_exists(storage_path('app/public/' . $message->user->profile_picture)) ? 
-                        asset('storage/' . $message->user->profile_picture) : 
-                        asset('images/placeholder-avatar.jpg')) : 
-                    asset('images/placeholder-avatar.jpg');
+                $profilePicture = '/images/placeholder-avatar.jpg';
+                
+                if ($message->user && $message->user->profile_picture) {
+                    $imagePath = $message->user->profile_picture;
+                    if (file_exists(storage_path('app/public/' . $imagePath))) {
+                        $profilePicture = asset('storage/' . $imagePath);
+                    }
+                }
                 
                 return [
                     'id' => $message->id,
@@ -767,7 +784,7 @@ class TradeController extends Controller
             });
             
             // Mark messages as read if the user is not the sender
-            TradeMessage::where('trade_transaction_id', $tradeTransaction->id)
+            TradeMessage::where('trade_transaction_id', $tradeId)
                 ->where('sender_id', '!=', Auth::id())
                 ->whereNull('read_at')
                 ->update(['read_at' => now()]);
@@ -779,7 +796,7 @@ class TradeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error getting trade messages: ' . $e->getMessage(), [
-                'trade_id' => $trade,
+                'trade_id' => $tradeId,
                 'user_id' => Auth::id(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -787,6 +804,86 @@ class TradeController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to get messages: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send a message in a trade conversation
+     *
+     * @param Request $request
+     * @param int $tradeId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendMessage(Request $request, $tradeId)
+    {
+        try {
+            // Validate the request
+            $validated = $request->validate([
+                'message' => 'required|string|max:1000'
+            ]);
+            
+            // Find the trade
+            $tradeTransaction = TradeTransaction::findOrFail($tradeId);
+            
+            // Verify that the user is either the buyer or the seller
+            if (Auth::id() !== $tradeTransaction->buyer_id && Auth::id() !== $tradeTransaction->seller_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not authorized to send messages for this trade'
+                ], 403);
+            }
+            
+            // Create the message
+            $message = TradeMessage::create([
+                'trade_transaction_id' => $tradeId,
+                'sender_id' => Auth::id(),
+                'message' => $validated['message']
+            ]);
+            
+            // Load the user relationship
+            $message->load('user:id,first_name,last_name,username,profile_picture');
+            
+            // Format profile picture URL
+            $profilePicture = '/images/placeholder-avatar.jpg';
+            if ($message->user && $message->user->profile_picture) {
+                $imagePath = $message->user->profile_picture;
+                if (file_exists(storage_path('app/public/' . $imagePath))) {
+                    $profilePicture = asset('storage/' . $imagePath);
+                }
+            }
+            
+            // Format the message for the response
+            $formattedMessage = [
+                'id' => $message->id,
+                'message' => $message->message,
+                'created_at' => $message->created_at,
+                'read_at' => null,
+                'user' => [
+                    'id' => $message->user->id,
+                    'name' => $message->user->first_name . ' ' . $message->user->last_name,
+                    'first_name' => $message->user->first_name,
+                    'last_name' => $message->user->last_name,
+                    'profile_picture' => $profilePicture
+                ],
+                'user_id' => $message->sender_id
+            ];
+            
+            // Return success response
+            return response()->json([
+                'success' => true,
+                'data' => $formattedMessage
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending trade message: ' . $e->getMessage(), [
+                'trade_id' => $tradeId,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send message: ' . $e->getMessage()
             ], 500);
         }
     }
