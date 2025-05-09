@@ -13,6 +13,7 @@ import { Separator } from '@/Components/ui/separator';
 import { Toaster } from '@/Components/ui/toast'; // Import Toaster directly
 import { ToastProvider } from '@/Components/ui/toast';
 import { useToast } from '@/Components/ui/toast/use-toast'; // Import useToast
+import UserAvatar from '@/Components/ui/user-avatar.vue';
 
 const props = defineProps({
   auth: Object
@@ -205,13 +206,15 @@ watch(() => page.props.flash.toast, (flashToast) => {
           <div v-if="auth?.user" class="hidden lg:flex items-center space-x-4">
             <Link href="/dashboard/profile" 
                   class="flex items-center gap-3 text-white hover:text-gray-200 p-2 rounded-lg transition-colors hover:bg-white/10">
-              <div v-if="auth.user.profile_picture" class="h-10 w-10 rounded-full overflow-hidden">
-                <img :src="`/storage/${auth.user.profile_picture}`" :alt="auth.user.first_name" 
-                     class="h-full w-full object-cover border-2 border-white">
-              </div>
-              <div v-else
-                   class="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
-                <span class="text-white text-lg font-medium">{{ auth.user.first_name[0] }}</span>
+              <!-- Fix avatar container to maintain circular shape -->
+              <div class="h-10 w-10 rounded-full overflow-hidden">
+                <UserAvatar 
+                  :src="auth.user.profile_picture" 
+                  :name="auth.user.first_name"
+                  size="md"
+                  bordered
+                  border-color="border-white"
+                />
               </div>
               <div class="hidden md:block">
                 <p class="text-sm font-medium leading-tight">

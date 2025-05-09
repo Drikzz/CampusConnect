@@ -527,112 +527,198 @@ class TradeController extends Controller
      */
     private function getTradesForUser($user)
     {
-        $trades = TradeTransaction::with([
-            'sellerProduct', 
-            'offeredItems', 
-            'buyer:id,first_name,last_name,username,profile_picture', 
-            'seller:id,first_name,last_name,username,profile_picture,seller_code',
-            'meetupLocation.location',
-            'messages.user:id,first_name,last_name,username,profile_picture'
-        ])
-        ->where(function ($query) use ($user) {
-            $query->where('buyer_id', $user->id)
-                  ->orWhere('seller_id', $user->id);
-        })
-        ->orderBy('created_at', 'desc')
-        ->paginate(10);
-        
-        // Format data directly here instead of using a separate method
-        $trades->getCollection()->transform(function ($trade) {
-            // Format seller product images
-            if ($trade->sellerProduct && $trade->sellerProduct->images) {
-                $trade->sellerProduct->images = array_map(function ($image) {
-                    if ($image && file_exists(storage_path('app/public/' . $image))) {
-                        return asset('storage/' . $image);
-                    } else {
-                        return asset('images/placeholder-product.jpg');
-                    }
-                }, is_array($trade->sellerProduct->images) ? $trade->sellerProduct->images : json_decode($trade->sellerProduct->images, true) ?? []);
-            }
+        try {
+            \Log::info('Fetching trades for user', ['user_id' => $user->id]);
             
-            // Process offered items images
-            if ($trade->offeredItems) {
-                $trade->offeredItems->transform(function ($item) {
-                    // Ensure images field is properly formatted
+            // Eager load all relations to prevent N+1 query issues
+            $trades = TradeTransaction::with([
+                'sellerProduct', 
+                'offeredItems', 
+                'buyer:id,first_name,last_name,username,profile_picture', 
+                'seller:id,first_name,last_name,username,profile_picture,seller_code',
+                'meetupLocation.location',
+                'messages.user:id,first_name,last_name,username,profile_picture'
+            ])
+            ->where(function ($query) use ($user) {
+                $query->where('buyer_id', $user->id)
+                      ->orWhere('seller_id', $user->id);
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+            
+            \Log::info('Trade count', ['count' => $trades->count()]);
+            
+            // Simple data structure for frontend to avoid nested object issues
+            $trades->getCollection()->transform(function ($trade) {
+                // Get seller product image URL safely
+                $productImageUrl = '/storage/imgs/download-Copy.jpg';
+                if ($trade->sellerProduct && $trade->sellerProduct->images) {
+                    $images = $trade->sellerProduct->images;
+                    
+                    if (is_string($images)) {
+                        try {
+                            $decodedImages = json_decode($images, true);
+                            if (is_array($decodedImages) && !empty($decodedImages)) {
+                                $imagePath = $decodedImages[0];
+                                if (is_string($imagePath)) {
+                                    $productImageUrl = $this->formatImageUrl($imagePath);
+                                }
+                            } else if (is_string($images) && !empty($images)) {
+                                $productImageUrl = $this->formatImageUrl($images);
+                            }
+                        } catch (\Exception $e) {
+                            \Log::error('Error decoding product images: ' . $e->getMessage());
+                            $productImageUrl = $this->formatImageUrl($images);
+                        }
+                    } else if (is_array($images) && !empty($images)) {
+                        $productImageUrl = $this->formatImageUrl($images[0]);
+                    }
+                }
+                
+                // Format all offered items with consistent image paths
+                $offeredItems = $trade->offeredItems->map(function($item) {
+                    $imageUrl = '/storage/imgs/download-Copy.jpg';
+                    
                     if ($item->images) {
-                        $imageData = is_string($item->images) ? json_decode($item->images, true) : $item->images;
-                        // Make sure it's an array
-                        $imageData = is_array($imageData) ? $imageData : [$imageData];
-                        
-                        // Map each path to its proper URL
-                        $item->images = array_map(function($imagePath) {
-                            return asset('storage/' . $imagePath);
-                        }, $imageData);
-                        
-                        // Add a current_images field to use for editing
-                        $item->current_images = $item->images;
-                    } else {
-                        $item->images = [];
-                        $item->current_images = [];
-                    }
-                    return $item;
-                });
-            }
-            
-            // Format messages
-            if ($trade->messages) {
-                $trade->messages->transform(function ($message) {
-                    // Format user profile picture
-                    if ($message->user && $message->user->profile_picture) {
-                        $message->user->profile_picture = file_exists(storage_path('app/public/' . $message->user->profile_picture))
-                            ? asset('storage/' . $message->user->profile_picture) 
-                            : asset('images/placeholder-avatar.jpg');
+                        $images = $item->images;
+                        if (is_array($images) && !empty($images)) {
+                            $imageUrl = $this->formatImageUrl($images[0]);
+                        } else if (is_string($images) && !empty($images)) {
+                            $imageUrl = $this->formatImageUrl($images);
+                        }
                     }
                     
-                    // Add user_id to the message for frontend identification
-                    $message->user_id = $message->sender_id;
-                    
-                    // Format created_at for display
-                    $message->formatted_time = $message->created_at ? Carbon::parse($message->created_at)->format('M j, Y g:i A') : null;
-                    
-                    return $message;
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'quantity' => $item->quantity,
+                        'estimated_value' => (float)$item->estimated_value,
+                        'description' => $item->description ?? '',
+                        'condition' => $item->condition ?? 'used_good',
+                        'images' => [$imageUrl],
+                        'image_url' => $imageUrl
+                    ];
                 });
-            }
+                
+                // Create flattened data structure with all necessary properties
+                return [
+                    'id' => $trade->id,
+                    'status' => $trade->status,
+                    'additional_cash' => $trade->additional_cash,
+                    'notes' => $trade->notes,
+                    'created_at' => $trade->created_at,
+                    'updated_at' => $trade->updated_at,
+                    'meetup_schedule' => $trade->meetup_schedule,
+                    'meetup_day' => $trade->meetup_day,
+                    'preferred_time' => $trade->preferred_time ?? '',
+                    'formatted_meetup_date' => $trade->meetup_schedule ? 
+                        $trade->meetup_schedule->format('F j, Y \a\t h:i A') : null,
+                    'meetup_location_name' => $trade->meetupLocation && $trade->meetupLocation->location ? 
+                        $trade->meetupLocation->location->name : 
+                        ($trade->meetupLocation ? $trade->meetupLocation->custom_location : 'Location not specified'),
+                    
+                    // Buyer data
+                    'buyer_id' => $trade->buyer_id,
+                    'buyer' => [
+                        'id' => $trade->buyer ? $trade->buyer->id : null,
+                        'name' => $trade->buyer ? $trade->buyer->first_name . ' ' . $trade->buyer->last_name : 'Unknown Buyer',
+                        'profile_picture' => $trade->buyer && $trade->buyer->profile_picture ? 
+                            $this->formatImageUrl($trade->buyer->profile_picture) : 
+                            '/storage/imgs/download-Copy.jpg'
+                    ],
+                    
+                    // Seller data
+                    'seller_id' => $trade->seller_id,
+                    'seller_code' => $trade->seller_code,
+                    'seller' => [
+                        'id' => $trade->seller ? $trade->seller->id : null,
+                        'name' => $trade->seller ? $trade->seller->first_name . ' ' . $trade->seller->last_name : 'Unknown Seller',
+                        'seller_code' => $trade->seller_code,
+                        'profile_picture' => $trade->seller && $trade->seller->profile_picture ? 
+                            $this->formatImageUrl($trade->seller->profile_picture) : 
+                            '/storage/imgs/download-Copy.jpg'
+                    ],
+                    
+                    // Product data
+                    'seller_product_id' => $trade->seller_product_id,
+                    'seller_product' => [
+                        'id' => $trade->sellerProduct ? $trade->sellerProduct->id : null,
+                        'name' => $trade->sellerProduct ? $trade->sellerProduct->name : 'Unknown Product',
+                        'price' => $trade->sellerProduct ? (float)$trade->sellerProduct->price : 0,
+                        'images' => [$productImageUrl]
+                    ],
+                    
+                    // Offered items
+                    'offered_items' => $offeredItems,
+                    
+                    // Messages
+                    'messages' => $trade->messages->map(function($message) {
+                        $profilePicture = $message->user && $message->user->profile_picture ? 
+                            $this->formatImageUrl($message->user->profile_picture) : 
+                            '/storage/imgs/download-Copy.jpg';
+                        
+                        return [
+                            'id' => $message->id,
+                            'sender_id' => $message->sender_id,
+                            'message' => $message->message,
+                            'created_at' => $message->created_at,
+                            'read_at' => $message->read_at,
+                            'user' => [
+                                'id' => $message->user ? $message->user->id : null,
+                                'name' => $message->user ? $message->user->first_name . ' ' . $message->user->last_name : 'Unknown User',
+                                'profile_picture' => $profilePicture
+                            ],
+                            'user_id' => $message->sender_id,
+                            'formatted_time' => $message->created_at ? $message->created_at->format('M j, Y g:i A') : null
+                        ];
+                    })
+                ];
+            });
             
-            // Format profile pictures for users
-            if ($trade->buyer && $trade->buyer->profile_picture) {
-                $trade->buyer->profile_picture = file_exists(storage_path('app/public/' . $trade->buyer->profile_picture))
-                    ? asset('storage/' . $trade->buyer->profile_picture) 
-                    : asset('images/placeholder-avatar.jpg');
-            }
+            return $trades;
+        } catch (\Exception $e) {
+            \Log::error('Error getting trades for user: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'trace' => $e->getTraceAsString()
+            ]);
             
-            if ($trade->seller && $trade->seller->profile_picture) {
-                $trade->seller->profile_picture = file_exists(storage_path('app/public/' . $trade->seller->profile_picture))
-                    ? asset('storage/' . $trade->seller->profile_picture)
-                    : asset('images/placeholder-avatar.jpg');
-            }
-            
-            // Add a properly formatted meetup date
-            if ($trade->meetup_schedule) {
-                $trade->formatted_meetup_date = Carbon::parse($trade->meetup_schedule)->format('F j, Y g:i A');
-            }
-            
-            // Add meetup location name if available
-            if ($trade->meetupLocation && $trade->meetupLocation->location) {
-                $trade->meetup_location_name = $trade->meetupLocation->location->name;
-            } else {
-                $trade->meetup_location_name = 'Location not specified';
-            }
-            
-            return $trade;
-        });
-        
-        return $trades;
+            // Return empty paginator
+            return new \Illuminate\Pagination\LengthAwarePaginator(
+                [], 0, 10, 1
+            );
+        }
     }
     
     /**
+     * Format image URLs consistently
+     *
+     * @param string $imagePath
+     * @return string
+     */
+    private function formatImageUrl($imagePath)
+    {
+        if (empty($imagePath)) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        // If already a full URL, return as is
+        if (strpos($imagePath, 'http://') === 0 || strpos($imagePath, 'https://') === 0) {
+            return $imagePath;
+        }
+        
+        // Clean up path format
+        if (strpos($imagePath, 'storage/') === 0) {
+            return '/' . $imagePath;
+        } else if (strpos($imagePath, '/storage/') !== 0) {
+            return '/storage/' . $imagePath;
+        }
+        
+        return $imagePath;
+    }
+
+    /**
      * Get messages for a trade
-     * 
+     *
      * @param TradeTransaction $trade
      * @return \Illuminate\Http\Response
      */
@@ -663,7 +749,7 @@ class TradeController extends Controller
                         asset('storage/' . $message->user->profile_picture) : 
                         asset('images/placeholder-avatar.jpg')) : 
                     asset('images/placeholder-avatar.jpg');
-
+                
                 return [
                     'id' => $message->id,
                     'message' => $message->message,
@@ -707,7 +793,7 @@ class TradeController extends Controller
 
     /**
      * Get detailed information for a specific trade
-     *
+     * 
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
@@ -732,150 +818,73 @@ class TradeController extends Controller
                 ], 403);
             }
             
-            // Format the sellerProduct images
-            $sellerProduct = null;
-            if ($tradeTransaction->sellerProduct) {
-                $images = [];
-                if ($tradeTransaction->sellerProduct->images) {
-                    // Ensure images is decoded from JSON if needed
-                    $productImages = is_array($tradeTransaction->sellerProduct->images) 
-                        ? $tradeTransaction->sellerProduct->images 
-                        : json_decode($tradeTransaction->sellerProduct->images, true) ?? [];
-                    
-                    foreach ($productImages as $image) {
-                        if ($image && file_exists(storage_path('app/public/' . $image))) {
-                            $images[] = asset('storage/' . $image);
-                        } else {
-                            $images[] = asset('images/placeholder-product.jpg');
-                        }
-                    }
-                }
-                
-                $sellerProduct = [
-                    'id' => $tradeTransaction->sellerProduct->id,
-                    'name' => $tradeTransaction->sellerProduct->name,
-                    'price' => $tradeTransaction->sellerProduct->price,
-                    'description' => $tradeTransaction->sellerProduct->description,
-                    'images' => $images
-                ];
-            }
-            
-            // Format offered items with proper image handling
-            $offeredItems = [];
-            foreach ($tradeTransaction->offeredItems as $item) {
-                $itemImages = [];
-                
-                // Process the item images - handle JSON decoding
-                if ($item->images) {
-                    try {
-                        // If it's a JSON string, decode it
-                        $imageData = is_string($item->images) ? json_decode($item->images, true) : $item->images;
-                        
-                        // If decoding failed, try to use as single path
-                        if (json_last_error() !== JSON_ERROR_NONE && is_string($item->images)) {
-                            $imageData = [$item->images];
-                        }
-                        
-                        // Ensure it's an array
-                        $imageData = is_array($imageData) ? $imageData : [$imageData];
-                        
-                        // Map each path to its proper URL
-                        foreach ($imageData as $imagePath) {
-                            if (empty($imagePath)) continue;
-                            
-                            // Check different path possibilities
-                            if (file_exists(public_path('app/trade_items/' . $imagePath))) {
-                                $itemImages[] = asset('app/trade_items/' . $imagePath);
-                                continue;
-                            }
-                            
-                            if (file_exists(storage_path('app/public/trade_items/' . $imagePath))) {
-                                $itemImages[] = asset('storage/trade_items/' . $imagePath);
-                                continue;
-                            }
-                            
-                            if (file_exists(storage_path('app/public/' . $imagePath))) {
-                                $itemImages[] = asset('storage/' . $imagePath);
-                                continue;
-                            }
-                            
-                            // Default fallback
-                            $itemImages[] = asset('images/placeholder-product.jpg');
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('Failed to process trade offered item images: ' . $e->getMessage(), [
-                            'item_id' => $item->id,
-                            'images' => $item->images
-                        ]);
-                        $itemImages[] = asset('images/placeholder-product.jpg');
-                    }
-                }
-                
-                // Add the formatted item to the array
-                $offeredItems[] = [
-                    'id' => $item->id,
-                    'name' => $item->name,
-                    'quantity' => $item->quantity,
-                    'estimated_value' => $item->estimated_value,
-                    'description' => $item->description,
-                    'images' => $itemImages,
-                    'condition' => $item->condition ?: 'used_good',
-                ];
-            }
-            
-            // Format user data
-            $buyerData = $tradeTransaction->buyer ? [
-                'id' => $tradeTransaction->buyer->id,
-                'name' => $tradeTransaction->buyer->first_name . ' ' . $tradeTransaction->buyer->last_name,
-                'first_name' => $tradeTransaction->buyer->first_name,
-                'last_name' => $tradeTransaction->buyer->last_name,
-                'profile_picture' => $tradeTransaction->buyer->profile_picture 
-                    ? (file_exists(storage_path('app/public/' . $tradeTransaction->buyer->profile_picture)) 
-                        ? asset('storage/' . $tradeTransaction->buyer->profile_picture) 
-                        : asset('images/placeholder-avatar.jpg'))
-                    : asset('images/placeholder-avatar.jpg')
-            ] : null;
-            
-            $sellerData = $tradeTransaction->seller ? [
-                'id' => $tradeTransaction->seller->id,
-                'name' => $tradeTransaction->seller->first_name . ' ' . $tradeTransaction->seller->last_name,
-                'first_name' => $tradeTransaction->seller->first_name,
-                'last_name' => $tradeTransaction->seller->last_name,
-                'seller_code' => $tradeTransaction->seller->seller_code,
-                'profile_picture' => $tradeTransaction->seller->profile_picture
-                    ? (file_exists(storage_path('app/public/' . $tradeTransaction->seller->profile_picture))
-                        ? asset('storage/' . $tradeTransaction->seller->profile_picture)
-                        : asset('images/placeholder-avatar.jpg'))
-                    : asset('images/placeholder-avatar.jpg')
-            ] : null;
-            
-            // Format the complete trade data
+            // Format all data for frontend display
             $formattedTrade = [
                 'id' => $tradeTransaction->id,
-                'buyer_id' => $tradeTransaction->buyer_id,
-                'seller_id' => $tradeTransaction->seller_id,
-                'seller_code' => $tradeTransaction->seller ? $tradeTransaction->seller->seller_code : null,
-                'seller_product_id' => $tradeTransaction->seller_product_id,
-                'meetup_location_id' => $tradeTransaction->meetup_location_id,
-                'meetup_location_name' => $tradeTransaction->meetupLocation && $tradeTransaction->meetupLocation->location 
-                    ? $tradeTransaction->meetupLocation->location->name 
-                    : 'Location not specified',
+                'status' => $tradeTransaction->status,
                 'additional_cash' => $tradeTransaction->additional_cash,
                 'notes' => $tradeTransaction->notes,
-                'status' => $tradeTransaction->status,
                 'created_at' => $tradeTransaction->created_at,
                 'updated_at' => $tradeTransaction->updated_at,
-                'sellerProduct' => $sellerProduct,
-                'offered_items' => $offeredItems,
-                'buyer' => $buyerData,
-                'seller' => $sellerData,
                 'meetup_schedule' => $tradeTransaction->meetup_schedule,
-                'formatted_meetup_date' => $tradeTransaction->meetup_schedule 
-                    ? Carbon::parse($tradeTransaction->meetup_schedule)->format('F j, Y g:i A') 
-                    : null,
+                'formatted_meetup_date' => $tradeTransaction->formatted_meetup_date,
+                'meetup_location_name' => $tradeTransaction->meetup_location_name,
+                'preferred_time' => $tradeTransaction->preferred_time,
+                
+                // Buyer data with safe image path
+                'buyer' => [
+                    'id' => $tradeTransaction->buyer?->id,
+                    'name' => $tradeTransaction->buyer ? $tradeTransaction->buyer->first_name . ' ' . $tradeTransaction->buyer->last_name : 'Unknown Buyer',
+                    'profile_image' => $tradeTransaction->buyer_profile_image
+                ],
+                
+                // Seller data with safe image path
+                'seller' => [
+                    'id' => $tradeTransaction->seller?->id,
+                    'name' => $tradeTransaction->seller ? $tradeTransaction->seller->first_name . ' ' . $tradeTransaction->seller->last_name : 'Unknown Seller',
+                    'seller_code' => $tradeTransaction->seller_code,
+                    'profile_image' => $tradeTransaction->seller_profile_image
+                ],
+                
+                // Product data with safe image
+                'sellerProduct' => [
+                    'id' => $tradeTransaction->sellerProduct?->id,
+                    'name' => $tradeTransaction->sellerProduct?->name ?? 'Unknown Product',
+                    'price' => (float)($tradeTransaction->sellerProduct?->price ?? 0),
+                    'description' => $tradeTransaction->sellerProduct?->description ?? '',
+                    'images' => [$tradeTransaction->product_image_url]
+                ],
+                
+                // Offered items with processed images
+                'offered_items' => $tradeTransaction->offeredItems->map(function($item) {
+                    $image = '/storage/imgs/download-Copy.jpg';
+                    
+                    if (!empty($item->images) && is_array($item->images) && count($item->images) > 0) {
+                        $itemImage = $item->images[0];
+                        
+                        // Clean up path format
+                        if (strpos($itemImage, 'storage/') === 0) {
+                            $image = '/' . $itemImage;
+                        } else if (strpos($itemImage, '/storage/') !== 0) {
+                            $image = '/storage/' . $itemImage;
+                        } else {
+                            $image = $itemImage;
+                        }
+                    }
+                                
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'quantity' => $item->quantity,
+                        'estimated_value' => (float)$item->estimated_value,
+                        'description' => $item->description,
+                        'condition' => $item->condition,
+                        'images' => [$image],
+                        'image_url' => $image
+                    ];
+                })
             ];
             
-            // Return the formatted trade data as JSON response
             return response()->json([
                 'success' => true,
                 'trade' => $formattedTrade
@@ -892,7 +901,7 @@ class TradeController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * Calculate unread messages count for a user
      * 
@@ -910,14 +919,13 @@ class TradeController extends Controller
             ->whereNull('trade_messages.read_at')
             ->count();
     }
-    
+
     /**
      * Get dashboard statistics for the user
      */
     protected function getDashboardStats()
     {
         $user = Auth::user();
-
         $stats = [
             'totalOrders' => Order::where('buyer_id', $user->id)->count(),
             'activeOrders' => Order::where('buyer_id', $user->id)
@@ -969,7 +977,6 @@ class TradeController extends Controller
         $totalValue = 0;
         
         $trades = TradeTransaction::where('buyer_id', $userId)->get();
-        
         foreach ($trades as $trade) {
             $totalValue += $trade->additional_cash ?? 0;
             
@@ -1055,7 +1062,7 @@ class TradeController extends Controller
                         $currentImages = is_string($itemData['current_images']) 
                             ? json_decode($itemData['current_images'], true) 
                             : $itemData['current_images'];
-                            
+                        
                         // If current_images is provided but empty, clear all images
                         if (is_array($currentImages) && empty($currentImages)) {
                             $item->images = json_encode([]);

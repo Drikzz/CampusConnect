@@ -90,21 +90,130 @@ class TradeTransaction extends Model
     }
 
     /**
-     * Get the formatted meetup schedule.
+     * Get the buyer's profile image URL with fallback
+     */
+    public function getBuyerProfileImageAttribute()
+    {
+        if (!$this->buyer) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        $profilePicture = $this->buyer->profile_picture;
+        
+        if (empty($profilePicture)) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        // Clean up path format
+        if (strpos($profilePicture, 'storage/') === 0) {
+            return '/' . $profilePicture;
+        } else if (strpos($profilePicture, '/storage/') !== 0) {
+            return '/storage/' . $profilePicture;
+        }
+        
+        return $profilePicture;
+    }
+    
+    /**
+     * Get the seller's profile image URL with fallback
+     */
+    public function getSellerProfileImageAttribute()
+    {
+        if (!$this->seller) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        $profilePicture = $this->seller->profile_picture;
+        
+        if (empty($profilePicture)) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        // Clean up path format
+        if (strpos($profilePicture, 'storage/') === 0) {
+            return '/' . $profilePicture;
+        } else if (strpos($profilePicture, '/storage/') !== 0) {
+            return '/storage/' . $profilePicture;
+        }
+        
+        return $profilePicture;
+    }
+    
+    /**
+     * Get the seller product's primary image URL with fallback
+     */
+    public function getProductImageUrlAttribute()
+    {
+        if (!$this->sellerProduct) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        $images = $this->sellerProduct->images;
+        
+        // Handle different image formats
+        if (empty($images)) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        // If it's a JSON string, decode it
+        if (is_string($images) && (strpos($images, '[') === 0 || strpos($images, '{') === 0)) {
+            try {
+                $images = json_decode($images, true);
+            } catch (\Exception $e) {
+                return '/storage/imgs/download-Copy.jpg';
+            }
+        }
+        
+        // Get first image if it's an array
+        if (is_array($images) && count($images) > 0) {
+            $image = $images[0];
+        } else {
+            $image = is_string($images) ? $images : null;
+        }
+        
+        if (empty($image)) {
+            return '/storage/imgs/download-Copy.jpg';
+        }
+        
+        // Clean up path format
+        if (strpos($image, 'storage/') === 0) {
+            return '/' . $image;
+        } else if (strpos($image, '/storage/') !== 0) {
+            return '/storage/' . $image;
+        }
+        
+        return $image;
+    }
+
+    /**
+     * Get the formatted meetup date
      */
     public function getFormattedMeetupDateAttribute()
     {
         if (!$this->meetup_schedule) {
             return null;
         }
-        return $this->meetup_schedule->format('F j, Y \a\t h:i A');  // ✓ Formats the date correctly
+        
+        try {
+            return $this->meetup_schedule->format('F j, Y \a\t h:i A');
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
-     * Get the meetup location name.
+     * Get the meetup location name
      */
     public function getMeetupLocationNameAttribute()
     {
-        return $this->meetupLocation?->location?->name ?? $this->meetupLocation?->custom_location ?? null;  // ✓ Gets location name
+        if (!$this->meetupLocation) {
+            return 'Location not specified';
+        }
+        
+        if ($this->meetupLocation->location) {
+            return $this->meetupLocation->location->name;
+        }
+        
+        return $this->meetupLocation->custom_location ?? 'Location not specified';
     }
 }
