@@ -11,9 +11,9 @@
         />
       </div>
 
-      <!-- Orders Tabs -->
+      <!-- Orders Tabs - Make responsive -->
       <Tabs default-value="all" class="w-full">
-        <TabsList class="grid w-full grid-cols-8">
+        <TabsList class="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1">
           <TabsTrigger value="all">
             All ({{ groupedOrders.all.length }})
           </TabsTrigger>
@@ -250,7 +250,12 @@ const formatDateTime = (date) => {
   });
 }
 
-const formatPrice = (price) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(price)
+const formatPrice = (price) => {
+  // Fix NaN by ensuring price is a valid number
+  const numericPrice = parseFloat(price);
+  if (isNaN(numericPrice)) return 'N/A';
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(numericPrice);
+}
 
 const getStatusColor = (status) => {
   const colors = {
@@ -306,5 +311,19 @@ const handleReviewSubmitted = () => {
 <style scoped>
 .bg-card {
   background-color: white;
+}
+
+/* Add responsive card styles */
+@media (max-width: 640px) {
+  :deep(.card-footer) {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  :deep(.card-footer > div) {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
 }
 </style>

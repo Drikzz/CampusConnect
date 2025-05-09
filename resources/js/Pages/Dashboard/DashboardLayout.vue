@@ -49,7 +49,8 @@
                 <Link :href="route('dashboard.profile')" 
                   :preserve-scroll="true"
                   class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/profile') }">
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/profile') }"
+                  @click="closeMobileSidebar">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -63,7 +64,8 @@
               <li>
                 <Link :href="route('dashboard.orders')"
                   class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/orders') }">
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/orders') }"
+                  @click="closeMobileSidebar">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
@@ -75,7 +77,8 @@
               <li>
                 <Link :href="route('dashboard.trades')"
                   class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/trades') }">
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/trades') }"
+                  @click="closeMobileSidebar">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
@@ -87,7 +90,8 @@
               <li>
                 <Link :href="route('dashboard.wishlist')"
                   class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/wishlist') }">
+                  :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/wishlist') }"
+                  @click="closeMobileSidebar">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
@@ -102,7 +106,8 @@
                 <li>
                   <Link :href="route('seller.meetup-locations')"
                     class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/meetup-locations') }">
+                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/meetup-locations') }"
+                    @click="closeMobileSidebar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -117,7 +122,8 @@
                 <li>
                   <Link :href="route('seller.trade-offers')"
                     class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/trade-offers') }">
+                    :class="{ 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/trade-offers') }"
+                    @click="closeMobileSidebar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
@@ -132,7 +138,8 @@
                     :class="{ 
                       'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/wallet'),
                       'cursor-pointer': true // Always allow clicking
-                    }">
+                    }"
+                    @click="closeMobileSidebar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
@@ -155,7 +162,8 @@
                           ? 'text-foreground hover:bg-muted' 
                           : 'text-muted-foreground cursor-not-allowed',
                         { 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/products') }
-                      ]">
+                      ]"
+                      @click="closeMobileSidebar">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
@@ -179,7 +187,8 @@
                               ? 'text-foreground hover:bg-muted' 
                               : 'text-muted-foreground cursor-not-allowed',
                             { 'bg-primary/10 text-primary': $page.url.startsWith('/dashboard/seller/orders') }
-                          ]">
+                          ]"
+                          @click="closeMobileSidebar">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
@@ -197,7 +206,8 @@
                 <li>
                   <Link :href="route('seller.reviews')"
                     class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': route().current('seller.reviews') }">
+                    :class="{ 'bg-primary/10 text-primary': route().current('seller.reviews') }"
+                    @click="closeMobileSidebar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976-2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
@@ -212,7 +222,8 @@
                 <li>
                   <Link :href="route('dashboard.become-seller')"
                     class="flex items-center gap-3 px-4 py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': route().current('dashboard.become-seller') }">
+                    :class="{ 'bg-primary/10 text-primary': route().current('dashboard.become-seller') }"
+                    @click="closeMobileSidebar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -250,7 +261,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import StatCard from './Components/StatCard.vue'
 import NavSection from './Components/NavSection.vue'
@@ -295,6 +306,14 @@ const hasActivatedWallet = computed(() => {
 const needsWalletSetup = computed(() => {
   return props.user?.is_seller && (!props.stats?.wallet?.is_activated)
 })
+
+// Add function to close mobile sidebar
+const isSidebarOpen = ref(false)
+const closeMobileSidebar = () => {
+  if (window.innerWidth < 1024) {  // Use 1024 to match lg: breakpoint
+    isSidebarOpen.value = false;
+  }
+}
 </script>
 
 <style scoped>

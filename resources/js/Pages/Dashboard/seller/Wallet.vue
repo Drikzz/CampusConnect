@@ -155,7 +155,7 @@
           <h3 class="text-lg font-medium mb-4">Scan to Pay via GCash</h3>
           <div class="flex items-start space-x-6">
             <div class="flex-shrink-0">
-              <img src="../../../../../public/storage/images/campus-connect-qr.jpg" alt="GCash QR Code" class="w-48 h-48 object-cover rounded-lg shadow-sm" />
+              <img src="../../../../storage/images/campus-connect-qr.jpg" alt="GCash QR Code" class="w-48 h-48 object-cover rounded-lg shadow-sm" />
             </div>
             <div class="flex-grow space-y-3">
               <div>
