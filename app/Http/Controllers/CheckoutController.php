@@ -51,7 +51,10 @@ class CheckoutController extends Controller
     public function checkout(Request $request)
     {
         try {
-            $request->validate([
+            // Log the incoming request for debugging
+            \Log::info('Checkout request received:', $request->all());
+            
+            $validated = $request->validate([
                 'product_id' => ['required', 'numeric'],
                 'sub_total' => ['required', 'numeric'],
                 'email' => ['nullable', 'email'],
@@ -61,7 +64,7 @@ class CheckoutController extends Controller
                 'meetup_schedule' => ['required', 'string'], // Format: "locationId_dayNumber"
             ]);
 
-            $product = Product::findOrFail($request->product_id);
+            $product = Product::findOrFail($validated['product_id']);
 
             // Check if product is buyable
             if (!$product->is_buyable) {
@@ -69,23 +72,31 @@ class CheckoutController extends Controller
             }
 
             // Check if there's enough stock
-            if ($product->stock < $request->quantity) {
+            if ($product->stock < $validated['quantity']) {
                 return back()->with('error', 'Not enough stock available.');
             }
 
             // Parse the meetup schedule
-            [$locationId, $dayNumber] = explode('_', $request->meetup_schedule);
+            $meetupScheduleParts = explode('_', $validated['meetup_schedule']);
+            if (count($meetupScheduleParts) < 2) {
+                \Log::error('Invalid meetup_schedule format:', ['meetup_schedule' => $validated['meetup_schedule']]);
+                return back()->with('error', 'Invalid meetup schedule format');
+            }
+            
+            $locationId = $meetupScheduleParts[0];
+            $dayNumber = $meetupScheduleParts[1];
+            
             $meetupLocation = MeetupLocation::findOrFail($locationId);
 
             // Create the order
             $order = Order::create([
                 'buyer_id' => Auth::id(),
                 'seller_code' => $product->seller_code,
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'sub_total' => $request->sub_total,
+                'phone' => $validated['phone'],
+                'email' => $validated['email'],
+                'sub_total' => $validated['sub_total'],
                 'status' => 'Pending',
-                'payment_method' => $request->payment_method,
+                'payment_method' => $validated['payment_method'],
                 'meetup_location_id' => $locationId,
                 'meetup_day' => $dayNumber,
                 'meetup_time_from' => $meetupLocation->available_from,
@@ -96,19 +107,19 @@ class CheckoutController extends Controller
             OrderItem::create([
                 'order_id' => $order->id,
                 'product_id' => $product->id,
-                'quantity' => $request->quantity,
-                'price' => $product->discounted_price,
-                'subtotal' => $request->sub_total,
+                'quantity' => $validated['quantity'],
+                'price' => $product->discounted_price ? $product->discounted_price : $product->price,
+                'subtotal' => $validated['sub_total'],
                 'seller_code' => $product->seller_code,
             ]);
 
             // Update stock
-            $product->decrement('stock', $request->quantity);
+            $product->decrement('stock', $validated['quantity']);
 
             return redirect()->route('dashboard.orders')->with('success', 'Order placed successfully');
         } catch (\Exception $e) {
-            \Log::error('Order placement failed:', ['error' => $e->getMessage()]);
-            return back()->with('error', 'Failed to place order. Please try again.');
+            \Log::error('Order placement failed:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return back()->with('error', 'Failed to place order: ' . $e->getMessage());
         }
     }
 }

@@ -3,10 +3,6 @@
     <Head title="Checkout" />
 
     <form @submit.prevent="submitForm" id="checkout-form" class="min-h-screen bg-gray-50 pb-24 pt-12">
-      <input type="hidden" name="product_id" :value="product.id">
-      <input type="hidden" name="sub_total" id="form-total" :value="product.discounted_price">
-      <input type="hidden" name="quantity" id="form-quantity" :value="quantity">
-
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
           <!-- Left Column - Order Summary -->
@@ -158,7 +154,22 @@
 
             <!-- Order Button -->
             <div class="p-6 border-t">
-              <Button type="submit" class="w-full">Place Order</Button>
+              <Button 
+                type="submit" 
+                class="w-full"
+                :disabled="loading"
+              >
+                <span v-if="loading" class="flex items-center justify-center">
+                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </span>
+                <span v-else>
+                  Place Order
+                </span>
+              </Button>
             </div>
           </div>
         </div>
@@ -175,6 +186,7 @@ import { Input } from "@/Components/ui/input"
 import { Label } from "@/Components/ui/label"
 import { ScrollArea } from '@/Components/ui/scroll-area'
 import { Head } from '@inertiajs/vue3';
+import { useToast } from '@/Components/ui/toast/use-toast';
 
 const props = defineProps({
     product: {
@@ -192,6 +204,8 @@ const props = defineProps({
 });
 
 console.log('Meetup Locations:', props.meetupLocations); // Debug log
+
+const { toast } = useToast();
 
 const quantity = ref(1);
 const form = ref({
@@ -227,17 +241,72 @@ const updateQuantity = (value) => {
 };
 
 const submitForm = () => {
-    router.post(route('checkout.process'), form.value, {
-        onSuccess: () => {
-            router.visit(route('dashboard.orders'), { 
-                preserveScroll: true,
-                preserveState: true
-            });
-        },
-        onError: (errors) => {
-            console.error('Checkout error:', errors);
-        }
+  // Make sure all required fields are filled
+  if (!form.value.meetup_schedule) {
+    toast({
+      title: 'Validation Error',
+      description: 'Please select a meetup schedule',
+      variant: 'destructive'
     });
+    return;
+  }
+
+  // Make sure we have all the required data
+  const requiredFields = {
+    'product_id': form.value.product_id,
+    'sub_total': calculateTotal.value,
+    'quantity': quantity.value,
+    'phone': form.value.phone,
+    'payment_method': form.value.payment_method,
+    'meetup_schedule': form.value.meetup_schedule
+  };
+
+  // Check if any required field is missing
+  const missingFields = Object.entries(requiredFields)
+    .filter(([key, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingFields.length > 0) {
+    toast({
+      title: 'Missing Required Fields',
+      description: `Please fill in: ${missingFields.join(', ')}`,
+      variant: 'destructive'
+    });
+    return;
+  }
+
+  // Prepare the data object with all fields properly set
+  const submitData = {
+    product_id: form.value.product_id,
+    sub_total: calculateTotal.value, // Use computed value for consistency
+    quantity: quantity.value,
+    email: form.value.email,
+    phone: form.value.phone,
+    payment_method: form.value.payment_method,
+    meetup_schedule: form.value.meetup_schedule
+  };
+
+  console.log("Submitting checkout data:", submitData);
+
+  router.post(route('checkout.process'), submitData, {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: 'Order Placed',
+        description: 'Your order has been placed successfully!',
+        variant: 'default'
+      });
+      router.visit(route('dashboard.orders'));
+    },
+    onError: (errors) => {
+      console.error('Checkout errors:', errors);
+      toast({
+        title: 'Error',
+        description: 'There was a problem processing your order. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  });
 };
 
 // Function to format time from 24h to 12h format

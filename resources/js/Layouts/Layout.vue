@@ -13,6 +13,7 @@ import { Separator } from '@/Components/ui/separator';
 import { Toaster } from '@/Components/ui/toast'; // Import Toaster directly
 import { ToastProvider } from '@/Components/ui/toast';
 import { useToast } from '@/Components/ui/toast/use-toast'; // Import useToast
+import UserAvatar from '@/Components/ui/user-avatar.vue';
 
 const props = defineProps({
   auth: Object
@@ -23,6 +24,12 @@ const { toast } = useToast();
 provide('globalToast', toast); // Make toast available to all child components
 
 const isOpen = ref(false);
+
+// Add function to close sidebar
+const closeSidebar = () => {
+  isOpen.value = false;
+};
+
 const mode = useColorMode();
 const page = usePage();
 const searchQuery = ref('');
@@ -199,13 +206,15 @@ watch(() => page.props.flash.toast, (flashToast) => {
           <div v-if="auth?.user" class="hidden lg:flex items-center space-x-4">
             <Link href="/dashboard/profile" 
                   class="flex items-center gap-3 text-white hover:text-gray-200 p-2 rounded-lg transition-colors hover:bg-white/10">
-              <div v-if="auth.user.profile_picture" class="h-10 w-10 rounded-full overflow-hidden">
-                <img :src="`/storage/${auth.user.profile_picture}`" :alt="auth.user.first_name" 
-                     class="h-full w-full object-cover border-2 border-white">
-              </div>
-              <div v-else
-                   class="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white">
-                <span class="text-white text-lg font-medium">{{ auth.user.first_name[0] }}</span>
+              <!-- Fix avatar container to maintain circular shape -->
+              <div class="h-10 w-10 rounded-full overflow-hidden">
+                <UserAvatar 
+                  :src="auth.user.profile_picture" 
+                  :name="auth.user.first_name"
+                  size="md"
+                  bordered
+                  border-color="border-white"
+                />
               </div>
               <div class="hidden md:block">
                 <p class="text-sm font-medium leading-tight">
@@ -259,11 +268,12 @@ watch(() => page.props.flash.toast, (flashToast) => {
               </div>
 
               <div class="grid gap-4 py-4">
-                <!-- Mobile Navigation -->
+                <!-- Mobile Navigation - Update to close sidebar on click -->
                 <Button 
                   variant="ghost" 
                   asChild 
                   class="w-full justify-start"
+                  @click="closeSidebar"
                 >
                   <Link :href="route('products')">Shop Now</Link>
                 </Button>
@@ -271,23 +281,24 @@ watch(() => page.props.flash.toast, (flashToast) => {
                   variant="ghost" 
                   asChild 
                   class="w-full justify-start"
+                  @click="closeSidebar"
                 >
                   <Link href="/trade">Trade Now</Link>
                 </Button>
 
-                <!-- Auth links for mobile -->
+                <!-- Auth links for mobile - Update to close sidebar on click -->
                 <Separator />
                 <div class="space-y-4">
                   <template v-if="!auth?.user">
-                    <Button variant="outline" asChild class="w-full">
+                    <Button variant="outline" asChild class="w-full" @click="closeSidebar">
                       <Link :href="route('login')">Login</Link>
                     </Button>
-                    <Button variant="default" asChild class="w-full">
+                    <Button variant="default" asChild class="w-full" @click="closeSidebar">
                       <Link :href="route('register.personal-info')">Sign Up</Link>
                     </Button>
                   </template>
                   <template v-else>
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" asChild @click="closeSidebar">
                       <Link href="/dashboard/profile">My Profile</Link>
                     </Button>
                   </template>
