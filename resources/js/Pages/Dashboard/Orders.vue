@@ -57,14 +57,28 @@
                 </CardHeader>
                 <CardContent>
                   <div class="space-y-4">
-                    <!-- Order Items -->
-                    <div v-for="item in order.items" :key="item.id" class="flex justify-between items-center">
-                      <div>
-                        <h4 class="font-medium">{{ item.product.name }}</h4>
-                        <p class="text-sm text-gray-500">Quantity: {{ item.quantity }}</p>
+                    <!-- Order Items - Updated with image display -->
+                    <div v-for="item in order.items" :key="item.id" class="flex items-center gap-4">
+                      <!-- Add product image -->
+                      <div class="w-16 h-16 overflow-hidden rounded-md border flex-shrink-0">
+                        <img 
+                          :src="getProductImageUrl(item.product)"
+                          :alt="item.product.name"
+                          class="w-full h-full object-cover"
+                          @error="handleImageError"
+                        />
                       </div>
-                      <div class="text-right">
-                        <p class="font-semibold">{{ formatPrice(item.price * item.quantity) }}</p>
+                      
+                      <div class="flex-1 min-w-0">
+                        <h4 class="font-medium truncate">{{ item.product.name }}</h4>
+                        <p class="text-sm text-gray-500">Quantity: {{ item.quantity }}</p>
+                        <p class="text-sm text-gray-500" v-if="item.product.seller">
+                          Seller: {{ item.product.seller.first_name }} {{ item.product.seller.last_name }}
+                        </p>
+                      </div>
+                      
+                      <div class="text-right whitespace-nowrap">
+                        <p class="font-semibold">{{ formatPrice(parseFloat(item.price) * parseInt(item.quantity)) }}</p>
                       </div>
                     </div>
                     
@@ -80,7 +94,7 @@
                   </div>
                 </CardContent>
                 <CardFooter class="flex justify-between">
-                  <div class="font-semibold">Total: {{ formatPrice(order.sub_total) }}</div>
+                  <div class="font-semibold">Total: {{ formatPrice(parseFloat(order.sub_total || 0)) }}</div>
                   <div class="space-x-2">
                     <Button variant="outline" @click="viewOrderDetails(order)">
                       View Details
@@ -88,7 +102,7 @@
                     <Button 
                       v-if="order.status === 'Pending'"
                       variant="destructive"
-                      @click="$inertia.patch(route('orders.cancel', order.id))"
+                      @click="confirmCancelOrder(order.id)"
                     >
                       Cancel
                     </Button>
@@ -154,6 +168,23 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Cancel Order Dialog -->
+    <Dialog :open="showCancelDialog" @update:open="showCancelDialog = false">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cancel Order</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to cancel this order? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <DialogFooter>
+          <AlertDialogCancel @click="showCancelDialog = false">No, Keep it</AlertDialogCancel>
+          <AlertDialogAction @click="confirmCancelOrder">Yes, Cancel Order</AlertDialogAction>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </DashboardLayout>
 </template>
 
@@ -201,6 +232,9 @@ const searchQuery = ref('')
 const selectedOrder = ref(null)
 const showOrderDetails = ref(false)
 const showReviewsDialog = ref(false)
+const showCancelDialog = ref(false)
+const orderToCancel = ref(null)
+const isCancelling = ref(false)
 const { toast } = useToast()
 
 const orderStatuses = [
@@ -251,10 +285,20 @@ const formatDateTime = (date) => {
 }
 
 const formatPrice = (price) => {
-  // Fix NaN by ensuring price is a valid number
+  // Ensure price is a valid number
   const numericPrice = parseFloat(price);
-  if (isNaN(numericPrice)) return 'N/A';
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(numericPrice);
+  
+  // Handle NaN, null, or undefined
+  if (isNaN(numericPrice) || numericPrice === null || numericPrice === undefined) {
+    return '₱0.00';
+  }
+  
+  return new Intl.NumberFormat('en-PH', { 
+    style: 'currency', 
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(numericPrice);
 }
 
 const getStatusColor = (status) => {
@@ -274,6 +318,32 @@ const getStatusColor = (status) => {
 const viewOrderDetails = (order) => {
   selectedOrder.value = order
   showOrderDetails.value = true
+  
+  // Ensure each item in the order has properly normalized prices
+  if (selectedOrder.value && selectedOrder.value.items) {
+    selectedOrder.value.items.forEach(item => {
+      // Make sure price is a valid number to prevent NaN display
+      if (item.price) {
+        item.price = parseFloat(item.price);
+      }
+      if (item.subtotal) {
+        item.subtotal = parseFloat(item.subtotal);
+      }
+    });
+  }
+  
+  // Normalize order total amounts
+  if (selectedOrder.value) {
+    if (selectedOrder.value.sub_total) {
+      selectedOrder.value.sub_total = parseFloat(selectedOrder.value.sub_total);
+    }
+    if (selectedOrder.value.total) {
+      selectedOrder.value.total = parseFloat(selectedOrder.value.total);
+    }
+    if (selectedOrder.value.transaction_fee) {
+      selectedOrder.value.transaction_fee = parseFloat(selectedOrder.value.transaction_fee);
+    }
+  }
 }
 
 const closeOrderDetails = () => {
@@ -305,6 +375,77 @@ const handleReviewSubmitted = () => {
   setTimeout(() => {
     showReviewsDialog.value = false;
   }, 1500);
+};
+
+// Add function to get the product image URL
+const getProductImageUrl = (product) => {
+  // Check if product has images
+  if (!product || !product.images) return '/images/placeholder-product.jpg';
+  
+  // Handle different image formats
+  if (typeof product.images === 'string') {
+    try {
+      // Try to parse as JSON
+      const images = JSON.parse(product.images);
+      if (Array.isArray(images) && images.length > 0) {
+        return formatImagePath(images[0]);
+      }
+      return formatImagePath(product.images);
+    } catch (e) {
+      // Not valid JSON, use as direct path
+      return formatImagePath(product.images);
+    }
+  } else if (Array.isArray(product.images) && product.images.length > 0) {
+    return formatImagePath(product.images[0]);
+  }
+  
+  return '/images/placeholder-product.jpg';
+};
+
+// Helper function to format image paths
+const formatImagePath = (path) => {
+  if (!path) return '/images/placeholder-product.jpg';
+  
+  // If it's a full URL, return as is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // Handle storage paths
+  if (path.startsWith('storage/')) {
+    return '/' + path;
+  } else if (path.startsWith('/storage/')) {
+    return path;
+  } else {
+    return '/storage/' + path;
+  }
+};
+
+// Add image error handler
+const handleImageError = (event) => {
+  event.target.src = '/images/placeholder-product.jpg';
+};
+
+// Update the confirmCancelOrder function to not prompt for a reason
+const confirmCancelOrder = (orderId) => {
+  if (!orderId) return;
+  
+  router.patch(route('orders.cancel', orderId), {}, {
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Order cancelled successfully',
+        variant: 'default'
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to cancel order. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  });
 };
 </script>
 

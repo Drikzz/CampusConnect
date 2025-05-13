@@ -243,7 +243,7 @@
                 <h4 class="font-semibold text-sm text-muted-foreground">Trading for:</h4>
                 <div class="border rounded-lg p-4">
                   <div class="flex gap-4">
-                    <!-- Use ImagePreview component instead of raw img -->
+                    <!-- Fixed image preview component -->
                     <div class="w-24 h-24 aspect-square rounded-md overflow-hidden">
                       <ImagePreview
                         :images="selectedTrade.sellerProduct && selectedTrade.sellerProduct.images ? 
@@ -253,13 +253,19 @@
                       />
                     </div>
 
-                    <!-- Product Details -->
+                    <!-- Product Details with discounted price handling -->
                     <div class="flex-1">
                       <div class="flex justify-between">
                         <h3 class="font-medium">{{ selectedTrade.sellerProduct?.name }}</h3>
-                        <p class="font-semibold text-primary">
-                          {{ formatPrice(selectedTrade.sellerProduct?.price || 0) }}
-                        </p>
+                        <div>
+                          <p v-if="selectedTrade.sellerProduct?.discounted_price > 0" class="font-semibold text-primary">
+                            {{ formatPrice(selectedTrade.sellerProduct?.discounted_price || 0) }}
+                            <span class="text-sm text-muted-foreground line-through ml-1">{{ formatPrice(selectedTrade.sellerProduct?.price || 0) }}</span>
+                          </p>
+                          <p v-else class="font-semibold text-primary">
+                            {{ formatPrice(selectedTrade.sellerProduct?.price || 0) }}
+                          </p>
+                        </div>
                       </div>
                       <div class="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                         <UserIcon class="h-3.5 w-3.5" />
@@ -359,6 +365,22 @@
             </CardContent>
           </Card>
 
+          <!-- Add review section for completed trades -->
+          <Card v-if="selectedTrade?.status === 'completed'" class="flex flex-col mb-4 bg-card text-card-foreground">
+            <CardHeader>
+              <CardTitle>Reviews</CardTitle>
+              <CardDescription>
+                Share your experience or view existing reviews for this seller.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button @click="openReviewDialog" variant="secondary">
+                <StarIcon class="w-4 h-4 mr-2" />
+                View/Write Review
+              </Button>
+            </CardContent>
+          </Card>
+
           <!-- Chat Section -->
           <Card class="flex flex-col mb-4 bg-card text-card-foreground">
             <CardHeader>
@@ -432,7 +454,7 @@
       </DialogContent>
     </Dialog>
 
-    <!-- Cancel Trade Alert Dialog - updated with reason field -->
+    <!-- Cancel Trade Alert Dialog -->
     <AlertDialog :open="showCancelAlert" @update:open="showCancelAlert = false">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -441,10 +463,6 @@
             Are you sure you want to cancel this trade offer? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div class="my-4">
-          <Label for="cancel-reason">Reason for cancellation (optional)</Label>
-          <Textarea id="cancel-reason" v-model="cancellationReason" placeholder="Please provide a reason..." class="mt-2" />
-        </div>
         <AlertDialogFooter>
           <AlertDialogCancel @click="showCancelAlert = false">No, Keep it</AlertDialogCancel>
           <AlertDialogAction @click="confirmCancelTrade">Yes, Cancel Trade</AlertDialogAction>
@@ -917,10 +935,25 @@ const viewTradeDetails = async (trade) => {
       if (!selectedTrade.value.sellerProduct && selectedTrade.value.seller_product) {
         selectedTrade.value.sellerProduct = selectedTrade.value.seller_product;
       }
-      // Format images consistently for both sellerProduct and offered_items
-      if (selectedTrade.value.sellerProduct && selectedTrade.value.sellerProduct.images) {
-        // Images handling already taken care of by getProductImagePath function
+      
+      // Make sure price values are properly formatted as numbers
+      if (selectedTrade.value.sellerProduct) {
+        selectedTrade.value.sellerProduct.price = parseFloat(selectedTrade.value.sellerProduct.price || 0);
+        selectedTrade.value.sellerProduct.discounted_price = parseFloat(selectedTrade.value.sellerProduct.discounted_price || 0);
+        
+        // Process product images properly for display
+        if (selectedTrade.value.sellerProduct.images) {
+          if (typeof selectedTrade.value.sellerProduct.images === 'string') {
+            try {
+              selectedTrade.value.sellerProduct.images = JSON.parse(selectedTrade.value.sellerProduct.images);
+            } catch (e) {
+              // If parsing fails, make it an array with the string
+              selectedTrade.value.sellerProduct.images = [selectedTrade.value.sellerProduct.images];
+            }
+          }
+        }
       }
+      
       // Ensure preferred_time is available
       if (!selectedTrade.value.preferred_time && trade.preferred_time) {
         selectedTrade.value.preferred_time = trade.preferred_time;
@@ -929,8 +962,6 @@ const viewTradeDetails = async (trade) => {
       if (selectedTrade.value.preferred_time) {
         selectedTrade.value.preferred_time_formatted = formatTime(selectedTrade.value.preferred_time);
       }
-      // Process offered items - no need to transform the actual image structure
-      // as our getOfferedItemImagePath will handle all the formatting
     }
     await fetchMessages(trade.id);
   } catch (error) {

@@ -187,6 +187,7 @@ import { Label } from "@/Components/ui/label"
 import { ScrollArea } from '@/Components/ui/scroll-area'
 import { Head } from '@inertiajs/vue3';
 import { useToast } from '@/Components/ui/toast/use-toast';
+import axios from 'axios';
 
 const props = defineProps({
     product: {
@@ -208,6 +209,7 @@ console.log('Meetup Locations:', props.meetupLocations); // Debug log
 const { toast } = useToast();
 
 const quantity = ref(1);
+const loading = ref(false); // Add loading state
 const form = ref({
     product_id: props.product.id,
     quantity: 1,
@@ -241,6 +243,9 @@ const updateQuantity = (value) => {
 };
 
 const submitForm = () => {
+  // Set loading state to true
+  loading.value = true;
+
   // Make sure all required fields are filled
   if (!form.value.meetup_schedule) {
     toast({
@@ -248,6 +253,7 @@ const submitForm = () => {
       description: 'Please select a meetup schedule',
       variant: 'destructive'
     });
+    loading.value = false; // Reset loading state
     return;
   }
 
@@ -272,14 +278,15 @@ const submitForm = () => {
       description: `Please fill in: ${missingFields.join(', ')}`,
       variant: 'destructive'
     });
+    loading.value = false; // Reset loading state
     return;
   }
 
   // Prepare the data object with all fields properly set
   const submitData = {
     product_id: form.value.product_id,
-    sub_total: calculateTotal.value, // Use computed value for consistency
     quantity: quantity.value,
+    sub_total: calculateTotal.value, // Use computed value for consistency
     email: form.value.email,
     phone: form.value.phone,
     payment_method: form.value.payment_method,
@@ -288,25 +295,42 @@ const submitForm = () => {
 
   console.log("Submitting checkout data:", submitData);
 
-  router.post(route('checkout.process'), submitData, {
-    preserveScroll: true,
-    onSuccess: () => {
+  // Use direct axios call instead of Inertia router for better debugging
+  axios.post(route('checkout.process'), submitData)
+    .then(response => {
+      console.log("Checkout response:", response.data);
       toast({
         title: 'Order Placed',
         description: 'Your order has been placed successfully!',
         variant: 'default'
       });
-      router.visit(route('dashboard.orders'));
-    },
-    onError: (errors) => {
-      console.error('Checkout errors:', errors);
+      
+      // Short delay before redirecting to ensure toast is visible
+      setTimeout(() => {
+        window.location.href = route('dashboard.orders');
+      }, 1000);
+    })
+    .catch(error => {
+      console.error('Checkout error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      let errorMessage = 'There was a problem processing your order. Please try again.';
+      
+      // Check for validation errors
+      if (error.response?.data?.errors) {
+        const firstError = Object.values(error.response.data.errors)[0];
+        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+      }
+      
       toast({
         title: 'Error',
-        description: 'There was a problem processing your order. Please try again.',
+        description: errorMessage,
         variant: 'destructive'
       });
-    }
-  });
+    })
+    .finally(() => {
+      loading.value = false; // Reset loading state
+    });
 };
 
 // Function to format time from 24h to 12h format

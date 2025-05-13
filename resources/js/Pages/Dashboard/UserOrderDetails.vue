@@ -1,246 +1,271 @@
 <script setup>
-import { ref } from 'vue'
-import { useForm } from '@inertiajs/vue3'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '@/Components/ui/dialog'
-import { Button } from '@/Components/ui/button'
-import { useToast } from '@/Components/ui/toast/use-toast'
-import OrderStatusBadge from '@/Components/OrderStatusBadge.vue'
+import { ref } from 'vue';
+import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
+import { Badge } from '@/Components/ui/badge';
+import { Button } from '@/Components/ui/button';
+import { useToast } from '@/Components/ui/toast/use-toast';
+import { 
+  UserIcon, 
+  PhoneIcon, 
+  MailIcon, 
+  MapPinIcon, 
+  CalendarIcon, 
+  TicketIcon 
+} from 'lucide-vue-next';
+import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 
 const props = defineProps({
-    order: {
-        type: Object,
-        required: true
-    },
-    user: {
-        type: Object,
-        required: true
+  order: {
+    type: Object,
+    required: true
+  },
+  user: {
+    type: Object,
+    required: true
+  }
+});
+
+const { toast } = useToast();
+
+defineEmits(['close', 'order-updated']);
+
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+const formatTime = (datetime) => {
+  if (!datetime) return 'N/A';
+  return new Date(datetime).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const formatPrice = (price) => {
+  const numericPrice = parseFloat(price);
+  if (isNaN(numericPrice) || numericPrice === null || numericPrice === undefined) {
+    return '₱0.00';
+  }
+  return new Intl.NumberFormat('en-PH', { 
+    style: 'currency', 
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(numericPrice);
+};
+
+const getStatusVariant = (status) => {
+  const statusMap = {
+    'Pending': 'warning',
+    'Processing': 'primary',
+    'Shipped': 'info',
+    'Delivered': 'success',
+    'Completed': 'success',
+    'Cancelled': 'destructive',
+    'Refunded': 'secondary',
+    'Meetup Scheduled': 'info'
+  };
+  return statusMap[status] || 'default';
+};
+
+const getProductImageUrl = (product) => {
+  if (!product || !product.images) return '/images/placeholder-product.jpg';
+  if (typeof product.images === 'string') {
+    try {
+      const images = JSON.parse(product.images);
+      if (Array.isArray(images) && images.length > 0) {
+        return formatImagePath(images[0]);
+      }
+      return formatImagePath(product.images);
+    } catch (e) {
+      return formatImagePath(product.images);
     }
-})
+  } else if (Array.isArray(product.images) && product.images.length > 0) {
+    return formatImagePath(product.images[0]);
+  }
+  return '/images/placeholder-product.jpg';
+};
 
-const emit = defineEmits(['close'])
+const formatImagePath = (path) => {
+  if (!path) return '/images/placeholder-product.jpg';
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  if (path.startsWith('storage/')) {
+    return '/' + path;
+  } else if (path.startsWith('/storage/')) {
+    return path;
+  } else {
+    return '/storage/' + path;
+  }
+};
 
-// Formatting helpers
-const formatPrice = (price) => new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP'
-}).format(price)
-
-const formatDate = (date) => new Date(date).toLocaleString()
-
-// Add additional formatting helpers
-const formatDateTime = (date) => {
-    if (!date) return 'Not set'
-    return new Intl.DateTimeFormat('en-PH', {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-    }).format(new Date(date))
-}
-
-const getStatusDescription = (status) => {
-    const descriptions = {
-        'Pending': 'Your order is waiting for seller confirmation',
-        'Accepted': 'The seller has accepted your order',
-        'Meetup Scheduled': 'Meetup time and location confirmed',
-        'Delivered': 'Order has been delivered',
-        'Completed': 'Transaction completed successfully',
-        'Cancelled': 'Order has been cancelled',
-        'Disputed': 'Order is under review'
-    }
-    return descriptions[status] || status
-}
-
-// Cancel order functionality
-const showCancelDialog = ref(false)
-const cancelForm = useForm({
-    cancellation_reason: ''
-})
+const handleImageError = (event) => {
+  event.target.src = '/images/placeholder-product.jpg';
+};
 
 const cancelOrder = () => {
-    cancelForm.patch(route('orders.cancel', props.order.id), {
-        onSuccess: () => {
-            showCancelDialog.value = false
-            emit('close')
-            toast({
-                title: "Order Cancelled",
-                description: "Your order has been cancelled successfully."
-            })
-        }
-    })
-}
-
-// Add image error handler
-const handleImageError = (e) => {
-    e.target.src = '/images/placeholder.jpg'; // Fallback image
+  if (confirm('Are you sure you want to cancel this order?')) {
+    router.patch(route('orders.cancel', props.order.id), {}, {
+      onSuccess: () => {
+        toast({
+          title: 'Order Cancelled',
+          description: 'Your order has been cancelled successfully.',
+          variant: 'default'
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Error',
+          description: 'Failed to cancel order. Please try again.',
+          variant: 'destructive'
+        });
+      }
+    });
+  }
 };
 </script>
 
 <template>
-    <div class="space-y-6">
-        <DialogHeader>
-            <DialogTitle class="text-2xl">Order Details #{{ order.id }}</DialogTitle>
-            <p class="text-gray-500 mt-1">Placed on {{ formatDateTime(order.created_at) }}</p>
-        </DialogHeader>
-
-        <!-- Order Status Timeline -->
-        <div class="rounded-lg border bg-card p-6">
-            <h3 class="font-semibold mb-4">Order Status</h3>
-            <div class="flex items-center mb-4">
-                <OrderStatusBadge :status="order.status" class="mr-2" />
-                <p class="text-gray-600">{{ getStatusDescription(order.status) }}</p>
-            </div>
-            
-            <!-- Status Timeline -->
-            <div class="space-y-3 mt-4">
-                <div v-if="order.accepted_at" class="flex items-start">
-                    <div class="w-24 text-sm text-gray-500">Accepted</div>
-                    <div>{{ formatDateTime(order.accepted_at) }}</div>
-                </div>
-                <div v-if="order.meetup_schedule" class="flex items-start">
-                    <div class="w-24 text-sm text-gray-500">Meetup</div>
-                    <div>{{ formatDateTime(order.meetup_schedule) }}</div>
-                </div>
-                <div v-if="order.completed_at" class="flex items-start">
-                    <div class="w-24 text-sm text-gray-500">Completed</div>
-                    <div>{{ formatDateTime(order.completed_at) }}</div>
-                </div>
-                <div v-if="order.cancelled_at" class="flex items-start text-red-600">
-                    <div class="w-24 text-sm">Cancelled</div>
-                    <div>
-                        {{ formatDateTime(order.cancelled_at) }}
-                        <p v-if="order.cancellation_reason" class="text-sm mt-1">
-                            Reason: {{ order.cancellation_reason }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Order Items with better presentation -->
-        <div class="rounded-lg border bg-card p-6">
-            <h3 class="font-semibold mb-4">Order Items</h3>
-            <div class="space-y-4">
-                <div v-for="item in order.items" :key="item.id" 
-                     class="flex items-center justify-between border-b pb-4">
-                    <div class="flex items-center gap-4">
-                        <img 
-                            :src="item.product.image_url || '/images/placeholder.jpg'"
-                            :alt="item.product.name"
-                            class="h-16 w-16 object-cover rounded-md"
-                            @error="handleImageError"
-                        />
-                        <div>
-                            <h4 class="font-medium">{{ item.product.name }}</h4>
-                            <p class="text-sm text-gray-500">
-                                {{ formatPrice(item.price) }} × {{ item.quantity }}
-                            </p>
-                        </div>
-                    </div>
-                    <span class="font-semibold">
-                        {{ formatPrice(item.price * item.quantity) }}
-                    </span>
-                </div>
-            </div>
-
-            <!-- Order Summary -->
-            <div class="mt-6 border-t pt-4">
-                <div class="space-y-2">
-                    <div class="flex justify-between">
-                        <span>Subtotal</span>
-                        <span>{{ formatPrice(order.sub_total) }}</span>
-                    </div>
-                    <div class="flex justify-between font-semibold text-lg">
-                        <span>Total</span>
-                        <span>{{ formatPrice(order.total) }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Meetup Details with Map Preview if available -->
-        <div v-if="order.meetup_location" class="rounded-lg border bg-card p-6">
-            <h3 class="font-semibold mb-4">Meetup Details</h3>
-            <div class="grid gap-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <span class="text-sm text-gray-500">Location</span>
-                        <p class="font-medium">{{ order.meetup_location.full_name }}</p>
-                        <p v-if="order.meetup_location.description" class="text-sm text-gray-600 mt-1">
-                            {{ order.meetup_location.description }}
-                        </p>
-                    </div>
-                    <div>
-                        <span class="text-sm text-gray-500">Schedule</span>
-                        <p class="font-medium">{{ formatDateTime(order.meetup_schedule) }}</p>
-                        <p v-if="order.meetup_confirmation_code" class="text-sm text-gray-600 mt-1">
-                            Confirmation Code: <span class="font-medium">{{ order.meetup_confirmation_code }}</span>
-                        </p>
-                    </div>
-                </div>
-                <div v-if="order.meetup_notes" class="mt-2">
-                    <span class="text-sm text-gray-500">Additional Notes</span>
-                    <p class="mt-1">{{ order.meetup_notes }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex justify-end gap-4">
-            <Button variant="outline" @click="emit('close')">Close</Button>
-            <Button 
-                v-if="order.status === 'Pending'"
-                variant="destructive"
-                @click="showCancelDialog = true"
-            >
-                Cancel Order
-            </Button>
-        </div>
-
-        <!-- Cancel Order Dialog -->
-        <Dialog :open="showCancelDialog" @update:open="showCancelDialog = false">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Cancel Order</DialogTitle>
-                    <DialogDescription>
-                        Are you sure you want to cancel this order? This action cannot be undone.
-                    </DialogDescription>
-                </DialogHeader>
-                
-                <form @submit.prevent="cancelOrder" class="space-y-4">
-                    <div>
-                        <label class="text-sm font-medium">Reason for Cancellation</label>
-                        <textarea
-                            v-model="cancelForm.cancellation_reason"
-                            class="mt-1 w-full rounded-md border border-input px-3 py-2"
-                            required
-                            rows="3"
-                            placeholder="Please provide a reason for cancellation"
-                        ></textarea>
-                    </div>
-                    
-                    <div class="flex justify-end gap-2">
-                        <Button 
-                            variant="outline" 
-                            type="button"
-                            @click="showCancelDialog = false"
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            variant="destructive"
-                            type="submit"
-                            :disabled="cancelForm.processing"
-                        >
-                            Confirm Cancellation
-                        </Button>
-                    </div>
-                </form>
-            </DialogContent>
-        </Dialog>
+  <div class="space-y-6">
+    <div class="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+      <div>
+        <h2 class="text-2xl font-bold">Order #{{ order.id }}</h2>
+        <p class="text-gray-500">Placed on {{ formatDate(order.created_at) }}</p>
+      </div>
+      <Badge :variant="getStatusVariant(order.status)">{{ order.status }}</Badge>
     </div>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Order Items</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="space-y-4">
+          <div v-for="item in order.items" :key="item.id" class="flex flex-col sm:flex-row gap-4 border-b pb-4 last:border-b-0 last:pb-0 items-start">
+            <div class="w-24 h-24 rounded-md overflow-hidden border bg-gray-50 flex-shrink-0">
+              <img 
+                :src="getProductImageUrl(item.product)"
+                :alt="item.product.name"
+                class="w-full h-full object-cover"
+                @error="handleImageError"
+              />
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-medium truncate">{{ item.product.name }}</h3>
+              <p class="text-sm text-gray-500">Quantity: {{ item.quantity }}</p>
+              <p class="text-sm text-gray-500">
+                Seller: {{ item.product.seller?.first_name }} {{ item.product.seller?.last_name }}
+              </p>
+              <p v-if="item.product.description" class="text-sm text-gray-500 mt-2 line-clamp-2">
+                {{ item.product.description }}
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="text-sm">{{ formatPrice(parseFloat(item.price)) }} each</p>
+              <p class="font-medium mt-1">{{ formatPrice(parseFloat(item.price) * parseInt(item.quantity)) }}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card v-if="order.meetup_location">
+      <CardHeader>
+        <CardTitle>Meetup Details</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <MapPinIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">{{ order.meetup_location.name }}</p>
+              <p class="text-sm text-gray-500">{{ order.meetup_location.address }}</p>
+            </div>
+          </div>
+          <div v-if="order.meetup_schedule" class="flex gap-2">
+            <CalendarIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">{{ formatDate(order.meetup_schedule) }}</p>
+              <p class="text-sm text-gray-500">{{ formatTime(order.meetup_schedule) }}</p>
+            </div>
+          </div>
+          <div v-if="order.meetup_confirmation_code" class="flex gap-2">
+            <TicketIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">Confirmation Code</p>
+              <p class="text-sm font-mono">{{ order.meetup_confirmation_code }}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Pricing Summary</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="space-y-2">
+          <div class="flex justify-between">
+            <span>Subtotal</span>
+            <span>{{ formatPrice(parseFloat(order.sub_total || 0)) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Transaction Fee</span>
+            <span>{{ formatPrice(order.transaction_fee || 0) }}</span>
+          </div>
+          <div class="border-t pt-2 mt-2 flex justify-between font-bold">
+            <span>Total</span>
+            <span>{{ formatPrice(parseFloat(order.total || order.sub_total || 0)) }}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Contact Information</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <UserIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">{{ order.contact_name || user.first_name + ' ' + user.last_name }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <PhoneIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">{{ order.contact_phone || user.phone }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <MailIcon class="h-5 w-5 text-gray-500" />
+            <div>
+              <p class="font-medium">{{ order.contact_email || user.email }}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <div class="flex justify-end gap-4">
+      <Button variant="outline" @click="$emit('close')">Close</Button>
+      <Button 
+        v-if="['Pending', 'Processing'].includes(order.status)" 
+        variant="destructive"
+        @click="cancelOrder"
+      >
+        Cancel Order
+      </Button>
+    </div>
+  </div>
 </template>

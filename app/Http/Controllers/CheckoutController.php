@@ -50,6 +50,13 @@ class CheckoutController extends Controller
 
     public function checkout(Request $request)
     {
+        // Debug the incoming request
+        \Log::info('Checkout request received', [
+            'input' => $request->all(),
+            'user_id' => auth()->id(),
+            'route' => $request->route()->getName()
+        ]);
+
         try {
             // Log the incoming request for debugging
             \Log::info('Checkout request received:', $request->all());

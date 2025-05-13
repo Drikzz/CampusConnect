@@ -962,7 +962,7 @@ const fetchMessages = async (tradeId) => {
   isLoadingMessages.value = true;
   
   try {
-    const response = await axios.get(route('trades.messages.get', tradeId));
+    const response = await axios.get(route('seller.trades.messages.get', tradeId));
     
     if (response.data.success) {
       messages.value = response.data.data;
@@ -1000,7 +1000,7 @@ const sendMessage = async () => {
   isSendingMessage.value = true;
   
   try {
-    const response = await axios.post(route('trades.message.send', selectedTrade.value.id), {
+    const response = await axios.post(route('seller.trades.message.send', selectedTrade.value.id), {
       message: newMessage.value.trim()
     });
     
