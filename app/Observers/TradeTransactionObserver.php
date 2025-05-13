@@ -61,28 +61,92 @@ class TradeTransactionObserver
         Log::info('TradeObserver: Trade completed, processing wallet deduction', [
             'trade_id' => $trade->id,
             'seller_code' => $trade->seller_code,
-            'product_id' => $trade->seller_product_id
+            'amount' => $trade->amount
         ]);
 
         try {
-            // Process wallet deduction
-            $deductionController = new WalletBalanceDeductionController();
-            $result = $deductionController->processTradeDeduction($trade);
-            
-            // Add a flag indicating we've processed this trade
-            if ($result['success']) {
-                $trade->wallet_deduction_processed = true;
-                $trade->save();
+            // Check if deduction was already processed
+            if ($trade->wallet_deduction_processed) {
+                Log::info('TradeObserver: Wallet deduction already processed, skipping', [
+                    'trade_id' => $trade->id
+                ]);
+                return;
             }
             
-            Log::info('TradeObserver: Deduction result', [
+            $wallet = $trade->seller->wallet;
+
+            if (!$wallet) {
+                Log::warning('TradeObserver: Wallet not found', [
+                    'trade_id' => $trade->id,
+                    'seller_code' => $trade->seller_code
+                ]);
+                return;
+            }
+
+            // Fetch wallet deduction rate from settings
+            $deductionRate = (float) \App\Models\Setting::get('wallet_deduction_rate', 0);
+
+            // Validate deduction rate
+            if ($deductionRate < 0 || $deductionRate > 100) {
+                Log::error('Invalid wallet deduction rate', ['deduction_rate' => $deductionRate]);
+                return;
+            }
+
+            // Calculate deduction amount as a percentage of the transaction value
+            $deductionAmount = round(($trade->amount * $deductionRate) / 100, 2);
+
+            // Log the calculated deduction amount
+            Log::info('Calculated deduction amount', [
                 'trade_id' => $trade->id,
-                'success' => $result['success'] ?? false,
-                'message' => $result['message'] ?? 'No message',
-                'transaction_id' => $result['transaction']['id'] ?? null
+                'deduction_rate' => $deductionRate,
+                'trade_amount' => $trade->amount,
+                'deduction_amount' => $deductionAmount,
+                'wallet_balance_before' => $wallet->balance
             ]);
+
+            // Check if the wallet has sufficient balance
+            if ($wallet->balance < $deductionAmount) {
+                Log::warning('TradeObserver: Insufficient wallet balance for deduction', [
+                    'trade_id' => $trade->id,
+                    'seller_code' => $trade->seller_code,
+                    'wallet_balance' => $wallet->balance,
+                    'deduction_amount' => $deductionAmount
+                ]);
+                return;
+            }
+
+            // Perform deduction in a database transaction
+            \DB::beginTransaction();
+            try {
+                $deductionResult = $wallet->deductBalance($deductionAmount);
+                
+                if (!$deductionResult) {
+                    \DB::rollBack();
+                    Log::warning('TradeObserver: Wallet deduction failed', [
+                        'trade_id' => $trade->id,
+                        'seller_code' => $trade->seller_code,
+                        'deduction_amount' => $deductionAmount
+                    ]);
+                    return;
+                }
+                
+                $trade->wallet_deduction_processed = true;
+                $trade->save();
+                
+                \DB::commit();
+                
+                Log::info('TradeObserver: Wallet deduction successful', [
+                    'trade_id' => $trade->id,
+                    'seller_code' => $trade->seller_code,
+                    'deduction_amount' => $deductionAmount,
+                    'wallet_balance_after' => $wallet->fresh()->balance
+                ]);
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                throw $e;
+            }
         } catch (\Exception $e) {
-            Log::error('TradeObserver: Error processing deduction', [
+            Log::error('TradeObserver: Error processing wallet deduction', [
                 'trade_id' => $trade->id,
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

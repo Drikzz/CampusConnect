@@ -30,7 +30,12 @@ class Setting extends Model
     public static function get($key, $default = null)
     {
         $setting = static::where('key', $key)->first();
-        
-        return $setting ? $setting->value : $default;
+
+        if ($setting) {
+            // Cast numeric values to float
+            return is_numeric($setting->value) ? (float) $setting->value : $setting->value;
+        }
+
+        return $default;
     }
 }
