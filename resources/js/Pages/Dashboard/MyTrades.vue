@@ -1052,13 +1052,13 @@ const fetchMessages = async (tradeId) => {
       });
     }
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    chatState.error = 'Failed to load messages. Please try again later.';
-    toast({
-      title: 'Error',
-      description: chatState.error,
-      variant: 'destructive'
-    });
+    // console.error('Error fetching messages:', error);
+    // chatState.error = 'Failed to load messages. Please try again later.';
+    // toast({
+    //   title: 'Error',
+    //   description: chatState.error,
+    //   variant: 'destructive'
+    // });
   } finally {
     chatState.isLoading = false;
   }

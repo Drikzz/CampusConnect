@@ -25,13 +25,19 @@ const mapInitAttempts = ref(0);
 const MAX_INIT_ATTEMPTS = 5;
 
 const L = ref(null);
+const map = ref(null);
+const markers = ref([]);
+const mapElement = ref(null);
+
 const loadLeaflet = async () => {
   if (typeof window !== 'undefined') {
+    console.log('Loading Leaflet library');
     L.value = await import('leaflet');
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(link);
+    console.log('Leaflet loaded successfully');
   }
 };
 
@@ -346,6 +352,97 @@ const availableTimeSlots = computed(() => {
   return slots;
 });
 
+const schedulesByLocation = computed(() => {
+  console.log('Computing schedulesByLocation with meetupLocations:', meetupLocations.value);
+  
+  try {
+    const grouped = {};
+    
+    if (!meetupLocations.value || !Array.isArray(meetupLocations.value)) {
+      console.error('meetupLocations is not an array:', meetupLocations.value);
+      return {};
+    }
+    
+    meetupLocations.value.forEach(location => {
+      try {
+        console.log('Processing location:', location);
+        
+        // Check if location has required properties
+        if (!location || typeof location !== 'object') {
+          console.error('Invalid location object:', location);
+          return;
+        }
+        
+        const schedules = [];
+        let availableDays = location.available_days || [];
+        
+        console.log('Available days before processing:', availableDays);
+        
+        if (typeof availableDays === 'string') {
+          try {
+            availableDays = JSON.parse(availableDays);
+            console.log('Parsed availableDays from JSON string:', availableDays);
+          } catch (e) {
+            console.error('Failed to parse availableDays JSON:', e);
+            availableDays = [];
+          }
+        }
+        
+        if (!Array.isArray(availableDays)) {
+          console.error('availableDays is not an array after processing:', availableDays);
+          availableDays = [];
+        }
+        
+        console.log('Final availableDays array:', availableDays);
+        
+        availableDays.forEach(day => {
+          schedules.push({
+            id: `${location.id}_${day}`,
+            day: day,
+            timeFrom: formatTime(location.available_from || '09:00'),
+            timeUntil: formatTime(location.available_until || '17:00'),
+          });
+        });
+        
+        console.log(`Created ${schedules.length} schedules for location ${location.id}:`, schedules);
+        
+        if (schedules.length > 0) {
+          // Debug coordinates from backend
+          console.log(`Location ${location.id} coordinates:`, {
+            lat: location.latitude,
+            lng: location.longitude,
+            type_lat: typeof location.latitude,
+            type_lng: typeof location.longitude
+          });
+          
+          grouped[location.id] = {
+            id: location.id,
+            name: location.name || location.custom_location || 'Unknown Location',
+            latitude: location.latitude !== undefined ? parseFloat(location.latitude) : DEFAULT_LATITUDE,
+            longitude: location.longitude !== undefined ? parseFloat(location.longitude) : DEFAULT_LONGITUDE,
+            description: location.description || '',
+            is_default: location.is_default || false,
+            schedules: schedules,
+            use_default_coordinates: !location.latitude || !location.longitude
+          };
+          
+          console.log(`Added location ${location.id} to grouped result:`, grouped[location.id]);
+        } else {
+          console.warn(`No schedules created for location ${location.id}, not adding to grouped result`);
+        }
+      } catch (locationError) {
+        console.error('Error processing location:', locationError, location);
+      }
+    });
+    
+    console.log('Final schedulesByLocation result:', grouped);
+    return grouped;
+  } catch (error) {
+    console.error('Error in schedulesByLocation computed property:', error);
+    return {};
+  }
+});
+
 const loadTradeDetails = async () => {
   try {
     console.log('Loading trade details for trade ID:', props.tradeId);
@@ -358,10 +455,26 @@ const loadTradeDetails = async () => {
       const tradeData = response.data.trade;
       console.log('Trade data loaded successfully:', tradeData);
       
+      // Debug the product data specifically
       console.log('Product data in response:', tradeData.product);
-      
+        // Set meetup locations from the response and log their coordinates
       meetupLocations.value = tradeData.meetup_locations || [];
-      console.log('Meetup locations:', meetupLocations.value);
+      
+      // Enhanced debugging for location coordinates
+      console.log('--- DEBUG MEETUP LOCATIONS COORDINATES ---');
+      meetupLocations.value.forEach((location, index) => {
+        console.log(`Location #${index+1} (ID: ${location.id}):`, {
+          name: location.name,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          type_lat: typeof location.latitude,
+          type_lng: typeof location.longitude,
+          has_coordinates: !!location.latitude && !!location.longitude,
+          location_id: location.location_id,
+          is_current: location.id == tradeData.meetup_location_id
+        });
+      });
+      console.log('--- END DEBUG MEETUP LOCATIONS ---');
       
       form.seller_product_id = tradeData.seller_product_id;
       form.meetup_location_id = tradeData.meetup_location_id;
@@ -379,7 +492,7 @@ const loadTradeDetails = async () => {
             name: item.name || '',
             quantity: item.quantity || 1,
             estimated_value: item.estimated_value || 0,
-            description: '',
+            description: item.description || '', 
             condition: item.condition || 'used_good',
             current_images: processedImages,
             images: []
@@ -488,56 +601,73 @@ watch(() => selectedScheduleId.value, (newSchedule) => {
   }
 }, { immediate: true });
 
-const schedulesByLocation = computed(() => {
-  const grouped = {};
+// Initialize the map when showMap changes or when locations are loaded
+watch([() => showMap.value, () => meetupLocations.value.length, () => mapElement.value], async ([isVisible, locationsCount, mapEl]) => {
+  if (isVisible && locationsCount > 0 && mapEl && !map.value) {
+    console.log('Map conditions met for initialization');
+    await initMap();
+  } else if (isVisible && map.value) {
+    console.log('Map already initialized, just updating markers');
+    updateMapMarkers();
+  }
+});
+
+const initMap = async () => {
+  console.log('Initializing map...');
   
-  if (!meetupLocations.value || !Array.isArray(meetupLocations.value)) {
-    return {};
+  // Exit if already initialized
+  if (map.value) {
+    console.log('Map already initialized');
+    return;
   }
   
-  meetupLocations.value.forEach(location => {
-    const schedules = [];
-    let availableDays = location.available_days || [];
-    
-    if (typeof availableDays === 'string') {
-      try {
-        availableDays = JSON.parse(availableDays);
-      } catch (e) {
-        availableDays = [];
-      }
-    }
-    
-    if (!Array.isArray(availableDays)) {
-      availableDays = [];
-    }
-    
-    availableDays.forEach(day => {
-      schedules.push({
-        id: `${location.id}_${day}`,
-        day: day,
-        timeFrom: formatTime(location.available_from || '09:00'),
-        timeUntil: formatTime(location.available_until || '17:00'),
-      });
-    });
-    
-    if (schedules.length > 0) {
-      const locationName = location.name || location.custom_location || 'Unknown Location';
-      
-      grouped[location.id] = {
-        id: location.id,
-        name: locationName,
-        latitude: location.latitude || DEFAULT_LATITUDE,
-        longitude: location.longitude || DEFAULT_LONGITUDE,
-        description: location.description || '',
-        is_default: location.is_default || false,
-        schedules: schedules,
-        use_default_coordinates: !location.latitude || !location.longitude
-      };
-    }
-  });
+  // Make sure Leaflet is loaded
+  if (!L.value) {
+    console.log('Leaflet not loaded yet, loading now...');
+    await loadLeaflet();
+  }
   
-  return grouped;
-});
+  if (!L.value) {
+    console.error('Failed to load Leaflet');
+    return;
+  }
+  
+  try {
+    if (!mapElement.value) {
+      console.error('Map element is not available in the DOM');
+      if (mapInitAttempts.value < MAX_INIT_ATTEMPTS) {
+        mapInitAttempts.value++;
+        console.log(`Retrying map initialization (attempt ${mapInitAttempts.value}/${MAX_INIT_ATTEMPTS})...`);
+        setTimeout(initMap, 200);
+      }
+      return;
+    }
+    
+    console.log('Creating Leaflet map instance');
+    
+    // Create the map with default view
+    map.value = L.value.map(mapElement.value).setView([DEFAULT_LATITUDE, DEFAULT_LONGITUDE], 13);
+    
+    // Add the tile layer
+    L.value.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map.value);
+    
+    // Set isMapReady flag
+    isMapReady.value = true;
+    
+    // Initialize markers
+    markers.value = [];
+    
+    // Add markers
+    updateMapMarkers();
+    
+    console.log('Map initialized successfully');
+  } catch (error) {
+    console.error('Error initializing map:', error);
+    isMapReady.value = false;
+  }
+};
 
 const formatTime = (time) => {
   if (!time) return '';
@@ -782,6 +912,211 @@ const removeExistingImage = (itemIndex, imageIndex) => {
     form.offered_items[itemIndex].current_images = newImages;
   }
 };
+
+const updateMapMarkers = () => {
+  if (!map.value || !L.value) {
+    console.warn('Map or Leaflet not available for updating markers');
+    return;
+  }
+  
+  try {
+    if (map.value) {
+      map.value.closePopup();
+    }
+    
+    // Clear existing markers
+    if (markers.value && markers.value.length) {
+      console.log(`Clearing ${markers.value.length} existing markers`);
+      markers.value.forEach(marker => {
+        try {
+          marker.remove();
+        } catch (err) {
+          console.error('Error removing marker:', err);
+        }
+      });
+    }
+    markers.value = [];
+    
+    const locations = Object.values(schedulesByLocation.value);
+    if (locations.length === 0) {
+      console.warn('No locations available for markers');
+      return;
+    }
+    
+    console.log(`Adding ${locations.length} location markers to map`);
+    
+    const bounds = L.value.latLngBounds();
+    
+    locations.forEach(location => {
+      try {
+        // Enhanced debugging for marker creation
+        console.log(`Creating marker for location ${location.id}:`, {
+          name: location.name,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          parsed_lat: parseFloat(location.latitude),
+          parsed_lng: parseFloat(location.longitude),
+          is_valid_lat: !isNaN(parseFloat(location.latitude)),
+          is_valid_lng: !isNaN(parseFloat(location.longitude)),
+          is_default: location.is_default
+        });
+        
+        const icon = L.value.divIcon({
+          className: 'custom-map-marker',
+          html: `<div class="${location.is_default ? 'default-marker' : 'normal-marker'}">
+                   <span class="marker-label">${location.name.substr(0, 3)}</span>
+                 </div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 40]
+        });
+        
+        const lat = parseFloat(location.latitude);
+        const lng = parseFloat(location.longitude);
+        
+        if (isNaN(lat) || isNaN(lng)) {
+          console.warn(`Invalid coordinates for location ${location.id}: ${location.latitude}, ${location.longitude}`);
+          return;
+        }
+        
+        const popupContent = `
+            <div class="map-popup">
+                <h4 class="font-bold">${location.name}</h4>
+                <p class="text-sm">${location.description || 'No description'}</p>
+                <p class="text-xs mt-2">${location.schedules.length} available days</p>
+                ${location.use_default_coordinates 
+                    ? '<p class="text-xs text-amber-500">Using approximate location</p>' 
+                    : ''}
+                <div class="select-location-container" data-location-id="${location.id}">
+                  <button type="button" class="select-location-btn"
+                    style="background: #4F46E5; color: white; padding: 6px 12px; 
+                    border-radius: 4px; margin-top: 8px; font-size: 13px; 
+                    width: 100%; text-align: center; cursor: pointer;">
+                    Select Location
+                  </button>
+                </div>
+            </div>`;
+        
+        const marker = L.value.marker([lat, lng], { icon })
+            .addTo(map.value);
+            
+        const popup = L.value.popup({
+          autoPan: true,
+          closeButton: true,
+        }).setContent(popupContent);
+        
+        marker.on('click', () => {
+          map.value.closePopup();
+          marker.bindPopup(popup).openPopup();
+        });
+        
+        marker.on('popupopen', () => {
+          setTimeout(() => {
+            const container = document.querySelector(`.select-location-container[data-location-id="${location.id}"]`);
+            if (container) {
+              const btn = container.querySelector('.select-location-btn');
+              if (btn) {
+                const newBtn = btn.cloneNode(true);
+                if (btn.parentNode) {
+                  btn.parentNode.replaceChild(newBtn, btn);
+                }
+                newBtn.addEventListener('click', () => {
+                  map.value.closePopup();
+                  selectLocationFromMap(location);
+                });
+              }
+            }
+          }, 50);
+        });
+        
+        marker.on('popupclose', () => {
+          marker.unbindPopup();
+        });
+        
+        markers.value.push(marker);
+        bounds.extend([lat, lng]);
+      } catch (locationError) {
+        console.error('Error creating marker for location:', locationError);
+      }
+    });
+    
+    if (markers.value.length > 0) {
+      map.value.closePopup();
+      map.value.fitBounds(bounds, {
+        padding: [50, 50],
+        maxZoom: 16
+      });
+      
+      if (form.meetup_location_id) {
+        highlightSelectedLocation(form.meetup_location_id);
+      }
+    }
+    
+    console.log(`Added ${markers.value.length} markers to map`);
+  } catch (error) {
+    console.error('Error updating map markers:', error);
+  }
+};
+
+// Add missing functions to select and highlight locations
+const selectLocationFromMap = (location) => {
+  console.log('Location selected from map:', location);
+  form.meetup_location_id = location.id;
+  clearFieldError('meetup_location_id');
+  
+  // Update the selected schedule based on first available day
+  if (location.schedules && location.schedules.length > 0) {
+    selectedScheduleId.value = location.schedules[0].id;
+    console.log('Set selectedScheduleId to first schedule:', selectedScheduleId.value);
+  }
+};
+
+const highlightSelectedLocation = (locationId) => {
+  if (!markers.value || markers.value.length === 0) {
+    console.log('No markers to highlight');
+    return;
+  }
+  
+  try {
+    const location = schedulesByLocation.value[locationId];
+    if (!location) {
+      console.warn(`Location with ID ${locationId} not found for highlighting`);
+      return;
+    }
+    
+    console.log(`Highlighting location: ${locationId}`, location);
+    
+    // Find the matching marker
+    const locLat = parseFloat(location.latitude);
+    const locLng = parseFloat(location.longitude);
+    
+    if (isNaN(locLat) || isNaN(locLng)) {
+      console.warn(`Cannot highlight location with invalid coordinates: ${locLat}, ${locLng}`);
+      return;
+    }
+    
+    // Pan to the selected location
+    map.value.setView([locLat, locLng], 15, {
+      animate: true,
+      duration: 1
+    });
+    
+    // Optional: Open the popup for this location
+    const matchingMarker = markers.value.find(marker => {
+      const pos = marker.getLatLng();
+      return pos.lat === locLat && pos.lng === locLng;
+    });
+    
+    if (matchingMarker) {
+      setTimeout(() => {
+        matchingMarker.fire('click');
+      }, 300);
+    } else {
+      console.warn('No matching marker found for selected location');
+    }
+  } catch (error) {
+    console.error('Error highlighting selected location:', error);
+  }
+};
 </script>
 
 <template>
@@ -884,8 +1219,7 @@ const removeExistingImage = (itemIndex, imageIndex) => {
                 </div>
               </div>
             </div>
-            
-            <div 
+              <div 
               v-show="showMap || !form.meetup_location_id" 
               ref="mapElement" 
               id="trade-map" 
