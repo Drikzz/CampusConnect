@@ -107,15 +107,10 @@
                       <div v-if="trade.offered_items && trade.offered_items.length" class="space-y-2">
                         <div v-for="item in trade.offered_items.slice(0, 2)" :key="item.id" class="flex gap-2 items-start">
                           <div class="w-12 h-12 overflow-hidden rounded-md border flex-shrink-0">
-                            <img 
-                              v-if="getOfferedItemImagePath(item)" 
-                              :src="getOfferedItemImagePath(item)" 
-                              class="w-full h-full object-cover" 
-                              @error="handleImageError"
+                            <ImagePreview
+                              :images="processImagesForPreview(item.images || [])"
+                              :alt="item.name"
                             />
-                            <div v-else class="w-full h-full bg-muted flex items-center justify-center">
-                              <ImageIcon class="h-4 w-4 text-muted-foreground" />
-                            </div>
                           </div>
                           <div>
                             <p class="text-sm font-medium">{{ item.name }}</p>
@@ -248,17 +243,14 @@
                 <h4 class="font-semibold text-sm text-muted-foreground">Trading for:</h4>
                 <div class="border rounded-lg p-4">
                   <div class="flex gap-4">
-                    <!-- Replace with ImagePreview component -->
-                    <div class="w-24 aspect-square cursor-pointer" @click="previewImage(getProductImagePath(selectedTrade.sellerProduct))">
-                      <img 
-                        v-if="selectedTrade.sellerProduct && getProductImagePath(selectedTrade.sellerProduct)"
-                        :src="getProductImagePath(selectedTrade.sellerProduct)"
-                        class="w-full h-full object-cover rounded-md"
-                        @error="handleImageError"
+                    <!-- Use ImagePreview component instead of raw img -->
+                    <div class="w-24 h-24 aspect-square rounded-md overflow-hidden">
+                      <ImagePreview
+                        :images="selectedTrade.sellerProduct && selectedTrade.sellerProduct.images ? 
+                          processImagesForPreview(selectedTrade.sellerProduct.images) : 
+                          ['/images/placeholder-product.jpg']"
+                        :alt="selectedTrade.sellerProduct?.name || 'Product'"
                       />
-                      <div v-else class="flex items-center justify-center h-full bg-muted rounded-md">
-                        <ImageIcon class="h-8 w-8 text-muted-foreground" />
-                      </div>
                     </div>
 
                     <!-- Product Details -->
@@ -273,7 +265,8 @@
                         <UserIcon class="h-3.5 w-3.5" />
                         <span>{{ selectedTrade.seller?.name || 'Unknown Seller' }}</span>
                       </div>
-                      <p v-if="selectedTrade.sellerProduct && selectedTrade.sellerProduct.description" class="text-sm text-muted-foreground mt-2 line-clamp-3">
+                      <p v-if="selectedTrade.sellerProduct && selectedTrade.sellerProduct.description" 
+                         class="text-sm text-muted-foreground mt-2 line-clamp-3">
                         {{ selectedTrade.sellerProduct.description }}
                       </p>
                     </div>
@@ -294,18 +287,12 @@
                 <h4 class="font-semibold text-sm text-muted-foreground">Offered Items</h4>
                 <div v-for="item in selectedTrade.offered_items" :key="item.id" class="border rounded-lg p-4">
                   <div class="flex gap-4">
-                    <!-- Replace with ImagePreview component for offered items -->
-                    <div class="w-24 aspect-square cursor-pointer" @click="previewImage(getOfferedItemImagePath(item))">
-                      <img 
-                        v-if="getOfferedItemImagePath(item)"
-                        :src="getOfferedItemImagePath(item)"
+                    <!-- Use ImagePreview component here instead of raw img with click handler -->
+                    <div class="w-24 h-24 aspect-square rounded-md overflow-hidden">
+                      <ImagePreview
+                        :images="processImagesForPreview(item.images || [])"
                         :alt="item.name"
-                        class="w-full h-full object-cover rounded-md"
-                        @error="handleImageError"
                       />
-                      <div v-else class="flex items-center justify-center h-full bg-muted rounded-md">
-                        <ImageIcon class="h-8 w-8 text-muted-foreground" />
-                      </div>
                     </div>
 
                     <!-- Item Details -->
@@ -381,11 +368,9 @@
               <div v-if="chatState.isLoading" class="flex justify-center p-4">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-              
               <div v-else-if="chatState.messages.length === 0" class="text-center py-8 text-muted-foreground">
                 No messages yet
               </div>
-              
               <div v-else ref="messagesContainer" class="space-y-4 max-h-[400px] overflow-y-auto scroll-smooth">
                 <div v-for="message in chatState.messages" :key="message.id" 
                      :class="['flex', message.user_id === auth.user.id ? 'justify-end' : 'justify-start']">
@@ -405,7 +390,6 @@
                   </div>
                 </div>
               </div>
-
               <form @submit.prevent="sendMessage" class="mt-4 flex gap-2">
                 <Input 
                   v-model="newMessage" 
@@ -419,7 +403,6 @@
             </CardContent>
           </Card>
         </div>
-
         <DialogFooter>
           <Button variant="outline" @click="closeTradeDetails">Close</Button>
           <div class="space-x-2">
@@ -469,13 +452,6 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <!-- Replace the image preview dialog with the image-preview component -->
-    <ImagePreview
-      :open="!!previewImageUrl"
-      :src="previewImageUrl"
-      @update:open="previewImageUrl = null"
-    />
-
     <!-- Add the Reviews Dialog -->
     <Dialog :open="!!showReviewsDialog" @update:open="showReviewsDialog = $event">
       <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto scroll-smooth animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]">
@@ -499,6 +475,36 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Add image preview dialog -->
+    <Dialog :open="!!previewImageUrl" @update:open="previewImageUrl = null">
+      <DialogContent class="p-0 sm:max-w-3xl overflow-hidden">
+        <img 
+          v-if="previewImageUrl" 
+          :src="previewImageUrl" 
+          class="max-w-full max-h-[80vh] object-contain" 
+          @error="$event.target.src = '/images/placeholder-product.jpg'"
+        />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          class="absolute top-2 right-2 rounded-full bg-black/30 hover:bg-black/50 text-white"
+          @click="previewImageUrl = null"
+        >
+          <X class="h-4 w-4" />
+        </Button>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Add TradeEditForm component -->
+    <TradeEditForm
+      v-if="showEditTradeForm && tradeToEdit"
+      :trade-id="tradeToEdit.id"
+      :product="tradeToEdit.sellerProduct"
+      :open="showEditTradeForm"
+      @close="closeEditTradeForm"
+      @update:open="showEditTradeForm = $event"
+    />
   </DashboardLayout>
 </template>
 
@@ -509,6 +515,7 @@ import DashboardLayout from './DashboardLayout.vue';
 import { Link } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
 import { Toaster } from '@/Components/ui/toast';
+import { useToast } from '@/Components/ui/toast/use-toast';
 import { 
   Card, 
   CardContent,
@@ -517,14 +524,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/Components/ui/card';
-import { 
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/Components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
-import { useToast } from '@/Components/ui/toast/use-toast';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -536,6 +535,7 @@ import {
   AlertDialogTitle,
 } from '@/Components/ui/alert-dialog';
 import axios from 'axios';
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/Components/ui/dialog';
 import { 
   UserIcon, 
   ImageIcon, 
@@ -545,22 +545,54 @@ import {
   ClockIcon,
   MapPinIcon,
   CalendarOffIcon,
-  X 
+  X
 } from 'lucide-vue-next';
+import { Input } from "@/Components/ui/input";
 import { Badge } from '@/Components/ui/badge';
 import { Separator } from '@/Components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from "@/Components/ui/popover";
 import { Label } from "@/Components/ui/label";
 import { Textarea } from "@/Components/ui/textarea";
-import { Input } from "@/Components/ui/input";
 import { format } from "date-fns";
 import { Skeleton } from '@/Components/ui/Skeleton';
 import SellerReviews from '@/Components/SellerReviews.vue';
 import MeetupDate from '@/Components/ui/trade-calendar/meetup-date.vue';
 import { ScrollArea } from '@/Components/ui/scroll-area';
 import TradeForm from '@/Components/TradeForm.vue';
+import TradeEditForm from '@/Components/TradeEditForm.vue';
 import { ImagePreview } from '@/Components/ui/image-preview';
 import UserAvatar from '@/Components/ui/user-avatar.vue';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
+
+// Define a helper function to optimize image URLs
+const getOptimizedImageUrl = (url) => {
+  if (!url) return '/images/placeholder-product.jpg';
+  
+  // If it's already a full URL, return it as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Clean up URL path
+  if (url.startsWith('/storage/')) {
+    return url;
+  } else if (url.startsWith('storage/')) {
+    return '/' + url;
+  } else {
+    return '/storage/' + url;
+  }
+};
+
+// Create a stub for editForm if it doesn't exist
+const editForm = reactive({
+  meetup_location_id: '',
+  meetup_date: null,
+  meetup_time: '',
+  offered_items: []
+});
+
+// Define cancellationReason which is used in the template
+const cancellationReason = ref('');
 
 const props = defineProps({
   auth: {
@@ -573,18 +605,20 @@ const props = defineProps({
   },
   trades: {
     type: Object,
+    default: () => ({
+      data: [],
+    }),
   },
   flash: {
     type: Object,
     default: () => ({
       success: null,
-      error: null
+      error: null,
     }),
   },
 });
 
 const user = computed(() => props.auth.user);
-
 const page = usePage();
 const { toast } = useToast();
 
@@ -611,7 +645,7 @@ watch(() => page.props, (props) => {
       description: props.success,
       variant: 'default'
     });
-  } 
+  }
   if (props.error) {
     toast({
       title: 'Error',
@@ -625,16 +659,13 @@ const searchQuery = ref('');
 const selectedTrade = ref(null);
 const showTradeDetails = ref(false);
 const showCancelAlert = ref(false);
-const showDeleteAlert = ref(false);
-const showBulkDeleteAlert = ref(false);
+const showEditTradeDialog = ref(false);
+const showEditTradeForm = ref(false);
 const tradeToCancel = ref(null);
-const tradeToDelete = ref(null);
 const tradeToEdit = ref(null);
 const availableMeetupLocations = ref([]);
-const showEditTradeDialog = ref(false);
 const loading = ref(false);
 const selectedDate = ref(null);
-
 const tradeSchedule = reactive({
   meetup_location_id: '',
   selectedDay: '',
@@ -645,7 +676,6 @@ const groupedTrades = computed(() => {
   const buyerTrades = (props.trades?.data || []).filter(trade => 
     trade.buyer_id === props.auth.user.id
   );
-
   const groups = {
     all: buyerTrades.filter(t => t.status !== 'canceled'),
     pending: buyerTrades.filter(t => t.status === 'pending'),
@@ -654,18 +684,16 @@ const groupedTrades = computed(() => {
     completed: buyerTrades.filter(t => t.status === 'completed'),
     canceled: buyerTrades.filter(t => t.status === 'canceled'),
   };
-
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    Object.keys(groups).forEach(key => {
+  Object.keys(groups).forEach(key => {
+    if (searchQuery.value) {
+      const query = searchQuery.value.toLowerCase();
       groups[key] = groups[key].filter(trade => 
         trade.id.toString().includes(query) || 
         (trade.seller_product && trade.seller_product.name.toLowerCase().includes(query)) ||
         (trade.offered_items && trade.offered_items.some(item => item.name.toLowerCase().includes(query)))
       );
-    });
-  }
-
+    }
+  });
   return groups;
 });
 
@@ -696,12 +724,10 @@ const formatDateTime = (date, includeTime = false, dateOnly = false) => {
     month: 'long',
     day: 'numeric',
   };
-  
   if (includeTime) {
     options.hour = '2-digit';
     options.minute = '2-digit';
   }
-  
   return new Date(date).toLocaleDateString('en-PH', options);
 };
 
@@ -715,7 +741,7 @@ const getStatusColor = (status) => {
   };
   return colors[status] || 'bg-secondary text-secondary-foreground';
 };
-  
+
 const calculateTradeValue = (trade) => {
   let totalValue = 0;
   if (trade.offered_items && trade.offered_items.length > 0) {
@@ -727,7 +753,7 @@ const calculateTradeValue = (trade) => {
     totalValue += parseFloat(trade.additional_cash);
   }
   return totalValue;
-}
+};
 
 const calculateTotalValue = (trade) => {
   return calculateTradeValue(trade);
@@ -779,23 +805,20 @@ const ensureStoragePath = (path) => {
 /**
  * Gets the first image from an array or string of images - specifically for product images
  * Completely separate from user profile pictures
- * @param {Array|String} images - The images array or string 
- * @returns {String} - URL to the image
+ * @param {Array|String} images - The images array or string
+ * @returns {String} - URL to the image file
  */
-// In MyTrades.vue, update the getImageSrc function
 const getImageSrc = (images) => {
   // Early exit for empty input
-  if (!images || (Array.isArray(images) && images.length === 0) || 
-      (typeof images === 'string' && !images.trim())) {
+  if (!images || (Array.isArray(images) && images.length === 0) || (typeof images === 'string' && !images.trim())) {
     return '/images/placeholder-product.jpg';
   }
-  
+
   try {
     // Handle JSON string format
     if (typeof images === 'string' && (images.startsWith('[') || images.startsWith('{'))) {
       try {
         const parsed = JSON.parse(images);
-        
         // Array of images - use first valid one
         if (Array.isArray(parsed) && parsed.length > 0) {
           for (const img of parsed) {
@@ -813,7 +836,7 @@ const getImageSrc = (images) => {
         }
       }
     }
-    // Direct string path
+    // Direct string path input
     else if (typeof images === 'string') {
       return ensureStoragePath(images);
     }
@@ -826,17 +849,15 @@ const getImageSrc = (images) => {
   } catch (error) {
     console.error('Error processing product image:', error);
   }
-  
   // Default fallback
   return '/images/placeholder-product.jpg';
 };
 
 const previewImageUrl = ref(null);
-
 const previewImage = (imageUrl) => {
   let url = imageUrl; // Already normalized by getProductImagePath or getOfferedItemImagePath
   previewImageUrl.value = url;
-  
+
   // Preload the image
   const img = new Image();
   img.onload = () => {
@@ -857,16 +878,13 @@ const formatTime = (time) => {
   try {
     // Handle various time formats
     let hours, minutes;
-    
     if (time.includes(':')) {
       [hours, minutes] = time.split(':');
     } else {
       return time; // Return as is if format is unknown
     }
-    
     const hourNum = parseInt(hours);
     if (isNaN(hourNum)) return time;
-    
     const suffix = hourNum >= 12 ? 'PM' : 'AM';
     const hour12 = hourNum % 12 || 12;
     return `${hour12}:${minutes} ${suffix}`;
@@ -880,10 +898,8 @@ const getUserTradeNumber = (index, status) => {
   if (status === 'all') {
     return index + 1;
   }
-  
   const allTrades = groupedTrades.value.all;
   const trade = groupedTrades.value[status][index];
-  
   const allTradesIndex = allTrades.findIndex(t => t.id === trade.id);
   return allTradesIndex !== -1 ? allTradesIndex + 1 : index + 1;
 };
@@ -892,37 +908,30 @@ const viewTradeDetails = async (trade) => {
   try {
     selectedTrade.value = null;
     showTradeDetails.value = true;
-    chatState.messages = [];
+    chatState.messages = []; 
     chatState.error = null;
-
     const response = await axios.get(route('trades.details', trade.id));
     if (response.data && response.data.success && response.data.trade) {
       selectedTrade.value = response.data.trade;
-
       // Check if sellerProduct field exists and create it from seller_product if needed
       if (!selectedTrade.value.sellerProduct && selectedTrade.value.seller_product) {
         selectedTrade.value.sellerProduct = selectedTrade.value.seller_product;
       }
-
       // Format images consistently for both sellerProduct and offered_items
       if (selectedTrade.value.sellerProduct && selectedTrade.value.sellerProduct.images) {
         // Images handling already taken care of by getProductImagePath function
       }
-
       // Ensure preferred_time is available
       if (!selectedTrade.value.preferred_time && trade.preferred_time) {
         selectedTrade.value.preferred_time = trade.preferred_time;
       }
-
       // Format time for display
       if (selectedTrade.value.preferred_time) {
         selectedTrade.value.preferred_time_formatted = formatTime(selectedTrade.value.preferred_time);
       }
-
       // Process offered items - no need to transform the actual image structure
       // as our getOfferedItemImagePath will handle all the formatting
     }
-    
     await fetchMessages(trade.id);
   } catch (error) {
     console.error('Error loading trade details:', error);
@@ -943,96 +952,19 @@ const closeTradeDetails = () => {
 
 const editTrade = async (trade) => {
   showTradeDetails.value = false;
-  
-  tradeToEdit.value = {
-    ...trade,
-    sellerProduct: trade.seller_product || null
-  };
-  
   try {
-    const response = await axios.get(route('trades.details', trade.id));
+    const response = await axios.get(`/trade/${trade.id}/edit-details`);
     if (response.data && response.data.success && response.data.trade) {
+      // Simply pass the trade ID and the unmodified product data from the response
       tradeToEdit.value = {
-        ...response.data.trade,
-        sellerProduct: response.data.trade.sellerProduct || null
+        id: trade.id,
+        sellerProduct: response.data.trade.product
       };
       
-      try {
-        const productResponse = await axios.get(`/trade/products/${tradeToEdit.value.seller_product_id}/details`);
-        if (productResponse.data) {
-          tradeToEdit.value.sellerProduct = {
-            ...tradeToEdit.value.sellerProduct,
-            ...productResponse.data
-          };
-
-          if (productResponse.data.seller) {
-            tradeToEdit.value.seller = {
-              ...tradeToEdit.value.seller,
-              ...productResponse.data.seller
-            };
-          }
-        }
-      } catch (productError) {
-        console.error("Failed to load additional product details for editing:", productError);
-        
-        try {
-          const fallbackResponse = await axios.get(`/api/products/${tradeToEdit.value.seller_product_id}`);
-          if (fallbackResponse.data) {
-            tradeToEdit.value.sellerProduct = {
-              ...tradeToEdit.value.sellerProduct,
-              ...fallbackResponse.data
-            };
-            
-            if (fallbackResponse.data.seller) {
-              tradeToEdit.value.seller = {
-                ...tradeToEdit.value.seller,
-                ...fallbackResponse.data.seller
-              };
-            }
-          }
-        } catch (fallbackError) {
-          console.error("All attempts to load product details failed:", fallbackError);
-        }
-      }
+      console.log('Opening edit form with data:', tradeToEdit.value);
       
-      if (tradeToEdit.value.offered_items) {
-        tradeToEdit.value.offered_items = tradeToEdit.value.offered_items.map(item => {
-          let images = [];
-          if (item.images) {
-            if (typeof item.images === 'string') {
-              try {
-                images = JSON.parse(item.images);
-                if (!Array.isArray(images)) {
-                  images = [images];
-                }
-              } catch (e) {
-                images = [item.images];
-              }
-            } else if (Array.isArray(item.images)) {
-              images = item.images;
-            }
-          }
-
-          images = images.map(img => getOptimizedImageUrl(img));
-
-          return {
-            ...item,
-            current_images: images,
-            images: []
-          };
-        });
-      }
-      
-      if (!tradeToEdit.value.sellerProduct) {
-        toast({
-          title: 'Warning',
-          description: 'Product information is missing for this trade',
-          variant: 'warning'
-        });
-        return;
-      }
-
-      showEditTradeDialog.value = true;
+      // Show the TradeEditForm
+      showEditTradeForm.value = true;
     } else {
       throw new Error('Invalid response format');
     }
@@ -1043,6 +975,16 @@ const editTrade = async (trade) => {
       description: 'Failed to load trade details for editing',
       variant: 'destructive'
     });
+  }
+};
+
+const closeEditTradeForm = () => {
+  showEditTradeForm.value = false;
+  tradeToEdit.value = null;
+  
+  // Refresh trade data if we were showing trade details
+  if (selectedTrade.value && showTradeDetails.value) {
+    refreshMessages(selectedTrade.value.id);
   }
 };
 
@@ -1090,10 +1032,11 @@ const scrollToBottom = () => {
 };
 
 const fetchMessages = async (tradeId) => {
-  if (!tradeId) return; 
+  if (!tradeId) return;
   chatState.isLoading = true;
   chatState.error = null;
   try {
+    // Simplified: Just one API call to get messages (which will create a welcome message if needed)
     const response = await axios.get(route('trades.messages.get', tradeId));
     if (response.data.success) {
       chatState.messages = response.data.data;
@@ -1243,7 +1186,6 @@ const isTradeEligibleForDelete = (trade) => {
 };
 
 const showReviewsDialog = ref(false);
-
 const openReviewDialog = () => {
   showReviewsDialog.value = true;
 };
@@ -1387,7 +1329,6 @@ const selectedDay = computed(() => {
   const location = availableMeetupLocations.value?.find(
     loc => loc.id === tradeSchedule.meetup_location_id
   );
-  
   return location?.available_days || [];
 });
 
@@ -1406,93 +1347,84 @@ watch(() => tradeSchedule.meetup_location_id, (newVal) => {
   }
 });
 
-watch(
-  () => selectedDate.value,
-  (newDate) => {
-    if (!newDate) {
-      editForm.meetup_date = '';
-      return;
-    }
-    
-    try {
-      const dateObj = newDate instanceof Date ? newDate : new Date(newDate);
-      if (isNaN(dateObj.getTime())) throw new Error('Invalid date');
-      
-      editForm.meetup_date = format(dateObj, 'yyyy-MM-dd');
-    } catch (error) {
-      console.error('Date conversion error:', error);
-      editForm.meetup_date = '';
-    }
+watch(() => selectedDate.value, (newDate) => {
+  if (!newDate) {
+    editForm.meetup_date = '';
+    return;
   }
-);
-
-watch(
-  () => selectedDay.value,
-  (newDay) => {
-    if (newDay !== undefined) {
-      selectedDate.value = null;
-      editForm.meetup_date = null;
-    }
+  try {
+    const dateObj = newDate instanceof Date ? newDate : new Date(newDate);
+    if (isNaN(dateObj.getTime())) throw new Error('Invalid date');
+    editForm.meetup_date = format(dateObj, 'yyyy-MM-dd');
+  } catch (error) {
+    console.error('Date conversion error:', error);
+    editForm.meetup_date = '';
   }
-);
+});
 
-const handleMeetupSelection = (location, day) => {
+watch(() => selectedDay.value, (newDay) => {
+  if (newDay !== undefined) {
     selectedDate.value = null;
     editForm.meetup_date = null;
+  }
+});
 
-    try {
-        tradeSchedule.meetup_location_id = location.id;
-        tradeSchedule.selectedDay = day;
-        tradeSchedule.meetingSelection = `${location.id}_${day}`;
-    } catch (error) {
-        console.error('Error in handleMeetupSelection:', error);
-        toast({
-            title: "Error",
-            description: "Failed to set meetup schedule",
-            variant: "destructive"
-        });
-    }
-}
+const handleMeetupSelection = (location, day) => {
+  selectedDate.value = null; 
+  editForm.meetup_date = null;
+
+  try {
+    tradeSchedule.meetup_location_id = location.id;
+    tradeSchedule.selectedDay = day;
+    tradeSchedule.meetingSelection = `${location.id}_${day}`;
+  } catch (error) {
+    console.error('Error in handleMeetupSelection:', error);
+    toast({
+      title: "Error",
+      description: "Failed to set meetup schedule",
+      variant: "destructive"
+    });
+  }
+};
 
 const handleDateSelection = (date) => {
-    if (!tradeSchedule.meetup_location_id || !date) {
-        editForm.meetup_date = null;
-        return;
+  if (!tradeSchedule.meetup_location_id || !date) {
+    editForm.meetup_date = null;
+    return;
+  }
+
+  try {
+    const selectedDate = new Date(date);
+    if (isNaN(selectedDate.getTime())) {
+      throw new Error('Invalid date');
     }
+    const selectedDay = format(selectedDate, 'EEEE').toLowerCase();
+    const scheduleDay = tradeSchedule.selectedDay.toLowerCase();
 
-    try {
-        const selectedDate = new Date(date);
-        if (isNaN(selectedDate.getTime())) {
-            throw new Error('Invalid date');
-        }
-
-        const selectedDay = format(selectedDate, 'EEEE').toLowerCase();
-        const scheduleDay = tradeSchedule.selectedDay.toLowerCase();
-
-        if (selectedDay === scheduleDay) {
-            editForm.meetup_date = format(selectedDate, 'yyyy-MM-dd');
-        } else {
-            editForm.meetup_date = null;
-            toast({
-                title: "Invalid Day Selected",
-                description: `Please select a ${tradeSchedule.selectedDay} for this meetup location.`,
-                variant: "destructive"
-            });
-        }
-    } catch (error) {
-        console.error('Date selection error:', error);
-        editForm.meetup_date = null;
-        toast({
-            title: "Error",
-            description: "Invalid date selected",
-            variant: "destructive"
-        });
+    if (selectedDay === scheduleDay) {
+      editForm.meetup_date = format(selectedDate, 'yyyy-MM-dd');
+    } else {
+      editForm.meetup_date = null;
+      toast({
+        title: "Invalid Day Selected",
+        description: `Please select a ${tradeSchedule.selectedDay} for this meetup location.`,
+        variant: "destructive"
+      });
     }
+  } catch (error) {
+    console.error('Date selection error:', error);
+    editForm.meetup_date = null;
+    toast({
+      title: "Error",
+      description: "Invalid date selected",
+      variant: "destructive"
+    });
+  }
 };
 
 watch(() => [tradeSchedule.meetup_location_id, tradeSchedule.selectedDay], () => {
-    selectedDate.value = null;
-    editForm.meetup_date = null;
+  selectedDate.value = null;
+  editForm.meetup_date = null;
 }, { deep: true });
 
 /**
@@ -1502,7 +1434,6 @@ watch(() => [tradeSchedule.meetup_location_id, tradeSchedule.selectedDay], () =>
  */
 const getProductImagePath = (product) => {
   if (!product) return '/images/placeholder-product.jpg';
-  
   let images = product.images;
   
   // If images is null or undefined, return placeholder
@@ -1536,7 +1467,6 @@ const getProductImagePath = (product) => {
  */
 const getOfferedItemImagePath = (item) => {
   if (!item || !item.images) return '/images/placeholder-product.jpg';
-  
   let images = item.images;
   
   // Handle case where images might be a JSON string
@@ -1568,11 +1498,8 @@ const getOfferedItemImagePath = (item) => {
 const processImagesForPreview = (images) => {
   // Always return an array for the ImagePreview component
   if (!images) return ['/images/placeholder-product.jpg'];
-  
-  // If images is already an array, format each entry
   if (Array.isArray(images)) {
     if (images.length === 0) return ['/images/placeholder-product.jpg'];
-    
     return images.map(img => {
       if (typeof img === 'string') {
         // Process string URLs
@@ -1581,7 +1508,6 @@ const processImagesForPreview = (images) => {
       return '/images/placeholder-product.jpg';
     });
   }
-  
   // If images is a string, try to parse as JSON if it looks like JSON
   if (typeof images === 'string') {
     if (images.startsWith('[') || images.startsWith('{')) {
