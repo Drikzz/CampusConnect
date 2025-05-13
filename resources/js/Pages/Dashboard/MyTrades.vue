@@ -495,6 +495,16 @@
         </Button>
       </DialogContent>
     </Dialog>
+
+    <!-- Add TradeEditForm component -->
+    <TradeEditForm
+      v-if="showEditTradeForm && tradeToEdit"
+      :trade-id="tradeToEdit.id"
+      :product="tradeToEdit.sellerProduct"
+      :open="showEditTradeForm"
+      @close="closeEditTradeForm"
+      @update:open="showEditTradeForm = $event"
+    />
   </DashboardLayout>
 </template>
 
@@ -549,6 +559,7 @@ import SellerReviews from '@/Components/SellerReviews.vue';
 import MeetupDate from '@/Components/ui/trade-calendar/meetup-date.vue';
 import { ScrollArea } from '@/Components/ui/scroll-area';
 import TradeForm from '@/Components/TradeForm.vue';
+import TradeEditForm from '@/Components/TradeEditForm.vue';
 import { ImagePreview } from '@/Components/ui/image-preview';
 import UserAvatar from '@/Components/ui/user-avatar.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
@@ -649,6 +660,7 @@ const selectedTrade = ref(null);
 const showTradeDetails = ref(false);
 const showCancelAlert = ref(false);
 const showEditTradeDialog = ref(false);
+const showEditTradeForm = ref(false);
 const tradeToCancel = ref(null);
 const tradeToEdit = ref(null);
 const availableMeetupLocations = ref([]);
@@ -940,85 +952,19 @@ const closeTradeDetails = () => {
 
 const editTrade = async (trade) => {
   showTradeDetails.value = false;
-  tradeToEdit.value = {
-    ...trade,
-    sellerProduct: trade.seller_product || null
-  };
   try {
-    const response = await axios.get(route('trades.details', trade.id));
+    const response = await axios.get(`/trade/${trade.id}/edit-details`);
     if (response.data && response.data.success && response.data.trade) {
+      // Simply pass the trade ID and the unmodified product data from the response
       tradeToEdit.value = {
-        ...response.data.trade,
-        sellerProduct: response.data.trade.sellerProduct || null
+        id: trade.id,
+        sellerProduct: response.data.trade.product
       };
-      try {
-        const productResponse = await axios.get(`/trade/products/${tradeToEdit.value.seller_product_id}/details`);
-        if (productResponse.data) {
-          tradeToEdit.value.sellerProduct = {
-            ...tradeToEdit.value.sellerProduct,
-            ...productResponse.data
-          };
-          if (productResponse.data.seller) {
-            tradeToEdit.value.seller = {
-              ...tradeToEdit.value.seller,
-              ...productResponse.data.seller
-            };
-          }
-        }
-      } catch (productError) {
-        console.error("Failed to load additional product details for editing:", productError);
-        try {
-          const fallbackResponse = await axios.get(`/api/products/${tradeToEdit.value.seller_product_id}`);
-          if (fallbackResponse.data) {
-            tradeToEdit.value.sellerProduct = {
-              ...tradeToEdit.value.sellerProduct,
-              ...fallbackResponse.data
-            };
-            if (fallbackResponse.data.seller) {
-              tradeToEdit.value.seller = {
-                ...tradeToEdit.value.seller,
-                ...fallbackResponse.data.seller
-              };
-            }
-          }
-        } catch (fallbackError) {
-          console.error("All attempts to load product details failed:", fallbackError);
-        }
-      }
-      if (tradeToEdit.value.offered_items) {
-        tradeToEdit.value.offered_items = tradeToEdit.value.offered_items.map(item => {
-          let images = [];
-          if (item.images) {
-            if (typeof item.images === 'string') {
-              try {
-                images = JSON.parse(item.images);
-                if (!Array.isArray(images)) {
-                  images = [images];
-                }
-              } catch (e) {
-                images = [item.images];
-              }
-            } else if (Array.isArray(item.images)) {
-              images = item.images;
-            }
-          }
-          images = images.map(img => getOptimizedImageUrl(img));
-          return {
-            ...item,
-            current_images: images,
-            images: []
-          };
-        });
-      }
-      if (!tradeToEdit.value.sellerProduct) {
-        toast({
-          title: 'Warning',
-          description: 'Product information is missing for this trade',
-          variant: 'warning'
-        });
-        return;
-      }
-      showEditTradeDialog.value = true;
+      
+      console.log('Opening edit form with data:', tradeToEdit.value);
+      
+      // Show the TradeEditForm
+      showEditTradeForm.value = true;
     } else {
       throw new Error('Invalid response format');
     }
@@ -1029,6 +975,16 @@ const editTrade = async (trade) => {
       description: 'Failed to load trade details for editing',
       variant: 'destructive'
     });
+  }
+};
+
+const closeEditTradeForm = () => {
+  showEditTradeForm.value = false;
+  tradeToEdit.value = null;
+  
+  // Refresh trade data if we were showing trade details
+  if (selectedTrade.value && showTradeDetails.value) {
+    refreshMessages(selectedTrade.value.id);
   }
 };
 

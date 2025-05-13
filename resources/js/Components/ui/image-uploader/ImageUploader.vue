@@ -13,6 +13,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  existingImages: {
+    type: Array,
+    default: () => []
+  },
   maxFiles: {
     type: Number,
     default: 5
@@ -39,7 +43,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'error']);
+const emit = defineEmits(['update:modelValue', 'error', 'remove-existing']);
 
 const { toast } = useToast();
 const fileInputRef = ref(null);
@@ -50,7 +54,8 @@ const currentFile = ref(null);
 const cropperState = ref(null);
 
 const canAddMoreFiles = computed(() => {
-  return props.multiple && (!props.maxFiles || props.modelValue.length < props.maxFiles);
+  const totalImages = props.modelValue.length + props.existingImages.length;
+  return props.multiple && (!props.maxFiles || totalImages < props.maxFiles);
 });
 
 const displayError = computed(() => {
@@ -207,6 +212,10 @@ const removeFile = (index) => {
   emit('update:modelValue', newFiles);
 };
 
+const removeExistingImage = (index) => {
+  emit('remove-existing', index);
+};
+
 const getFilePreview = (file) => {
   if (typeof file === 'string') {
     return file;
@@ -233,6 +242,21 @@ const openFileBrowser = () => {
 const getFileUrl = (file) => {
   if (!file) return null;
   return URL.createObjectURL(file);
+};
+
+// Fix storage paths in existing images
+const fixStoragePath = (path) => {
+  if (!path) return '';
+  
+  if (path.includes('storage/storage/')) {
+    path = path.replace('storage/storage/', 'storage/');
+  }
+  
+  if (path.startsWith('/storage/storage/')) {
+    path = path.replace('/storage/storage/', '/storage/');
+  }
+  
+  return path;
 };
 </script>
 
@@ -271,12 +295,12 @@ const getFileUrl = (file) => {
           class="hidden"
         />
 
-        <div v-if="!multiple && modelValue.length > 0" class="mt-2 text-xs text-amber-600">
+        <div v-if="!multiple && (modelValue.length > 0 || existingImages.length > 0)" class="mt-2 text-xs text-amber-600">
           New upload will replace existing image
         </div>
 
-        <div v-if="multiple && maxFiles && modelValue.length > 0" class="mt-2 text-xs text-muted-foreground dark:text-gray-400">
-          {{ modelValue.length }} / {{ maxFiles }} files uploaded
+        <div v-if="multiple && maxFiles && (modelValue.length > 0 || existingImages.length > 0)" class="mt-2 text-xs text-muted-foreground dark:text-gray-400">
+          {{ modelValue.length + existingImages.length }} / {{ maxFiles }} files uploaded
         </div>
       </div>
     </div>
@@ -285,22 +309,51 @@ const getFileUrl = (file) => {
       {{ displayError }}
     </p>
     
-    <div v-if="modelValue.length > 0" class="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+    <!-- Display existing images -->
+    <div v-if="existingImages.length > 0 || modelValue.length > 0" class="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+      <!-- Existing images from the server -->
+      <div 
+        v-for="(file, index) in existingImages" 
+        :key="`existing-${index}`"
+        class="relative group border border-border dark:border-gray-700 rounded-md overflow-hidden aspect-square"
+      >
+        <img 
+          :src="fixStoragePath(file)" 
+          class="w-full h-full object-cover"
+          @error="$event.target.src = '/images/placeholder-product.jpg'"
+          :alt="`Existing preview ${index + 1}`"
+        />
+        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+          <Button 
+            type="button" 
+            variant="destructive" 
+            size="icon"
+            class="h-8 w-8 rounded-full"
+            @click.stop.prevent="removeExistingImage(index)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+          </Button>
+        </div>
+      </div>
+      
+      <!-- New images to upload -->
       <div 
         v-for="(file, index) in modelValue" 
-        :key="index" 
+        :key="`new-${index}`"
         class="relative group border border-border dark:border-gray-700 rounded-md overflow-hidden aspect-square"
       >
         <img 
           :src="getFilePreview(file)" 
           class="w-full h-full object-cover"
           @error="$event.target.src = '/images/placeholder-product.jpg'"
-          :alt="`Preview ${index + 1}`"
+          :alt="`New preview ${index + 1}`"
         />
         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
           <Button 
             type="button" 
-            variant="destructive"
+            variant="destructive" 
             size="icon"
             class="h-8 w-8 rounded-full"
             @click.stop.prevent="removeFile(index)"
@@ -359,6 +412,7 @@ const getFileUrl = (file) => {
 </template>
 
 <style scoped>
+/* Existing styles */
 .border-dashed {
   cursor: pointer;
 }

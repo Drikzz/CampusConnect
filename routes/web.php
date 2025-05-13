@@ -206,10 +206,6 @@ Route::middleware('auth')->group(function () {
             // Add this route where other trade routes are defined:
             Route::patch('/{id}/update', [TradeController::class, 'updateTrade'])->name('trades.update');
             
-            // Add new routes for trade messages
-            Route::post('/{trade}/message', [TradeController::class, 'sendMessage'])->name('trades.message.send');
-            Route::get('/{trade}/messages', [TradeController::class, 'getMessages'])->name('trades.messages.get');
-            
             // Keep meetup locations route with the SellerTradeController
             Route::get('/product/{id}/meetup-locations', [SellerTradeController::class, 'getProductMeetupLocations'])
                 ->name('trades.product.meetup-locations')
@@ -228,6 +224,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/trade/products/{id}/details', [TradeController::class, 'getProductDetails'])->name('trade.product.details');
         Route::post('/trade/submit', [TradeController::class, 'submit'])->name('trade.submit');
         Route::post('/trade/{id}/cancel', [TradeController::class, 'cancel'])->name('trade.cancel');
+        
+        // Add routes for trade editing
+        Route::get('/trade/{id}/edit-details', [TradeController::class, 'getTradeEditDetails'])->name('trades.edit-details');
+        // Route::get('/get_trade/{id}/meetup-locations', [TradeController::class, 'getMeetupLocationsForTrade'])->name('get_trade.meetup-locations');
+        Route::post('/trade/{id}/update', [TradeController::class, 'updateTrade'])->name('trades.update');
+
+        // MyTrades vue routes
+        Route::post('/{trade}/message', [TradeController::class, 'sendMessage'])->name('trades.message.send');
+        Route::get('/{trade}/messages', [TradeController::class, 'getMessages'])->name('trades.messages.get');
 
         //checkout routes - update to add consistent naming
         Route::get('/products/prod/{id}/summary', [CheckoutController::class, 'summary'])->name('summary');

@@ -232,6 +232,7 @@ class TradeController extends Controller
         ];
     }
 
+
     /**
      * Get meetup locations for a product's seller
      *
@@ -280,6 +281,82 @@ class TradeController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get meetup locations for a trade (for editing purposes)
+     *
+     * @param int $tradeId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getMeetupLocationsForTrade($tradeId)
+    {
+        try {
+            $trade = TradeTransaction::with('sellerProduct')->findOrFail($tradeId);
+            
+            // Check if user is authorized to edit this trade
+            if ($trade->buyer_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized to access this trade'
+                ], 403);
+            }
+            
+            $productId = $trade->seller_product_id;
+            $sellerId = $trade->seller_id;
+            
+            $meetupLocations = MeetupLocation::where('user_id', $sellerId)
+                ->where('is_active', true)
+                ->with('location')
+                ->orderByDesc('is_default')
+                ->get()
+                ->map(function($loc) use ($trade) {
+                    // Convert days from JSON to array if needed
+                    $availableDays = $loc->available_days;
+                    if (is_string($availableDays)) {
+                        try {
+                            $availableDays = json_decode($availableDays);
+                        } catch (\Exception $e) {
+                            $availableDays = [];
+                        }
+                    }
+                    
+                    // Handle null case
+                    if (!$availableDays) {
+                        $availableDays = [];
+                    }
+                    
+                    return [
+                        'id' => $loc->id,
+                        'name' => $loc->name ?? $loc->custom_location ?? 'Unknown Location',
+                        'description' => $loc->description ?? '',
+                        'available_days' => $availableDays,
+                        'available_from' => $loc->available_from ?? '09:00',
+                        'available_until' => $loc->available_until ?? '17:00',
+                        'is_default' => (bool)$loc->is_default,
+                        'latitude' => $loc->location ? $loc->location->latitude : $loc->latitude,
+                        'longitude' => $loc->location ? $loc->location->longitude : $loc->longitude,
+                        'max_daily_meetups' => $loc->max_daily_meetups ?? 5,
+                        'location_id' => $loc->location_id,
+                        'is_current' => $loc->id == $trade->meetup_location_id
+                    ];
+                });
+            
+            return response()->json([
+                'success' => true,
+                'meetupLocations' => $meetupLocations
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching meetup locations for trade: ' . $e->getMessage(), [
+                'trade_id' => $tradeId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load meetup locations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     
     /**
      * Submit a trade offer
@@ -316,41 +393,6 @@ class TradeController extends Controller
             $scheduleComponents = explode(',', $validated['meetup_schedule']);
             
             if (count($scheduleComponents) < 2) {
-                Log::warning('Invalid schedule components: ' . $validated['meetup_schedule']);
-                return redirect()->back()->withErrors(['meetup_schedule' => 'Invalid meetup schedule format']);
-            }
-            
-            $dateString = trim($scheduleComponents[0]);
-            $timeString = $validated['preferred_time'];
-            
-            try {
-                $meetupSchedule = Carbon::createFromFormat('Y-m-d H:i', "$dateString $timeString");
-            } catch (\Exception $e) {
-                Log::error('Date parsing failed: ' . $e->getMessage());
-                return redirect()->back()->withErrors(['meetup_schedule' => 'Invalid date/time format']);
-            }
-            
-            $product = Product::findOrFail($validated['seller_product_id']);
-            
-            $trade = new TradeTransaction();
-            $trade->buyer_id = Auth::id();
-            $trade->seller_id = $product->seller_id;
-            $trade->seller_code = $product->seller_code;
-            $trade->seller_product_id = $validated['seller_product_id'];
-            $trade->meetup_location_id = $validated['meetup_location_id'];
-            $trade->meetup_schedule = $meetupSchedule;
-            $trade->meetup_day = $validated['selected_day'];
-            $trade->preferred_time = $timeString;
-            $trade->additional_cash = $validated['additional_cash'];
-            $trade->notes = $validated['notes'];
-            $trade->status = 'pending';
-            $trade->save();
-            
-            foreach ($validated['offered_items'] as $index => $item) {
-                $uploadedImages = [];
-                
-                // Check for existing images from MyTrades view (already in storage)
-                $existingImages = [];
                 if (isset($item['current_images']) && is_array($item['current_images'])) {
                     foreach ($item['current_images'] as $currentImage) {
                         // Clean up storage path format
@@ -1103,85 +1145,135 @@ class TradeController extends Controller
                 return redirect()->back()->with('error', 'Only pending trades can be updated');
             }
             
-            // Extract and verify inputs
+            \Log::info('Updating trade: #' . $id, [
+                'request_data' => $request->all()
+            ]);
+            
+            // Parse and validate the schedule
             $meetupSchedule = $request->input('meetup_schedule');
             $selectedDay = $request->input('selected_day');
-            $meetupLocationId = (int)$request->input('meetup_location_id');
+            
+            // Validate meetup_schedule format - expecting "YYYY-MM-DD, HH:MM"
+            $scheduleParts = explode(',', $meetupSchedule);
+            if (count($scheduleParts) !== 2) {
+                return redirect()->back()->with('error', 'Invalid meetup schedule format');
+            }
+            
+            $meetupDate = trim($scheduleParts[0]);
+            $meetupTime = trim($scheduleParts[1]);
+            
+            // Validate required fields
+            $meetupLocationId = $request->input('meetup_location_id');
             $preferredTime = $request->input('preferred_time');
             $additionalCash = $request->input('additional_cash', 0);
             $notes = $request->input('notes');
             
-            // Validate date format - expecting "YYYY-MM-DD, HH:MM"
-            $parts = explode(',', $meetupSchedule);
-            if (count($parts) !== 2) {
-                return redirect()->back()->with('error', 'Invalid meetup schedule format');
+            if (!$meetupLocationId || !$meetupDate || !$meetupTime || !$selectedDay) {
+                return redirect()->back()->with('error', 'Missing required meetup details');
             }
             
-            // Store the updated trade details
+            // Begin transaction
+            DB::beginTransaction();
+            
+            // Update trade basic details
             $trade->meetup_location_id = $meetupLocationId;
-            $trade->meetup_schedule = trim($parts[0]) . ' ' . trim($parts[1]) . ':00';
+            $trade->meetup_schedule = $meetupDate . ' ' . $meetupTime . ':00'; // Ensure seconds are included
+            $trade->meetup_day = $selectedDay;
+            $trade->preferred_time = $preferredTime;
             $trade->additional_cash = $additionalCash;
             $trade->notes = $notes;
             $trade->save();
             
-            // Get the offered items
+            // Process offered items
             $offeredItems = $request->input('offered_items', []);
-            
-            // Track existing item IDs
-            $existingItemIds = [];
+            $existingItemIds = $trade->offeredItems->pluck('id')->toArray();
             $updatedItemIds = [];
             
-            // Process each offered item
-            foreach ($offeredItems as $itemData) {
+            \Log::info('Processing offered items', [
+                'items_count' => count($offeredItems),
+                'existing_ids' => $existingItemIds
+            ]);
+            
+            foreach ($offeredItems as $index => $itemData) {
+                // Check if this is an existing item
                 $itemId = isset($itemData['id']) ? $itemData['id'] : null;
                 
+                // Initialize arrays for image processing
+                $newImages = [];
+                $finalImages = [];
+                $existingImages = [];
+                
+                // For existing items, update data
                 if ($itemId) {
-                    // Update existing item
                     $item = TradeOfferedItem::where('id', $itemId)
                         ->where('trade_transaction_id', $trade->id)
                         ->first();
-                        
+                    
                     if (!$item) {
-                        continue; // Skip if item doesn't exist or doesn't belong to this trade
+                        \Log::warning('Attempted to update non-existent item or item from different trade', [
+                            'item_id' => $itemId,
+                            'trade_id' => $trade->id
+                        ]);
+                        continue;
                     }
                     
                     $updatedItemIds[] = $item->id;
                     
-                    // Update item details
+                    // Get existing images if available
+                    if ($item->images) {
+                        if (is_string($item->images)) {
+                            try {
+                                $existingImages = json_decode($item->images, true) ?: [];
+                            } catch (\Exception $e) {
+                                $existingImages = [$item->images];
+                            }
+                        } else if (is_array($item->images)) {
+                            $existingImages = $item->images;
+                        }
+                    }
+                    
+                    // Check if current_images was provided in the request
+                    if (isset($itemData['current_images'])) {
+                        $currentImages = $itemData['current_images'];
+                        
+                        if (is_string($currentImages)) {
+                            try {
+                                $currentImages = json_decode($currentImages, true);
+                            } catch (\Exception $e) {
+                                \Log::error('Error decoding current_images JSON: ' . $e->getMessage());
+                                $currentImages = null;
+                            }
+                        }
+                        
+                        // If current_images is valid and not empty, use it to replace existingImages
+                        if (is_array($currentImages)) {
+                            // This explicitly sets which existing images to keep
+                            $existingImages = $currentImages;
+                        }
+                    }
+                    
+                    // Basic data update
                     $item->name = $itemData['name'];
                     $item->quantity = $itemData['quantity'];
                     $item->estimated_value = $itemData['estimated_value'];
                     $item->description = $itemData['description'] ?? '';
                     $item->condition = $itemData['condition'] ?? 'used_good';
                     
-                    // Handle existing images
-                    if (isset($itemData['current_images'])) {
-                        $currentImages = is_string($itemData['current_images']) 
-                            ? json_decode($itemData['current_images'], true) 
-                            : $itemData['current_images'];
+                    // Process new image uploads
+                    if ($request->hasFile("offered_items.{$index}.image_files")) {
+                        $files = $request->file("offered_items.{$index}.image_files");
+                        $imageMetadata = isset($itemData['images_json']) 
+                            ? json_decode($itemData['images_json'], true) 
+                            : [];
                         
-                        // If current_images is provided but empty, clear all images
-                        if (is_array($currentImages) && empty($currentImages)) {
-                            $item->images = json_encode([]);
-                        } else if (is_array($currentImages)) {
-                            $item->images = json_encode($currentImages);
-                        }
-                    }
-                    
-                    // Process new images
-                    if (isset($itemData['image_files']) && is_array($itemData['image_files'])) {
-                        $imagesJson = isset($itemData['images_json']) ? json_decode($itemData['images_json'], true) : [];
-                        $newImages = [];
-                        
-                        foreach ($itemData['image_files'] as $fileIndex => $file) {
-                            // Check if we have metadata for this file
-                            $fileInfo = !empty($imagesJson[$fileIndex]) ? $imagesJson[$fileIndex] : null;
+                        foreach ($files as $fileIndex => $file) {
+                            // Get any metadata for this file if available
+                            $metadata = isset($imageMetadata[$fileIndex]) ? $imageMetadata[$fileIndex] : null;
                             
-                            // If file is a cropped image with a storage path, use that path
-                            if ($fileInfo && isset($fileInfo['is_cropped']) && $fileInfo['is_cropped'] && 
-                                isset($fileInfo['storage_path']) && $fileInfo['storage_path']) {
-                                
-                                $path = $fileInfo['storage_path'];
+                            if ($metadata && isset($metadata['is_cropped']) && $metadata['is_cropped'] && 
+                                isset($metadata['storage_path']) && $metadata['storage_path']) {
+                                // For cropped images that have a storage path
+                                $path = trim($metadata['storage_path']);
                                 Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
                                 $newImages[] = $path;
                             } else {
@@ -1190,28 +1282,24 @@ class TradeController extends Controller
                                 $newImages[] = $path;
                             }
                         }
-                        
-                        // If we have both current and new images, merge them
-                        if (isset($itemData['current_images']) && !empty($itemData['current_images'])) {
-                            $currentImages = is_string($itemData['current_images']) 
-                                ? json_decode($itemData['current_images'], true) 
-                                : $itemData['current_images'];
-                                
-                            if (is_array($currentImages)) {
-                                $allImages = array_merge($currentImages, $newImages);
-                                $item->images = json_encode($allImages);
-                            } else {
-                                $item->images = json_encode($newImages);
-                            }
-                        } else {
-                            // Just new images
-                            $item->images = json_encode($newImages);
-                        }
                     }
                     
+                    // Combine existing and new images
+                    $finalImages = array_merge($existingImages, $newImages);
+                    
+                    // Update the images JSON
+                    $item->images = json_encode($finalImages, JSON_UNESCAPED_SLASHES);
                     $item->save();
-                } else {
-                    // Create new offered item
+                    
+                    \Log::info('Updated existing item', [
+                        'item_id' => $item->id,
+                        'existing_images_count' => count($existingImages),
+                        'new_images_count' => count($newImages),
+                        'final_images_count' => count($finalImages)
+                    ]);
+                } 
+                // For new items, create new record
+                else {
                     $newItem = new TradeOfferedItem();
                     $newItem->trade_transaction_id = $trade->id;
                     $newItem->name = $itemData['name'];
@@ -1220,20 +1308,21 @@ class TradeController extends Controller
                     $newItem->description = $itemData['description'] ?? '';
                     $newItem->condition = $itemData['condition'] ?? 'used_good';
                     
-                    // Process images for new items
-                    if (isset($itemData['image_files']) && is_array($itemData['image_files'])) {
-                        $imagesJson = isset($itemData['images_json']) ? json_decode($itemData['images_json'], true) : [];
-                        $newImages = [];
+                    // Process new image uploads for new item
+                    if ($request->hasFile("offered_items.{$index}.image_files")) {
+                        $files = $request->file("offered_items.{$index}.image_files");
+                        $imageMetadata = isset($itemData['images_json']) 
+                            ? json_decode($itemData['images_json'], true) 
+                            : [];
                         
-                        foreach ($itemData['image_files'] as $fileIndex => $file) {
-                            // Check if we have metadata for this file
-                            $fileInfo = !empty($imagesJson[$fileIndex]) ? $imagesJson[$fileIndex] : null;
+                        foreach ($files as $fileIndex => $file) {
+                            // Get any metadata for this file if available
+                            $metadata = isset($imageMetadata[$fileIndex]) ? $imageMetadata[$fileIndex] : null;
                             
-                            // If file is a cropped image with a storage path, use that path
-                            if ($fileInfo && isset($fileInfo['is_cropped']) && $fileInfo['is_cropped'] && 
-                                isset($fileInfo['storage_path']) && $fileInfo['storage_path']) {
-                                
-                                $path = $fileInfo['storage_path'];
+                            if ($metadata && isset($metadata['is_cropped']) && $metadata['is_cropped'] && 
+                                isset($metadata['storage_path']) && $metadata['storage_path']) {
+                                // For cropped images that have a storage path
+                                $path = trim($metadata['storage_path']);
                                 Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
                                 $newImages[] = $path;
                             } else {
@@ -1242,33 +1331,47 @@ class TradeController extends Controller
                                 $newImages[] = $path;
                             }
                         }
-                        
-                        $newItem->images = json_encode($newImages);
                     }
                     
+                    // Set the images for the new item
+                    $newItem->images = json_encode($newImages, JSON_UNESCAPED_SLASHES);
                     $newItem->save();
                     $updatedItemIds[] = $newItem->id;
+                    
+                    \Log::info('Created new item', [
+                        'item_id' => $newItem->id,
+                        'images_count' => count($newImages)
+                    ]);
                 }
             }
             
-            // Get all existing item IDs for this trade
-            $existingItemIds = $trade->offeredItems->pluck('id')->toArray();
-            
-            // Delete items that weren't included in the update
+            // Find items that were removed and delete them
             $itemsToDelete = array_diff($existingItemIds, $updatedItemIds);
             if (!empty($itemsToDelete)) {
                 TradeOfferedItem::whereIn('id', $itemsToDelete)->delete();
+                \Log::info('Deleted removed items', ['deleted_ids' => $itemsToDelete]);
             }
             
-            return redirect()->back()->with('success', 'Trade updated successfully');
+            // Commit the transaction
+            DB::commit();
+            
+            // Return success response
+            return response()->json([
+                'success' => true,
+                'message' => 'Trade updated successfully'
+            ]);
         } catch (\Exception $e) {
+            // Roll back transaction on error
+            DB::rollBack();
             \Log::error('Error updating trade: ' . $e->getMessage(), [
                 'trade_id' => $id,
-                'user_id' => Auth::id(),
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect()->back()->with('error', 'Failed to update trade: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update trade: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -1287,5 +1390,239 @@ class TradeController extends Controller
         }
         
         return $images;
+    }
+
+    /**
+     * Get trade details formatted specifically for editing in the form
+     */
+    public function getTradeEditDetails($id)
+    {
+        try {
+            $trade = TradeTransaction::with([
+                'sellerProduct',
+                'sellerProduct.seller' => function($query) {
+                    $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture');
+                },
+                'offeredItems',
+                'meetupLocation',
+                'seller:id,first_name,last_name,username,seller_code,profile_picture'
+            ])->findOrFail($id);
+
+            // Check if user is authorized to edit this trade
+            if ($trade->buyer_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized to edit this trade'
+                ], 403);
+            }
+
+            // Check if trade is still editable (pending status)
+            if ($trade->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This trade is no longer editable'
+                ], 403);
+            }
+                
+            // Get meetup locations for the seller
+            $sellerId = $trade->seller ? $trade->seller->id : $trade->seller_id;
+            
+            \Log::info('Loading meetup locations for trade', [
+                'trade_id' => $trade->id,
+                'seller_id' => $sellerId,
+            ]);
+                
+            $meetupLocations = MeetupLocation::where('user_id', $sellerId)
+                ->where('is_active', true)
+                ->with('location')
+                ->orderByDesc('is_default')
+                ->get()
+                ->map(function($loc) use ($trade) {
+                    // Convert days from JSON to array if needed
+                    $availableDays = $loc->available_days;
+                    if (is_string($availableDays)) {
+                        try {
+                            $availableDays = json_decode($availableDays, true);
+                        } catch (\Exception $e) {
+                            $availableDays = [];
+                        }
+                    }
+                    
+                    // Handle null case
+                    if (!$availableDays) {
+                        $availableDays = [];
+                    }
+                    
+                    return [
+                        'id' => $loc->id,
+                        'name' => $loc->name ?? $loc->custom_location ?? 'Unknown Location',
+                        'description' => $loc->description ?? '',
+                        'available_days' => $availableDays,
+                        'available_from' => $loc->available_from ?? '09:00',
+                        'available_until' => $loc->available_until ?? '17:00',
+                        'is_default' => (bool)$loc->is_default,
+                        'latitude' => $loc->location ? $loc->location->latitude : ($loc->latitude ?? null),
+                        'longitude' => $loc->location ? $loc->location->longitude : ($loc->longitude ?? null),
+                        'max_daily_meetups' => $loc->max_daily_meetups ?? 5,
+                        'location_id' => $loc->location_id,
+                        'is_current' => $loc->id == $trade->meetup_location_id
+                    ];
+                });
+
+            // Parse the meetup date components from the schedule
+            $meetupDate = null;
+            $meetupTime = $trade->preferred_time ?? '';
+            $meetupDay = $trade->meetup_day ?? '';
+            
+            if ($trade->meetup_schedule) {
+                try {
+                    $meetupDate = Carbon::parse($trade->meetup_schedule)->format('Y-m-d');
+                } catch (\Exception $e) {
+                    \Log::error('Error parsing meetup schedule: ' . $e->getMessage());
+                    $meetupDate = null;
+                }
+            }
+
+            // Process product images using our helper function
+            $productImages = [];
+            if ($trade->sellerProduct && $trade->sellerProduct->images) {
+                $productImages = $this->formatProductImages($trade->sellerProduct->images);
+            }
+            
+            // Ensure product price is properly formatted
+            $productPrice = $trade->sellerProduct ? (float)$trade->sellerProduct->price : 0;
+            $productDiscountedPrice = $trade->sellerProduct && $trade->sellerProduct->discounted_price ? 
+                                    (float)$trade->sellerProduct->discounted_price : 0;
+
+            // Format the data for the edit form with improved product data
+            $formattedTrade = [
+                'id' => $trade->id,
+                'seller_product_id' => $trade->seller_product_id,
+                'meetup_location_id' => $trade->meetup_location_id,
+                'meetup_date' => $meetupDate,
+                'meetup_day' => $meetupDay,
+                'preferred_time' => $meetupTime,
+                'additional_cash' => (float)$trade->additional_cash,
+                'notes' => $trade->notes,
+                'offered_items' => $trade->offeredItems->map(function($item) {
+                    // Format images for frontend display
+                    $images = $this->formatItemImages($item->images);
+                    
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'quantity' => $item->quantity,
+                        'estimated_value' => (float)$item->estimated_value,
+                        'description' => $item->description ?? '',
+                        'condition' => $item->condition ?? 'used_good',
+                        'images' => $images,
+                        'current_images' => $images
+                    ];
+                }),
+                'product' => [
+                    'id' => $trade->sellerProduct->id,
+                    'name' => $trade->sellerProduct->name,
+                    'price' => $productPrice,
+                    'discounted_price' => $productDiscountedPrice,
+                    'images' => $productImages,
+                    'seller' => [
+                        'id' => $trade->sellerProduct->seller->id ?? $trade->seller->id,
+                        'name' => $trade->sellerProduct->seller 
+                            ? $trade->sellerProduct->seller->first_name . ' ' . $trade->sellerProduct->seller->last_name 
+                            : $trade->seller->first_name . ' ' . $trade->seller->last_name,
+                        'first_name' => $trade->sellerProduct->seller->first_name ?? $trade->seller->first_name,
+                        'last_name' => $trade->sellerProduct->seller->last_name ?? $trade->seller->last_name,
+                        'username' => $trade->sellerProduct->seller->username ?? $trade->seller->username,
+                        'seller_code' => $trade->sellerProduct->seller->seller_code ?? $trade->seller->seller_code,
+                        'profile_picture' => ($trade->sellerProduct->seller && $trade->sellerProduct->seller->profile_picture)
+                            ? $this->formatImageUrl($trade->sellerProduct->seller->profile_picture)
+                            : $this->formatImageUrl($trade->seller->profile_picture)
+                    ],
+                ],
+                'meetup_locations' => $meetupLocations
+            ];
+            
+            \Log::debug('Formatted trade data for frontend', [
+                'product_images' => $productImages,
+                'product_price' => $productPrice,
+                'product_discounted_price' => $productDiscountedPrice
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'trade' => $formattedTrade
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in getTradeEditDetails: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load trade details: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper method to format item images consistently
+     */
+    private function formatItemImages($images)
+    {
+        $formattedImages = [];
+        
+        if (empty($images)) {
+            return $formattedImages;
+        }
+        
+        if (is_string($images)) {
+            try {
+                $imagesData = json_decode($images);
+                if (is_array($imagesData)) {
+                    foreach ($imagesData as $image) {
+                        if ($image) {
+                            $formattedImages[] = $this->ensureCorrectImagePath($image);
+                        }
+                    }
+                } else if ($imagesData) {
+                    $formattedImages[] = $this->ensureCorrectImagePath($imagesData);
+                }
+            } catch (\Exception $e) {
+                // If not valid JSON, treat as a single image path
+                if ($images) {
+                    $formattedImages[] = $this->ensureCorrectImagePath($images);
+                }
+            }
+        } else if (is_array($images)) {
+            foreach ($images as $image) {
+                if ($image) {
+                    $formattedImages[] = $this->ensureCorrectImagePath($image);
+                }
+            }
+        }
+        
+        return $formattedImages;
+    }
+
+    /**
+     * Ensure image path is correctly formatted
+     */
+    private function ensureCorrectImagePath($path)
+    {
+        if (empty($path)) return '';
+        
+        // Fix double storage path issue
+        if (strpos($path, 'storage/storage/') !== false) {
+            $path = str_replace('storage/storage/', 'storage/', $path);
+        }
+        
+        // Ensure consistent storage path format
+        if (strpos($path, 'storage/') === 0) {
+            return $path;
+        } else if (strpos($path, '/storage/') === 0) {
+            return substr($path, 1); // Remove leading slash
+        } else {
+            return 'storage/' . $path;
+        }
     }
 }

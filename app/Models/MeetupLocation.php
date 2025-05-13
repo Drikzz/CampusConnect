@@ -87,6 +87,17 @@ class MeetupLocation extends Model
     }
     return $this->custom_location;
   }
+  
+  /**
+   * Get name of the meetup location, using location or custom location
+   */
+  public function getNameAttribute()
+  {
+    if ($this->location) {
+        return $this->location->name;
+    }
+    return $this->custom_location ?? 'Unknown Location';
+  }
 
   public function isAvailableOn($date)
   {
