@@ -114,15 +114,6 @@
               <ul class="space-y-1">
                 <li>
                   <Link 
-                    :href="'#'"
-                    class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
-                    :class="{ 'bg-primary/10 text-primary': $page.component.includes('Admin/reports') }">
-                    <ChartBarIcon class="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span class="text-sm">Reports & Complaints</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link 
                     :href="route('admin.locations')"
                     class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 text-foreground rounded-lg hover:bg-muted transition-colors"
                     :class="{ 'bg-primary/10 text-primary': $page.component.includes('Admin/admin-meetuploc') }">

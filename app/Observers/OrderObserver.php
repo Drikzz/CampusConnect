@@ -65,24 +65,88 @@ class OrderObserver
         ]);
 
         try {
-            // Process wallet deduction
-            $deductionController = new WalletBalanceDeductionController();
-            $result = $deductionController->processOrderDeduction($order);
-            
-            // Add a flag indicating we've processed this order
-            if ($result['success']) {
-                $order->wallet_deduction_processed = true;
-                $order->save();
+            // Check if deduction was already processed
+            if ($order->wallet_deduction_processed) {
+                Log::info('OrderObserver: Wallet deduction already processed, skipping', [
+                    'order_id' => $order->id
+                ]);
+                return;
             }
             
-            Log::info('OrderObserver: Deduction result', [
+            $wallet = $order->seller->wallet;
+
+            if (!$wallet) {
+                Log::warning('OrderObserver: Wallet not found', [
+                    'order_id' => $order->id,
+                    'seller_code' => $order->seller_code
+                ]);
+                return;
+            }
+
+            // Fetch wallet deduction rate from settings
+            $deductionRate = (float) \App\Models\Setting::get('wallet_deduction_rate', 0);
+
+            // Validate deduction rate
+            if ($deductionRate < 0 || $deductionRate > 100) {
+                Log::error('Invalid wallet deduction rate', ['deduction_rate' => $deductionRate]);
+                return;
+            }
+
+            // Calculate deduction amount as a percentage of the transaction value
+            $deductionAmount = round(($order->sub_total * $deductionRate) / 100, 2);
+
+            // Log the calculated deduction amount
+            Log::info('Calculated deduction amount', [
                 'order_id' => $order->id,
-                'success' => $result['success'] ?? false,
-                'message' => $result['message'] ?? 'No message',
-                'transaction_id' => $result['transaction']['id'] ?? null
+                'deduction_rate' => $deductionRate,
+                'sub_total' => $order->sub_total,
+                'deduction_amount' => $deductionAmount,
+                'wallet_balance_before' => $wallet->balance
             ]);
+
+            // Check if the wallet has sufficient balance
+            if ($wallet->balance < $deductionAmount) {
+                Log::warning('OrderObserver: Insufficient wallet balance for deduction', [
+                    'order_id' => $order->id,
+                    'seller_code' => $order->seller_code,
+                    'wallet_balance' => $wallet->balance,
+                    'deduction_amount' => $deductionAmount
+                ]);
+                return;
+            }
+
+            // Perform deduction in a database transaction
+            \DB::beginTransaction();
+            try {
+                $deductionResult = $wallet->deductBalance($deductionAmount);
+                
+                if (!$deductionResult) {
+                    \DB::rollBack();
+                    Log::warning('OrderObserver: Wallet deduction failed', [
+                        'order_id' => $order->id,
+                        'seller_code' => $order->seller_code,
+                        'deduction_amount' => $deductionAmount
+                    ]);
+                    return;
+                }
+                
+                $order->wallet_deduction_processed = true;
+                $order->save();
+                
+                \DB::commit();
+                
+                Log::info('OrderObserver: Wallet deduction successful', [
+                    'order_id' => $order->id,
+                    'seller_code' => $order->seller_code,
+                    'deduction_amount' => $deductionAmount,
+                    'wallet_balance_after' => $wallet->fresh()->balance
+                ]);
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                throw $e;
+            }
         } catch (\Exception $e) {
-            Log::error('OrderObserver: Error processing deduction', [
+            Log::error('OrderObserver: Error processing wallet deduction', [
                 'order_id' => $order->id,
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

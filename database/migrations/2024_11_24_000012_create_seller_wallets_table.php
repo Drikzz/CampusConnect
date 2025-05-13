@@ -16,6 +16,7 @@ return new class extends Migration
       $table->boolean('is_activated')->default(false); // Verification step
       $table->enum('status', ['pending', 'pending_approval', 'active', 'suspended', 'rejected'])->default('pending');
       $table->timestamp('activated_at')->nullable();
+      $table->boolean('wallet_deduction_processed')->default(false)->comment('Tracks if wallet deduction has been processed'); // Track wallet deductions
       $table->timestamps();
       $table->softDeletes();
     });

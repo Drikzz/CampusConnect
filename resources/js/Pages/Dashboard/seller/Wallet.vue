@@ -178,7 +178,7 @@
         </div>
 
         <!-- Wallet Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="bg-white p-6 rounded-lg shadow-md border border-primary-color/20">
             <div class="flex justify-between items-center mb-2">
               <h3 class="text-sm font-medium text-gray-500">Current Balance</h3>
@@ -187,20 +187,12 @@
             <div class="text-2xl font-bold text-primary-color">₱{{ formatNumber(wallet?.balance || 0) }}</div>
             <div class="mt-2 text-xs text-gray-500">Available for withdrawal or purchases</div>
           </div>
-          <div class="bg-white p-6 rounded-lg shadow-md border border-green-200">
-            <div class="flex justify-between items-center mb-2">
-              <h3 class="text-sm font-medium text-gray-500">Earnings from Sales</h3>
-              <ArrowTrendingUpIcon class="w-6 h-6 text-green-500" />
-            </div>
-            <div class="text-2xl font-bold text-green-600">₱{{ formatNumber(stats.total_sales || 0) }}</div>
-            <div class="mt-2 text-xs text-gray-500">Income from products sold</div>
-          </div>
           <div class="bg-white p-6 rounded-lg shadow-md border border-red-200">
             <div class="flex justify-between items-center mb-2">
               <h3 class="text-sm font-medium text-gray-500">Deductions from Listings</h3>
               <BanknotesIcon class="w-6 h-6 text-red-500" />
             </div>
-            <div class="text-2xl font-bold text-red-600">₱{{ formatNumber(stats.total_deductions || 0) }}</div>
+            <div class="text-2xl font-bold text-red-600">₱{{ formatNumber(5.00) }}</div>
             <div class="mt-2 text-xs text-gray-500">Platform fees and other expenses</div>
           </div>
         </div>
