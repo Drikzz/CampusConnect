@@ -790,31 +790,41 @@ const confirmAndSubmit = () => {
     }
   });
   
-  router.post(route('trades.update', props.tradeId), formData, {
-    forceFormData: true,
-    preserveScroll: true,
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Trade offer updated successfully!",
-        variant: "success"
-      });
+  axios.post(route('trades.update', props.tradeId), formData)
+    .then(response => {
+      if (response.data && response.data.success) {
+        toast({
+          title: "Success",
+          description: response.data.message || "Trade offer updated successfully!",
+          variant: "success"
+        });
+        
+        // Close all dialogs
+        showSummaryDialog.value = false;
+        closeDialog();
+        
+        // Redirect back to MyTrades page
+        window.location.href = route('dashboard.trades');
+      } else {
+        throw new Error(response.data?.message || "Unknown error occurred");
+      }
+    })
+    .catch(error => {
       showSummaryDialog.value = false;
-      closeDialog();
-    },
-    onError: (errors) => {
-      showSummaryDialog.value = false;
-      errors.value = errors;
-      toast({
-        title: "Error",
-        description: "Please check the form for errors",
-        variant: "destructive"
-      });
-    },
-    onFinish: () => {
+      
+      if (error.response && error.response.data && error.response.data.errors) {
+        errors.value = error.response.data.errors;
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update trade offer",
+          variant: "destructive"
+        });
+      }
+    })
+    .finally(() => {
       loading.value = false;
-    }
-  });
+    });
 };
 
 const cancelSummary = () => {

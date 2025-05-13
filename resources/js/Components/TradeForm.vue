@@ -457,10 +457,10 @@ const getFormattedMeetupSchedule = () => {
     return null;
   }
   
-  // Format for Laravel Carbon parsing: YYYY-MM-DD HH:MM
-  // The controller expects this to be split by comma
+  // Format for Laravel Carbon parsing: YYYY-MM-DD, HH:MM
+  // This matches what the controller now expects
   return `${form.meetup_date}, ${form.preferred_time}`;
-}
+};
 
 const validateLocationAndSchedule = () => {
   // Clear only location-related errors
@@ -677,7 +677,7 @@ const confirmAndSubmit = () => {
     return;
   }
 
-  // Append all data (same as before)
+  // Make sure we include the day in the form data as required by the controller
   formData.append('meetup_schedule', formattedSchedule);
   formData.append('selected_day', selectedScheduleDay.value);
   formData.append('seller_product_id', form.seller_product_id);

@@ -143,6 +143,11 @@ Route::middleware('auth')->group(function () {
                 // Add this route where you have other trade routes, likely in a seller middleware group
                 Route::post('/seller/trades/{id}/complete', [SellerTradeController::class, 'completeTrade'])->name('seller.trades.complete');
 
+                // Add these routes in the appropriate location in your routes file
+                // They should be placed in the seller routes group with auth middleware
+                Route::get('/trades/{tradeId}/messages', [SellerTradeController::class, 'getMessages'])->name('seller.trades.messages.get');
+                Route::post('/trades/{tradeId}/messages', [SellerTradeController::class, 'sendMessage'])->name('seller.trades.message.send');
+
                 // Product management routes
                 Route::post('/products', [SellerController::class, 'store'])->name('seller.products.store');
                 Route::get('/products/{id}/edit', [SellerController::class, 'edit'])->name('seller.products.edit');
@@ -256,6 +261,9 @@ Route::middleware('auth')->group(function () {
         // Seller review routes
         Route::post('/seller-reviews', [SellerReviewController::class, 'store'])->name('seller-reviews.store');
         Route::get('/seller-reviews/{sellerCode}', [SellerReviewController::class, 'index'])->name('seller-reviews.index');
+
+        // Add this new route to check if a user has already reviewed a seller for a specific transaction
+        Route::get('/seller-reviews/check', [SellerReviewController::class, 'checkReviewExists'])->name('seller-reviews.check');
 
         Route::post('/profile/revert', [DashboardController::class, 'revertProfileUpdate'])
             ->name('profile.revert');

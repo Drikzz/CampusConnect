@@ -189,24 +189,79 @@ class OrderController extends Controller
         return back()->with('success', 'Order details updated successfully.');
     }
 
+    /**
+     * Cancel an order
+     *
+     * @param Request $request
+     * @param Order $order
+     * @return \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
+     */
     public function cancel(Request $request, Order $order)
     {
-        if (!Auth::user()->can('cancel', $order)) {
-            abort(403, 'Unauthorized action.');
+        try {
+            // Check if user is authorized to cancel the order
+            if ($order->buyer_id !== Auth::id()) {
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You are not authorized to cancel this order'
+                    ], 403);
+                }
+                
+                return back()->with('error', 'You are not authorized to cancel this order');
+            }
+            
+            // Check if order is in a cancellable state
+            if (!in_array($order->status, ['Pending', 'Processing', 'Accepted'])) {
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This order cannot be cancelled in its current state'
+                    ], 400);
+                }
+                
+                return back()->with('error', 'This order cannot be cancelled in its current state');
+            }
+            
+            // Update order status - removed cancellation reason
+            $order->status = 'Cancelled';
+            $order->cancelled_by = Auth::id();
+            $order->cancelled_at = now();
+            $order->save();
+            
+            // Log the cancellation
+            \Log::info('Order cancelled', [
+                'order_id' => $order->id,
+                'user_id' => Auth::id()
+            ]);
+            
+            // Return JSON response if requested
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Order cancelled successfully',
+                    'order' => $order
+                ]);
+            }
+            
+            // Otherwise return redirect with flash message
+            return back()->with('success', 'Order cancelled successfully');
+            
+        } catch (\Exception $e) {
+            \Log::error('Error cancelling order: ' . $e->getMessage(), [
+                'order_id' => $order->id,
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to cancel order: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return back()->with('error', 'Failed to cancel order: ' . $e->getMessage());
         }
-
-        if (!in_array($order->status, ['Pending', 'Accepted'])) {
-            return back()->with('error', 'This order cannot be cancelled.');
-        }
-
-        // Update this part to pass the data to the model's cancel method
-        $validated = $request->validate([
-            'cancellation_reason' => 'required|string|max:500',
-        ]);
-
-        // Use the model's cancel method
-        $order->cancel($validated['cancellation_reason'], Auth::id());
-
-        return back()->with('success', 'Order cancelled successfully.');
     }
 }

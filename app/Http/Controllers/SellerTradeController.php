@@ -433,61 +433,44 @@ class SellerTradeController extends Controller
                     'id' => $trade->sellerProduct->id,
                     'name' => $trade->sellerProduct->name,
                     'price' => $trade->sellerProduct->price,
+                    'discounted_price' => $trade->sellerProduct->discounted_price,
                     'description' => $trade->sellerProduct->description,
-                    'images' => $trade->sellerProduct->images ? array_map(function ($image) {
-                        // Make sure we have a valid image path
-                        if ($image && file_exists(storage_path('app/public/' . $image))) {
-                            return asset('storage/' . $image);
-                        } else {
-                            return asset('images/placeholder-product.jpg');
-                        }
-                    }, $trade->sellerProduct->images) : []
+                    'images' => $this->formatProductImages($trade->sellerProduct->images)
                 ] : null,
                 'offered_items' => $trade->offeredItems->map(function ($item) {
                     // Debug logging to identify image path issues
-                    Log::debug('Processing offered item: ' . $item->id);
+                    Log::debug('Processing offered item: ' . $item->id, ['raw_images' => $item->images]);
                     
                     $processedImages = [];
                     
                     if ($item->images) {
-                        // If it's a JSON string, decode it safely
-                        $imageData = $item->images;
-                        
-                        if (is_string($imageData)) {
+                        if (is_string($item->images)) {
                             try {
-                                $decodedImages = json_decode($imageData, true);
-                                if (json_last_error() === JSON_ERROR_NONE && is_array($decodedImages)) {
-                                    $imageData = $decodedImages;
+                                $decodedImages = json_decode($item->images, true);
+                                if (is_array($decodedImages)) {
+                                    $processedImages = array_map(function($img) {
+                                        if (!$img) return null;
+                                        // Ensure proper storage path format
+                                        if (strpos($img, 'storage/') === 0) {
+                                            return '/' . $img;
+                                        } else if (strpos($img, '/storage/') !== 0) {
+                                            return '/storage/' . $img;
+                                        }
+                                        return $img;
+                                    }, $decodedImages);
+                                    // Filter out any nulls
+                                    $processedImages = array_filter($processedImages);
                                 } else {
-                                    Log::warning('Invalid JSON in offered item images: ' . json_last_error_msg());
-                                    $imageData = [$imageData]; // Treat as single path
+                                    // Single image as string
+                                    $processedImages[] = $this->formatImageUrl($item->images);
                                 }
                             } catch (\Exception $e) {
-                                Log::error('JSON decode exception: ' . $e->getMessage());
-                                $imageData = [$imageData]; // Fallback to single path
+                                Log::error('Error parsing JSON images: ' . $e->getMessage());
+                                // Treat as a single string path
+                                $processedImages[] = $this->formatImageUrl($item->images);
                             }
-                        }
-                        
-                        // Ensure we're working with an array
-                        $imageArray = is_array($imageData) ? $imageData : [$imageData];
-                        
-                        // Process each image path - simplified to match product image handling
-                        foreach ($imageArray as $imagePath) {
-                            if (empty($imagePath)) continue;
-                            
-                            // Log the raw path
-                            Log::debug('Raw image path from database: ' . $imagePath);
-                            
-                            // Use the same simple check that works for product images
-                            if (file_exists(storage_path('app/public/' . $imagePath))) {
-                                $processedImages[] = asset('storage/' . $imagePath);
-                                Log::debug('Image found using standard path: ' . asset('storage/' . $imagePath));
-                            } else {
-                                // If file doesn't exist at the expected location, create URL anyway
-                                // The frontend's error handler will show a placeholder if needed
-                                $processedImages[] = asset('storage/' . $imagePath);
-                                Log::debug('Image not found at expected path, using URL anyway: ' . asset('storage/' . $imagePath));
-                            }
+                        } else if (is_array($item->images)) {
+                            $processedImages = array_map([$this, 'formatImageUrl'], $item->images);
                         }
                     }
                     
@@ -498,32 +481,28 @@ class SellerTradeController extends Controller
                         'quantity' => $item->quantity,
                         'estimated_value' => $item->estimated_value,
                         'description' => $item->description,
-                        'images' => $processedImages
+                        'condition' => $item->condition,
+                        'images' => !empty($processedImages) ? $processedImages : ['/images/placeholder-product.jpg']
                     ];
                 }),
                 'buyer' => $trade->buyer ? [
                     'id' => $trade->buyer->id,
                     'name' => $trade->buyer->first_name . ' ' . $trade->buyer->last_name,
                     'profile_picture' => $trade->buyer->profile_picture && file_exists(storage_path('app/public/' . $trade->buyer->profile_picture)) 
-                        ? asset('storage/' . $trade->buyer->profile_picture) : null
+                        ? asset('storage/' . $trade->buyer->profile_picture) : asset('/images/placeholder-avatar.jpg')
                 ] : null,
                 'seller' => $trade->seller ? [
                     'id' => $trade->seller->id,
                     'name' => $trade->seller->first_name . ' ' . $trade->seller->last_name,
                     'profile_picture' => $trade->seller->profile_picture && file_exists(storage_path('app/public/' . $trade->seller->profile_picture))
-                        ? asset('storage/' . $trade->seller->profile_picture) : null
+                        ? asset('storage/' . $trade->seller->profile_picture) : asset('/images/placeholder-avatar.jpg')
                 ] : null,
                 'negotiations' => $trade->negotiations ? $trade->negotiations->map(function ($negotiation) {
                     return [
                         'id' => $negotiation->id,
+                        'user_id' => $negotiation->user_id,
                         'message' => $negotiation->message,
-                        'created_at' => $negotiation->created_at,
-                        'user' => [
-                            'id' => $negotiation->user->id,
-                            'name' => $negotiation->user->first_name . ' ' . $negotiation->user->last_name,
-                            'profile_picture' => $negotiation->user->profile_picture && file_exists(storage_path('app/public/' . $negotiation->user->profile_picture))
-                                ? asset('storage/' . $negotiation->user->profile_picture) : null
-                        ]
+                        'created_at' => $negotiation->created_at
                     ];
                 }) : [],
                 'meetup_location' => $trade->meetupLocation ? [
@@ -532,25 +511,102 @@ class SellerTradeController extends Controller
                     'phone' => $trade->meetupLocation->phone,
                     'description' => $trade->meetupLocation->description,
                     'location' => $trade->meetupLocation->location ? [
-                        'id' => $trade->meetupLocation->location->id,
                         'name' => $trade->meetupLocation->location->name,
+                        'address' => $trade->meetupLocation->location->address,
                         'latitude' => $trade->meetupLocation->location->latitude,
                         'longitude' => $trade->meetupLocation->location->longitude
                     ] : null
                 ] : null,
                 'meetup_schedule' => $trade->meetup_schedule,
+                'preferred_time' => $trade->preferred_time,
                 'formatted_meetup_date' => $trade->meetup_schedule ? date('F j, Y', strtotime($trade->meetup_schedule)) : null,
             ];
             
-            // Return as Inertia response with trade data as a prop
-            return Inertia::render('Dashboard/MyTrades', [
+            return response()->json([
+                'success' => true,
                 'trade' => $formattedTrade
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching trade details: ' . $e->getMessage());
+            Log::error('Error fetching trade details: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             
-            return redirect()->back()->with('error', 'Failed to fetch trade details: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch trade details: ' . $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * Helper function to format image URL consistently
+     * 
+     * @param string $imagePath
+     * @return string
+     */
+    private function formatImageUrl($imagePath)
+    {
+        if (!$imagePath) return '/images/placeholder-product.jpg';
+        
+        // If it's already a full URL, return it as is
+        if (strpos($imagePath, 'http://') === 0 || strpos($imagePath, 'https://') === 0) {
+            return $imagePath;
+        }
+        
+        // Handle storage paths properly
+        if (strpos($imagePath, 'storage/') === 0) {
+            return '/' . $imagePath;
+        } else if (strpos($imagePath, '/storage/') === 0) {
+            return $imagePath;
+        } else {
+            return '/storage/' . $imagePath;
+        }
+    }
+
+    // Helper method to format product images
+    private function formatProductImages($images)
+    {
+        $processedImages = [];
+        
+        // Handle null case
+        if (!$images) {
+            return ['/images/placeholder-product.jpg'];
+        }
+        
+        // Handle string (JSON or direct path)
+        if (is_string($images)) {
+            try {
+                // Try to parse as JSON
+                $decoded = json_decode($images, true);
+                if (is_array($decoded)) {
+                    // It's a JSON array
+                    foreach ($decoded as $img) {
+                        if (!$img) continue;
+                        $processedImages[] = $this->formatImageUrl($img);
+                    }
+                } else {
+                    // Single image path as string
+                    $processedImages[] = $this->formatImageUrl($images);
+                }
+            } catch (\Exception $e) {
+                // Not valid JSON, treat as single path
+                $processedImages[] = $this->formatImageUrl($images);
+            }
+        } 
+        // Handle array of images
+        else if (is_array($images)) {
+            foreach ($images as $img) {
+                if (!$img) continue;
+                $processedImages[] = $this->formatImageUrl($img);
+            }
+        }
+        
+        // If we ended up with no images, use placeholder
+        if (empty($processedImages)) {
+            return ['/images/placeholder-product.jpg'];
+        }
+        
+        return $processedImages;
     }
 
     /**
@@ -962,31 +1018,31 @@ class SellerTradeController extends Controller
      * Send a message in a trade conversation
      * 
      * @param Request $request
-     * @param TradeTransaction $trade
-     * @return \Illuminate\Http\Response
+     * @param int $tradeId
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function sendMessage(Request $request, $trade)
+    public function sendMessage(Request $request, $tradeId)
     {
         try {
-            // Find the trade
-            $tradeTransaction = TradeTransaction::findOrFail($trade);
+            // Validate the request
+            $validated = $request->validate([
+                'message' => 'required|string|max:1000'
+            ]);
             
-            // Verify that the user is either the buyer or the seller
-            if (Auth::id() !== $tradeTransaction->buyer_id && Auth::id() !== $tradeTransaction->seller_id) {
+            // Find the trade
+            $tradeTransaction = TradeTransaction::findOrFail($tradeId);
+            
+            // Verify that the user is the seller for this trade
+            if (Auth::id() !== $tradeTransaction->seller_id && Auth::user()->seller_code !== $tradeTransaction->seller_code) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not authorized to send messages in this trade'
                 ], 403);
             }
             
-            // Validate the request
-            $validated = $request->validate([
-                'message' => 'required|string|max:1000'
-            ]);
-            
             // Create the message
             $message = DB::table('trade_messages')->insert([
-                'trade_transaction_id' => $tradeTransaction->id,
+                'trade_transaction_id' => $tradeId,
                 'sender_id' => Auth::id(),
                 'message' => $validated['message'],
                 'created_at' => now(),
@@ -997,30 +1053,43 @@ class SellerTradeController extends Controller
             $newMessage = DB::table('trade_messages as tm')
                 ->join('users as u', 'tm.sender_id', '=', 'u.id')
                 ->select(
-                    'tm.id', 
-                    'tm.message', 
+                    'tm.id',
+                    'tm.message',
                     'tm.created_at',
                     'tm.read_at',
-                    'tm.sender_id',
+                    'tm.sender_id as user_id',
+                    'u.id',
                     'u.first_name',
                     'u.last_name',
+                    'u.username',
                     'u.profile_picture'
                 )
-                ->where('tm.trade_transaction_id', $tradeTransaction->id)
+                ->where('tm.trade_transaction_id', $tradeId)
                 ->orderBy('tm.created_at', 'desc')
                 ->first();
             
             // Format the message for the response
+            $profilePicture = '/images/placeholder-avatar.jpg';
+            if ($newMessage->profile_picture) {
+                $imagePath = $newMessage->profile_picture;
+                if (file_exists(storage_path('app/public/' . $imagePath))) {
+                    $profilePicture = asset('storage/' . $imagePath);
+                }
+            }
+            
             $formattedMessage = [
                 'id' => $newMessage->id,
                 'message' => $newMessage->message,
                 'created_at' => $newMessage->created_at,
                 'read_at' => $newMessage->read_at,
                 'user' => [
-                    'id' => $newMessage->sender_id,
+                    'id' => $newMessage->id,
                     'name' => $newMessage->first_name . ' ' . $newMessage->last_name,
-                    'profile_picture' => $newMessage->profile_picture ? asset('storage/' . $newMessage->profile_picture) : null
-                ]
+                    'first_name' => $newMessage->first_name,
+                    'last_name' => $newMessage->last_name,
+                    'profile_picture' => $profilePicture
+                ],
+                'user_id' => $newMessage->user_id
             ];
             
             // Return success response
@@ -1031,7 +1100,7 @@ class SellerTradeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error sending trade message: ' . $e->getMessage(), [
-                'trade_id' => $trade,
+                'trade_id' => $tradeId,
                 'user_id' => Auth::id(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -1044,60 +1113,90 @@ class SellerTradeController extends Controller
     }
     
     /**
-     * Get messages for a trade
+     * Get messages for a trade conversation
      * 
-     * @param TradeTransaction $trade
-     * @return \Illuminate\Http\Response
+     * @param Request $request
+     * @param int $tradeId
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function getMessages(Request $request, $trade)
+    public function getMessages(Request $request, $tradeId)
     {
         try {
             // Find the trade
-            $tradeTransaction = TradeTransaction::findOrFail($trade);
+            $tradeTransaction = TradeTransaction::findOrFail($tradeId);
             
-            // Verify that the user is either the buyer or the seller
-            if (Auth::id() !== $tradeTransaction->buyer_id && Auth::id() !== $tradeTransaction->seller_id) {
+            // Verify that the user is the seller for this trade
+            if (Auth::id() !== $tradeTransaction->seller_id && Auth::user()->seller_code !== $tradeTransaction->seller_code) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not authorized to view messages for this trade'
                 ], 403);
             }
             
+            // Check if there are any messages
+            $messageCount = DB::table('trade_messages')->where('trade_transaction_id', $tradeId)->count();
+            
+            // If no messages, create an initial welcome message
+            if ($messageCount === 0) {
+                // Create a welcome message from the seller
+                DB::table('trade_messages')->insert([
+                    'trade_transaction_id' => $tradeId,
+                    'sender_id' => Auth::id(),
+                    'message' => "Welcome to your trade conversation! You can discuss details about your trade here.",
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+            
             // Get the messages with user information
             $messages = DB::table('trade_messages as tm')
                 ->join('users as u', 'tm.sender_id', '=', 'u.id')
                 ->select(
-                    'tm.id', 
-                    'tm.message', 
+                    'tm.id',
+                    'tm.message',
                     'tm.created_at',
                     'tm.read_at',
-                    'tm.sender_id',
+                    'tm.sender_id as user_id',
+                    'u.id',
                     'u.first_name',
                     'u.last_name',
+                    'u.username',
                     'u.profile_picture'
                 )
-                ->where('tm.trade_transaction_id', $tradeTransaction->id)
+                ->where('tm.trade_transaction_id', $tradeId)
                 ->orderBy('tm.created_at', 'asc')
                 ->get();
             
             // Format the messages for the response
             $formattedMessages = $messages->map(function($message) {
+                $profilePicture = '/images/placeholder-avatar.jpg';
+                
+                if ($message->profile_picture) {
+                    $imagePath = $message->profile_picture;
+                    if (file_exists(storage_path('app/public/' . $imagePath))) {
+                        $profilePicture = asset('storage/' . $imagePath);
+                    }
+                }
+                
                 return [
                     'id' => $message->id,
                     'message' => $message->message,
                     'created_at' => $message->created_at,
                     'read_at' => $message->read_at,
                     'user' => [
-                        'id' => $message->sender_id,
+                        'id' => $message->id,
                         'name' => $message->first_name . ' ' . $message->last_name,
-                        'profile_picture' => $message->profile_picture ? asset('storage/' . $message->profile_picture) : null
-                    ]
+                        'first_name' => $message->first_name,
+                        'last_name' => $message->last_name,
+                        'profile_picture' => $profilePicture
+                    ],
+                    'user_id' => $message->user_id
                 ];
             });
             
             // Mark messages as read if the user is not the sender
             DB::table('trade_messages')
-                ->where('trade_transaction_id', $tradeTransaction->id)
+                ->where('trade_transaction_id', $tradeId)
                 ->where('sender_id', '!=', Auth::id())
                 ->whereNull('read_at')
                 ->update(['read_at' => now()]);
@@ -1109,7 +1208,7 @@ class SellerTradeController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error getting trade messages: ' . $e->getMessage(), [
-                'trade_id' => $trade,
+                'trade_id' => $tradeId,
                 'user_id' => Auth::id(),
                 'trace' => $e->getTraceAsString()
             ]);
