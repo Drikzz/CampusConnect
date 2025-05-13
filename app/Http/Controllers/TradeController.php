@@ -1404,7 +1404,7 @@ class TradeController extends Controller
                     $query->select('id', 'first_name', 'last_name', 'username', 'seller_code', 'profile_picture');
                 },
                 'offeredItems',
-                'meetupLocation',
+                'meetupLocation.location', // Ensure we're eagerly loading the location relation
                 'seller:id,first_name,last_name,username,seller_code,profile_picture'
             ])->findOrFail($id);
 
@@ -1434,7 +1434,7 @@ class TradeController extends Controller
                 
             $meetupLocations = MeetupLocation::where('user_id', $sellerId)
                 ->where('is_active', true)
-                ->with('location')
+                ->with('location')  // Make sure we're eager loading location relation
                 ->orderByDesc('is_default')
                 ->get()
                 ->map(function($loc) use ($trade) {
@@ -1453,6 +1453,25 @@ class TradeController extends Controller
                         $availableDays = [];
                     }
                     
+                    // Important: Get latitude and longitude from the location relation
+                    $latitude = null;
+                    $longitude = null;
+                    
+                    // First try to get coordinates from the related Location model
+                    if ($loc->location) {
+                        $latitude = (float)$loc->location->latitude;
+                        $longitude = (float)$loc->location->longitude;
+                        
+                        \Log::debug("Using location coordinates from Location model for meetup location {$loc->id}: lat={$latitude}, lng={$longitude}");
+                    } 
+                    // Fallback to coordinates stored directly on MeetupLocation
+                    else if ($loc->latitude && $loc->longitude) {
+                        $latitude = (float)$loc->latitude;
+                        $longitude = (float)$loc->longitude;
+                        
+                        \Log::debug("Using direct coordinates from MeetupLocation {$loc->id}: lat={$latitude}, lng={$longitude}");
+                    }
+                    
                     return [
                         'id' => $loc->id,
                         'name' => $loc->name ?? $loc->custom_location ?? 'Unknown Location',
@@ -1461,8 +1480,8 @@ class TradeController extends Controller
                         'available_from' => $loc->available_from ?? '09:00',
                         'available_until' => $loc->available_until ?? '17:00',
                         'is_default' => (bool)$loc->is_default,
-                        'latitude' => $loc->location ? $loc->location->latitude : ($loc->latitude ?? null),
-                        'longitude' => $loc->location ? $loc->location->longitude : ($loc->longitude ?? null),
+                        'latitude' => $latitude,  // Include latitude from Location model or direct value
+                        'longitude' => $longitude, // Include longitude from Location model or direct value
                         'max_daily_meetups' => $loc->max_daily_meetups ?? 5,
                         'location_id' => $loc->location_id,
                         'is_current' => $loc->id == $trade->meetup_location_id
@@ -1545,7 +1564,11 @@ class TradeController extends Controller
             \Log::debug('Formatted trade data for frontend', [
                 'product_images' => $productImages,
                 'product_price' => $productPrice,
-                'product_discounted_price' => $productDiscountedPrice
+                'product_discounted_price' => $productDiscountedPrice,
+                'meetup_locations_count' => count($meetupLocations),
+                'locations_with_coordinates' => $meetupLocations->filter(function($loc) {
+                    return $loc['latitude'] && $loc['longitude'];
+                })->count()
             ]);
 
             return response()->json([
