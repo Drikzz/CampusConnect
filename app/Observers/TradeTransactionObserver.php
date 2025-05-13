@@ -30,6 +30,15 @@ class TradeTransactionObserver
      */
     public function updated(TradeTransaction $trade)
     {
+        // Enhanced logging to check if the observer is firing
+        Log::info('TradeObserver: Trade updated', [
+            'trade_id' => $trade->id,
+            'old_status' => $trade->getOriginal('status'),
+            'new_status' => $trade->status,
+            'is_dirty' => $trade->isDirty('status'),
+            'wallet_processed' => $trade->wallet_deduction_processed
+        ]);
+
         // Check if status was changed to completed (note lowercase in trade status)
         if ($trade->isDirty('status') && $trade->status === 'completed') {
             $this->handleCompletedTrade($trade);
@@ -61,7 +70,8 @@ class TradeTransactionObserver
         Log::info('TradeObserver: Trade completed, processing wallet deduction', [
             'trade_id' => $trade->id,
             'seller_code' => $trade->seller_code,
-            'amount' => $trade->amount
+            'seller_id' => $trade->seller_id,
+            'wallet_processed' => $trade->wallet_deduction_processed
         ]);
 
         try {
@@ -73,33 +83,73 @@ class TradeTransactionObserver
                 return;
             }
             
+            // Check if the seller relationship is loaded
+            if (!$trade->seller) {
+                Log::error('TradeObserver: Seller relationship not loaded', [
+                    'trade_id' => $trade->id,
+                    'seller_code' => $trade->seller_code,
+                    'seller_id' => $trade->seller_id
+                ]);
+                return;
+            }
+            
             $wallet = $trade->seller->wallet;
 
             if (!$wallet) {
-                Log::warning('TradeObserver: Wallet not found', [
+                Log::error('TradeObserver: Wallet not found for seller', [
                     'trade_id' => $trade->id,
-                    'seller_code' => $trade->seller_code
+                    'seller_code' => $trade->seller_code,
+                    'seller_id' => $trade->seller_id,
+                    'seller_name' => $trade->seller->name ?? 'unknown'
+                ]);
+                return;
+            }
+
+            // Get the seller product and ensure it exists
+            $sellerProduct = $trade->sellerProduct;
+            if (!$sellerProduct) {
+                Log::error('TradeObserver: Seller product not found', [
+                    'trade_id' => $trade->id,
+                    'seller_product_id' => $trade->seller_product_id
+                ]);
+                return;
+            }
+
+            // Get the product price 
+            $productPrice = $sellerProduct->price;
+            if (!is_numeric($productPrice) || $productPrice <= 0) {
+                Log::error('TradeObserver: Invalid product price', [
+                    'trade_id' => $trade->id,
+                    'product_id' => $sellerProduct->id,
+                    'price' => $productPrice
                 ]);
                 return;
             }
 
             // Fetch wallet deduction rate from settings
             $deductionRate = (float) \App\Models\Setting::get('wallet_deduction_rate', 0);
+            
+            // Log the settings retrieval
+            Log::info('TradeObserver: Retrieved wallet deduction rate', [
+                'deduction_rate' => $deductionRate
+            ]);
 
             // Validate deduction rate
-            if ($deductionRate < 0 || $deductionRate > 100) {
-                Log::error('Invalid wallet deduction rate', ['deduction_rate' => $deductionRate]);
+            if ($deductionRate <= 0 || $deductionRate > 100) {
+                Log::error('TradeObserver: Invalid wallet deduction rate', [
+                    'deduction_rate' => $deductionRate
+                ]);
                 return;
             }
 
-            // Calculate deduction amount as a percentage of the transaction value
-            $deductionAmount = round(($trade->amount * $deductionRate) / 100, 2);
+            // Calculate deduction amount as a percentage of the product price only
+            $deductionAmount = round(($productPrice * $deductionRate) / 100, 2);
 
             // Log the calculated deduction amount
-            Log::info('Calculated deduction amount', [
+            Log::info('TradeObserver: Calculated deduction amount', [
                 'trade_id' => $trade->id,
                 'deduction_rate' => $deductionRate,
-                'trade_amount' => $trade->amount,
+                'product_price' => $productPrice,
                 'deduction_amount' => $deductionAmount,
                 'wallet_balance_before' => $wallet->balance
             ]);
@@ -118,11 +168,18 @@ class TradeTransactionObserver
             // Perform deduction in a database transaction
             \DB::beginTransaction();
             try {
+                // Call deductBalance and check the result
+                $previousBalance = $wallet->balance;
                 $deductionResult = $wallet->deductBalance($deductionAmount);
+                
+                Log::info('TradeObserver: Deduction result', [
+                    'result' => $deductionResult,
+                    'wallet_balance_after' => $wallet->fresh()->balance
+                ]);
                 
                 if (!$deductionResult) {
                     \DB::rollBack();
-                    Log::warning('TradeObserver: Wallet deduction failed', [
+                    Log::error('TradeObserver: Wallet deduction failed', [
                         'trade_id' => $trade->id,
                         'seller_code' => $trade->seller_code,
                         'deduction_amount' => $deductionAmount
@@ -130,8 +187,17 @@ class TradeTransactionObserver
                     return;
                 }
                 
+                // Mark the transaction as processed
                 $trade->wallet_deduction_processed = true;
-                $trade->save();
+                $saveResult = $trade->save();
+                
+                Log::info('TradeObserver: Marked transaction as processed', [
+                    'save_result' => $saveResult,
+                    'wallet_processed' => $trade->wallet_deduction_processed
+                ]);
+                
+                // Record the transaction in wallet_transactions table
+                $this->recordWalletTransaction($trade, $wallet, $deductionAmount, $productPrice, $previousBalance);
                 
                 \DB::commit();
                 
@@ -143,11 +209,58 @@ class TradeTransactionObserver
                 ]);
             } catch (\Exception $e) {
                 \DB::rollBack();
+                Log::error('TradeObserver: Exception during deduction transaction', [
+                    'trade_id' => $trade->id,
+                    'exception' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
                 throw $e;
             }
         } catch (\Exception $e) {
             Log::error('TradeObserver: Error processing wallet deduction', [
                 'trade_id' => $trade->id,
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+    
+    /**
+     * Record the wallet transaction for the deduction
+     *
+     * @param  \App\Models\TradeTransaction  $trade
+     * @param  \App\Models\SellerWallet  $wallet
+     * @param  float  $deductionAmount
+     * @param  float  $productPrice
+     * @param  float  $previousBalance
+     * @return void
+     */
+    private function recordWalletTransaction($trade, $wallet, $deductionAmount, $productPrice, $previousBalance)
+    {
+        try {
+            \App\Models\WalletTransaction::create([
+                'user_id' => $trade->seller_id,
+                'seller_code' => $trade->seller_code,
+                'type' => 'deduction',
+                'amount' => $deductionAmount,
+                'previous_balance' => $previousBalance,
+                'new_balance' => $wallet->balance,
+                'reference_type' => 'trade',
+                'reference_id' => $trade->id,
+                'status' => 'completed',
+                'description' => "Fee deducted for product trade (Price: ₱" . number_format($productPrice, 2) . ")",
+                'processed_at' => now(),
+            ]);
+            
+            Log::info('TradeObserver: Wallet transaction record created', [
+                'trade_id' => $trade->id,
+                'seller_code' => $trade->seller_code,
+                'amount' => $deductionAmount,
+                'previous_balance' => $previousBalance,
+                'new_balance' => $wallet->balance
+            ]);
+        } catch (\Exception $e) {
+            Log::error('TradeObserver: Failed to create wallet transaction record', [
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
