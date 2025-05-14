@@ -81,6 +81,74 @@ const formattedMeetupDate = computed(() => {
         year: 'numeric' 
     });
 });
+
+// Helper function to ensure image URLs are properly formatted
+const formatImageUrl = (url) => {
+    if (!url) return '/images/placeholder-product.jpg';
+    
+    // If it's already a full URL, return it as is
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+    }
+    
+    // Ensure consistent storage path format
+    if (url.startsWith('storage/')) {
+        return '/' + url;
+    } else if (!url.startsWith('/storage/')) {
+        return '/storage/' + url;
+    }
+    
+    return url;
+};
+
+// Process the product images to display
+const productImages = computed(() => {
+    if (!props.product || !props.product.images) return ['/images/placeholder-product.jpg'];
+    
+    // If images is an array, process each image
+    if (Array.isArray(props.product.images)) {
+        if (props.product.images.length === 0) return ['/images/placeholder-product.jpg'];
+        return props.product.images.map(img => formatImageUrl(img));
+    }
+    
+    // If it's a string, use it directly
+    if (typeof props.product.images === 'string') {
+        return [formatImageUrl(props.product.images)];
+    }
+    
+    return ['/images/placeholder-product.jpg'];
+});
+
+// Process offered item images to display
+const getItemImages = (item) => {
+    // First check for current_images (existing ones)
+    if (item.current_images && Array.isArray(item.current_images) && item.current_images.length > 0) {
+        return item.current_images.map(img => formatImageUrl(img));
+    }
+    
+    // Then check for images array which might contain both File objects and strings
+    if (item.images && Array.isArray(item.images)) {
+        const formattedImages = [];
+        
+        item.images.forEach(img => {
+            // Handle File objects (newly uploaded)
+            if (img instanceof File) {
+                // Create temporary URL for File objects
+                formattedImages.push(URL.createObjectURL(img));
+            } 
+            // Handle string paths
+            else if (typeof img === 'string') {
+                formattedImages.push(formatImageUrl(img));
+            }
+        });
+        
+        if (formattedImages.length > 0) {
+            return formattedImages;
+        }
+    }
+    
+    return ['/images/placeholder-product.jpg'];
+};
 </script>
 
 <template>
@@ -97,7 +165,7 @@ const formattedMeetupDate = computed(() => {
                 <!-- Product Information -->
                 <div class="flex items-center gap-4 p-3 sm:p-4 bg-accent/5 dark:bg-gray-800/50 rounded-lg border border-border dark:border-gray-700">
                     <div class="w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-md shrink-0 border border-border dark:border-gray-700">
-                        <ImagePreview :images="product.images || []" :alt="product.name" />
+                        <ImagePreview :images="productImages" :alt="product.name" />
                     </div>
                     <div>
                         <h3 class="font-medium text-base sm:text-lg text-foreground dark:text-white">Trade for {{ capitalizeFirst(product.name) }}</h3>
@@ -164,19 +232,24 @@ const formattedMeetupDate = computed(() => {
                             </div>
                         </div>
                         
-                        <div v-if="item.images && item.images.length > 0" class="mt-2 flex flex-wrap gap-2">
+                        <div class="mt-2 flex flex-wrap gap-2">
                             <div 
-                                v-for="(image, imgIndex) in item.images.slice(0, 3)" 
+                                v-for="(image, imgIndex) in getItemImages(item).slice(0, 3)" 
                                 :key="`${index}-${imgIndex}`" 
                                 class="w-16 h-16 sm:w-20 sm:h-20 aspect-square relative rounded-md overflow-hidden border border-border dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
                             >
-                                <ImagePreview :images="[image]" :alt="`${item.name} - Image ${imgIndex + 1}`" />
+                                <img 
+                                    :src="image" 
+                                    :alt="`${item.name} - Image ${imgIndex + 1}`"
+                                    class="w-full h-full object-cover"
+                                    @error="$event.target.src = '/images/placeholder-product.jpg'"
+                                />
                             </div>
                             <div 
-                                v-if="item.images.length > 3" 
+                                v-if="getItemImages(item).length > 3" 
                                 class="w-16 h-16 sm:w-20 sm:h-20 aspect-square flex items-center justify-center text-xs border border-border dark:border-gray-700 rounded-md text-muted-foreground bg-muted dark:bg-gray-800 cursor-pointer hover:bg-muted/70 transition-colors"
                             >
-                                +{{ item.images.length - 3 }} more
+                                +{{ getItemImages(item).length - 3 }} more
                             </div>
                         </div>
                     </div>

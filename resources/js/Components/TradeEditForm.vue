@@ -763,67 +763,59 @@ const confirmAndSubmit = () => {
       formData.append(`offered_items[${index}][id]`, item.id);
     }
     
-    if (item.current_images && item.current_images.length > 0) {
+    if (item.current_images && Array.isArray(item.current_images)) {
       formData.append(`offered_items[${index}][current_images]`, JSON.stringify(item.current_images));
     }
     
-    if (item.images && item.images.length > 0) {
-      const imageInfoArray = [];
-      
-      item.images.forEach((image, imageIndex) => {
-        if (image instanceof File) {
-          const uniqueFilename = `offered_item_${index}_image_${imageIndex}_${Date.now()}_${image.name}`;
-          formData.append(`offered_items[${index}][image_files][]`, image);
-          
-          imageInfoArray.push({
-            original_name: image.name,
-            size: image.size,
-            type: image.type,
-            unique_key: uniqueFilename
-          });
+    if (item.images && Array.isArray(item.images)) {
+      item.images.forEach((file, fileIndex) => {
+        if (file instanceof File) {
+          formData.append(`offered_items[${index}][image_files][${fileIndex}]`, file);
         }
       });
-      
-      if (imageInfoArray.length > 0) {
-        formData.append(`offered_items[${index}][images_json]`, JSON.stringify(imageInfoArray));
-      }
     }
   });
   
   axios.post(route('trades.update', props.tradeId), formData)
     .then(response => {
-      if (response.data && response.data.success) {
+      loading.value = false;
+      if (response.data.success) {
         toast({
-          title: "Success",
-          description: response.data.message || "Trade offer updated successfully!",
+          title: "Success!",
+          description: "Your trade offer has been updated successfully.",
           variant: "success"
         });
-        
-        // Close all dialogs
-        showSummaryDialog.value = false;
-        closeDialog();
-        
-        // Redirect back to MyTrades page
-        window.location.href = route('dashboard.trades');
-      } else {
-        throw new Error(response.data?.message || "Unknown error occurred");
-      }
-    })
-    .catch(error => {
-      showSummaryDialog.value = false;
-      
-      if (error.response && error.response.data && error.response.data.errors) {
-        errors.value = error.response.data.errors;
+        emit('close');
+        emit('update:open', false);
       } else {
         toast({
           title: "Error",
-          description: error.message || "Failed to update trade offer",
+          description: response.data.message || "Failed to update trade offer.",
           variant: "destructive"
         });
       }
     })
-    .finally(() => {
+    .catch(error => {
       loading.value = false;
+      console.error('Trade update error:', error);
+      
+      if (error.response && error.response.data) {
+        if (error.response.data.errors) {
+          errors.value = error.response.data.errors;
+        } else if (error.response.data.message) {
+          toast({
+            title: "Error",
+            description: error.response.data.message,
+            variant: "destructive"
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "An error occurred while updating the trade offer.",
+          variant: "destructive"
+        });
+      }
     });
 };
 
@@ -915,8 +907,7 @@ const resetLocationSelection = () => {
 
 const removeExistingImage = (itemIndex, imageIndex) => {
   if (form.offered_items[itemIndex] && 
-      form.offered_items[itemIndex].current_images && 
-      form.offered_items[itemIndex].current_images.length > imageIndex) {
+      form.offered_items[itemIndex].current_images) {
     const newImages = [...form.offered_items[itemIndex].current_images];
     newImages.splice(imageIndex, 1);
     form.offered_items[itemIndex].current_images = newImages;
